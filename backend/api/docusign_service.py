@@ -552,7 +552,7 @@ def get_signing_url(envelope_id: str, recipient_email: str, recipient_name: str 
             return None
         
         # Get frontend URL for return after signing
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
         return_url = f"{frontend_url.rstrip('/')}/lease-signed"
         
         # Create recipient view request

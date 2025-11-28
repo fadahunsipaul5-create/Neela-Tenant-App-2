@@ -70,7 +70,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             token, uidb64 = generate_password_reset_token(user)
             
             # Get frontend URL from settings
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
             reset_url = get_password_reset_url(uidb64, token, frontend_url)
             
             # Send acceptance email with password reset link

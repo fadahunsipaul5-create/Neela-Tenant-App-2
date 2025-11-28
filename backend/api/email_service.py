@@ -238,7 +238,7 @@ def _send_application_notification_to_admin(tenant_id):
     subject = f'New Property Application: {tenant.name}'
     
     # Get admin login URL (base frontend URL - admin can click Admin Login button)
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     admin_login_url = f"{frontend_url.rstrip('/')}/admin-login"
     
     # Render email template
@@ -377,7 +377,7 @@ def _send_maintenance_ticket_notification_to_manager(maintenance_request_id):
     
     subject = f'New Maintenance Request: {maintenance_request.category} - {maintenance_request.tenant.name}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     admin_login_url = f"{frontend_url.rstrip('/')}/admin-login"
     
     context = {
@@ -442,7 +442,7 @@ def _send_maintenance_ticket_confirmation_to_tenant(maintenance_request_id):
     
     subject = f'Maintenance Request Confirmation - Ticket #{maintenance_request.id}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     tenant_portal_url = f"{frontend_url.rstrip('/')}"
     
     context = {
@@ -516,7 +516,7 @@ def _send_maintenance_status_update_to_tenant(maintenance_request_id, old_status
     
     subject = f'Maintenance Request Status Update - Ticket #{maintenance_request.id}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     tenant_portal_url = f"{frontend_url.rstrip('/')}"
     
     context = {
@@ -596,7 +596,7 @@ def _send_maintenance_comment_notification_to_tenant(maintenance_request_id, com
     
     subject = f'New Comment on Maintenance Request - Ticket #{maintenance_request.id}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     tenant_portal_url = f"{frontend_url.rstrip('/')}"
     
     context = {
@@ -673,7 +673,7 @@ def _send_payment_invoice_to_tenant(payment_id):
     
     subject = f'Payment Invoice - ${payment.amount} - {payment.type}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     payment_url = f"{frontend_url.rstrip('/')}"
     
     context = {
@@ -757,7 +757,7 @@ def _send_payment_reminder_to_tenant(payment_id):
     if is_overdue:
         subject = f'⚠️ Overdue Payment - ${payment.amount} - {payment.type}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     payment_url = f"{frontend_url.rstrip('/')}"
     
     context = {
@@ -983,7 +983,7 @@ def _send_lease_ready_for_signing(legal_document_id):
     
     subject = f'Lease Agreement Ready for Signing - {legal_doc.tenant.property_unit}'
     
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant-app.vercel.app')
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
     signing_url = legal_doc.docusign_signing_url or f"{frontend_url.rstrip('/')}/lease-signed"
     
     context = {
