@@ -27,6 +27,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   const [leaseTemplates, setLeaseTemplates] = useState<any[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [generatedLease, setGeneratedLease] = useState('');
   const [generatedLeaseDoc, setGeneratedLeaseDoc] = useState<any>(null);
@@ -128,6 +129,67 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     };
     loadTemplates();
   }, []);
+
+  const handleCreateDefaultTemplate = async () => {
+    setIsCreatingTemplate(true);
+    setErrorMessage(null);
+    try {
+      const defaultTemplate = {
+        name: 'Standard Residential Lease',
+        content: `RESIDENTIAL LEASE AGREEMENT
+
+This Lease Agreement ("Lease") is entered into on {{current_date}} between {{property_manager}} ("Landlord") and {{tenant_name}} ("Tenant").
+
+1. PROPERTY
+Landlord leases to Tenant the property located at {{property_unit}} (the "Property").
+
+2. TERM
+The lease term begins on {{lease_start_date}} and ends on {{lease_end_date}}.
+
+3. RENT
+Tenant agrees to pay Landlord monthly rent of {{rent_amount}} per month, due on the first day of each month.
+
+4. SECURITY DEPOSIT
+Tenant has paid a security deposit of {{deposit_amount}} which will be held by Landlord as security for the performance of Tenant's obligations under this Lease.
+
+5. TENANT INFORMATION
+Tenant Name: {{tenant_name}}
+Email: {{tenant_email}}
+Phone: {{tenant_phone}}
+Employer: {{employer}}
+Job Title: {{job_title}}
+Monthly Income: {{monthly_income}}
+
+6. OBLIGATIONS
+Tenant agrees to:
+- Pay rent on time
+- Keep the Property clean and in good condition
+- Not disturb other tenants
+- Comply with all applicable laws and regulations
+
+7. DEFAULT
+If Tenant fails to pay rent or breaches any term of this Lease, Landlord may terminate this Lease.
+
+8. SIGNATURES
+By signing below, both parties agree to the terms of this Lease.
+
+_________________________          _________________________
+Landlord                            Tenant
+{{current_date}}                    {{current_date}}`,
+        is_active: true
+      };
+
+      const newTemplate = await api.createLeaseTemplate(defaultTemplate);
+      setLeaseTemplates(prev => [...prev, newTemplate]);
+      setSelectedTemplateId(String(newTemplate.id));
+      setSuccessMessage('Default lease template created successfully!');
+    } catch (error) {
+      console.error('Failed to create default template:', error);
+      setErrorMessage('Failed to create default lease template');
+    } finally {
+      setIsCreatingTemplate(false);
+    }
+  };
 
   const openApplicationReview = (applicant: Tenant) => {
     setSelectedApplicant(applicant);
@@ -705,6 +767,16 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
                                         ))
                                       )}
                                    </select>
+                                   {leaseTemplates.length === 0 && !isLoadingTemplates && !templateError && (
+                                      <button 
+                                        onClick={handleCreateDefaultTemplate}
+                                        disabled={isCreatingTemplate}
+                                        className="mt-2 text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1"
+                                      >
+                                        {isCreatingTemplate ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                                        Create Default Template
+                                      </button>
+                                   )}
                                 </div>
                                 <div>
                                    <label className="block text-sm font-medium text-slate-700 mb-1">Lease Term</label>

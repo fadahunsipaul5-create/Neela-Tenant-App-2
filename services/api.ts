@@ -515,6 +515,16 @@ export const api = {
     return await response.json();
   },
 
+  createLeaseTemplate: async (templateData: { name: string; content: string; is_active?: boolean }): Promise<any> => {
+    const response = await fetch(`${API_URL}/lease-templates/`, {
+      method: 'POST',
+      headers: getHeaders(true, false), // Public endpoint, no auth needed
+      body: JSON.stringify(templateData),
+    });
+    if (!response.ok) throw new Error('Failed to create lease template');
+    return await response.json();
+  },
+
   // Lease Generation API
   generateLease: async (tenantId: string, templateId?: string, customContent?: string): Promise<any> => {
     const body: any = {
