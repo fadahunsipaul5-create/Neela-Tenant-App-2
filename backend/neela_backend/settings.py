@@ -200,11 +200,8 @@ AUTH_USER_MODEL = 'accounts.User'
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
 
 if SENDGRID_API_KEY:
-    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
-    ANYMAIL = {
-        "SENDGRID_API_KEY": SENDGRID_API_KEY,
-    }
-    # Default from email must be a verified sender in SendGrid
+    EMAIL_BACKEND = "api.sendgrid_backend.SendGridBackend"
+
     DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'neela@example.com')
 else:
     # Fallback to SMTP (or Console in Debug)
@@ -220,7 +217,6 @@ else:
     EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
     EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
     DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-
 # DocuSign Configuration (optional)
 DOCUSIGN_API_CLIENT_ID = os.environ.get('DOCUSIGN_API_CLIENT_ID', '').strip()
 # DOCUSIGN_API_SECRET = os.environ.get('DOCUSIGN_API_SECRET', '').strip()
@@ -322,3 +318,4 @@ LOGGING = {
         },
     },
 }
+
