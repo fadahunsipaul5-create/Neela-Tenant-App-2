@@ -1,5 +1,5 @@
 services:
-  # Django Web Service
+  # Django Web Service (Running both Web + Worker for Free Tier)
   - type: web
     name: neela-backend
     runtime: docker
@@ -17,9 +17,9 @@ services:
           name: neela-db
           property: connectionString
       - key: CELERY_BROKER_URL
-        sync: false # User must provide this (e.g., internal Redis URL or external provider)
+        sync: false
       - key: CELERY_RESULT_BACKEND
-        sync: false # User must provide this
+        sync: false
       - key: EMAIL_HOST_USER
         sync: false
       - key: EMAIL_HOST_PASSWORD
@@ -28,28 +28,8 @@ services:
         sync: false
       - key: DOCUSIGN_ACCOUNT_ID
         sync: false
-    dockerCommand: gunicorn neela_backend.wsgi:application --bind 0.0.0.0:$PORT
-
-  # Celery Worker Service
-  - type: worker
-    name: neela-worker
-    runtime: docker
-    rootDir: backend
-    plan: free
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: neela-db
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        sync: false
-      - key: CELERY_RESULT_BACKEND
-        sync: false
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-    dockerCommand: celery -A neela_backend worker --loglevel=info
+    # We don't specify dockerCommand here because we'll use the CMD from Dockerfile
+    # which will point to our start.sh script
 
 databases:
   - name: neela-db

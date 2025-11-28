@@ -15,8 +15,9 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy project
 COPY . /app/
 
-# Make sure scripts are executable if you add any
-# RUN chmod +x /app/entrypoint.sh 
+# Make sure scripts are executable
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Run gunicorn by default, but this can be overridden
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "neela_backend.wsgi:application"]
+# Run the start script
+CMD ["/app/start.sh"]
