@@ -3,7 +3,7 @@ Email service for sending application-related emails.
 """
 import threading
 import logging
-from django.core.mail import send_mail, EmailMessage, get_connection
+from django.core.mail import send_mail, EmailMessage
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -89,8 +89,8 @@ def send_email_with_logging(subject, message, from_email, recipient_list, html_m
     logger.info(f"Attempting to send {email_type} to {len(recipient_list)} recipient(s) using {email_backend}")
     logger.debug(f"Recipients: {recipient_list}, From: {from_email}, Subject: {subject}")
     
-    # FORCE fail_silently=False to catch exceptions and log them
-    fail_silently = False 
+    # Use fail_silently=False in DEBUG mode to catch errors, True in production
+    fail_silently = not getattr(settings, 'DEBUG', False)
     
     try:
         result = send_mail(
@@ -105,7 +105,6 @@ def send_email_with_logging(subject, message, from_email, recipient_list, html_m
         if result > 0:
             logger.info(f"{email_type} sent successfully to {recipient_list} (sent {result} email(s))")
         else:
-            # If result is 0 but no exception was raised (rare with fail_silently=False)
             logger.error(f"Failed to send {email_type}: send_mail returned {result} (0 indicates failure)")
         
         return result
@@ -113,18 +112,53 @@ def send_email_with_logging(subject, message, from_email, recipient_list, html_m
         error_type = type(e).__name__
         error_msg = str(e)
         
-        logger.error(f"CRITICAL EMAIL FAILURE: {error_type}: {error_msg}", exc_info=True)
-
         # Provide more helpful error messages for common SMTP issues
         if 'SMTPServerDisconnected' in error_type or 'Connection unexpectedly closed' in error_msg:
             logger.error(
-                f"SMTP connection error details:\n"
-                f"  - Host: {getattr(settings, 'EMAIL_HOST', 'not set')}\n"
-                f"  - Port: {getattr(settings, 'EMAIL_PORT', 'not set')}\n"
-                f"  - TLS: {getattr(settings, 'EMAIL_USE_TLS', 'not set')}\n"
-                f"  - User: {getattr(settings, 'EMAIL_HOST_USER', 'not set')}"
+                f"SMTP connection error sending {email_type}: {error_msg}\n"
+                f"Possible causes:\n"
+                f"  - SMTP server rejected the connection\n"
+                f"  - Incorrect EMAIL_HOST or EMAIL_PORT\n"
+                f"  - Firewall blocking SMTP connection\n"
+                f"  - Gmail requires app-specific password (not regular password)\n"
+                f"  - EMAIL_HOST_USER or EMAIL_HOST_PASSWORD incorrect\n"
+                f"Email backend: {email_backend}, Host: {getattr(settings, 'EMAIL_HOST', 'not set')}, "
+                f"Port: {getattr(settings, 'EMAIL_PORT', 'not set')}, "
+                f"User: {getattr(settings, 'EMAIL_HOST_USER', 'not set')}",
+                exc_info=True
             )
             
+            # In DEBUG mode, try falling back to console backend if SMTP fails
+            if getattr(settings, 'DEBUG', False) and 'smtp' in email_backend.lower():
+                logger.warning(f"SMTP failed in DEBUG mode. Falling back to console backend for {email_type}")
+                try:
+                    from django.core.mail import get_connection
+                    console_connection = get_connection('django.core.mail.backends.console.EmailBackend')
+                    email_message = EmailMessage(
+                        subject=subject,
+                        body=html_message if html_message else message,
+                        from_email=from_email,
+                        to=recipient_list,
+                    )
+                    if html_message:
+                        email_message.content_subtype = 'html'
+                    result = console_connection.send_messages([email_message])
+                    if result > 0:
+                        logger.info(f"{email_type} sent via console backend fallback (sent {result} email(s))")
+                        return result
+                except Exception as fallback_error:
+                    logger.error(f"Console backend fallback also failed: {fallback_error}", exc_info=True)
+            
+        elif 'SMTPAuthenticationError' in error_type or 'authentication failed' in error_msg.lower():
+            logger.error(
+                f"SMTP authentication error sending {email_type}: {error_msg}\n"
+                f"Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD. "
+                f"For Gmail, you may need to use an app-specific password.",
+                exc_info=True
+            )
+        else:
+            logger.error(f"Error sending {email_type}: {error_type}: {error_msg}", exc_info=True)
+        
         return 0
 
 
@@ -1257,8 +1291,8 @@ def _send_notice_to_tenant(legal_document_id, pdf_path=None):
     email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
     logger.info(f"Attempting to send notice email to {legal_doc.tenant.email} using {email_backend}")
     
-    # FORCE fail_silently=False to catch errors
-    fail_silently = False
+    # Use fail_silently=False in DEBUG mode to catch errors, True in production
+    fail_silently = not getattr(settings, 'DEBUG', False)
     
     try:
         email = EmailMessage(
@@ -1299,3 +1333,4 @@ def send_notice_to_tenant(legal_document_id, pdf_path=None):
     email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
     logger.info(f"Celery task executing: send_notice_to_tenant for document {legal_document_id}, using email backend: {email_backend}")
     _send_notice_to_tenant(legal_document_id, pdf_path)
+

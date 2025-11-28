@@ -208,6 +208,7 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
 # DocuSign Configuration (optional)
 DOCUSIGN_API_CLIENT_ID = os.environ.get('DOCUSIGN_API_CLIENT_ID', '').strip()
 # DOCUSIGN_API_SECRET = os.environ.get('DOCUSIGN_API_SECRET', '').strip()
