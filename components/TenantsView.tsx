@@ -25,6 +25,8 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   
   // Lease Generation State
   const [leaseTemplates, setLeaseTemplates] = useState<any[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [generatedLease, setGeneratedLease] = useState('');
   const [generatedLeaseDoc, setGeneratedLeaseDoc] = useState<any>(null);
@@ -109,6 +111,8 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   // Load lease templates when component mounts
   useEffect(() => {
     const loadTemplates = async () => {
+      setIsLoadingTemplates(true);
+      setTemplateError(null);
       try {
         const templates = await api.getLeaseTemplates();
         setLeaseTemplates(templates);
@@ -117,6 +121,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
         }
       } catch (error) {
         console.error('Failed to load lease templates:', error);
+        setTemplateError('Failed to load templates');
+      } finally {
+        setIsLoadingTemplates(false);
       }
     };
     loadTemplates();
@@ -682,9 +689,14 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
                                      className="w-full p-2 border border-slate-300 rounded-lg"
                                      value={selectedTemplateId || ''}
                                      onChange={(e) => setSelectedTemplateId(e.target.value)}
+                                     disabled={isLoadingTemplates || !!templateError}
                                    >
-                                      {leaseTemplates.length === 0 ? (
+                                      {isLoadingTemplates ? (
                                         <option value="">Loading templates...</option>
+                                      ) : templateError ? (
+                                        <option value="">Error loading templates</option>
+                                      ) : leaseTemplates.length === 0 ? (
+                                        <option value="">No templates available</option>
                                       ) : (
                                         leaseTemplates.map(template => (
                                           <option key={template.id} value={template.id}>

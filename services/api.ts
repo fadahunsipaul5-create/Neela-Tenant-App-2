@@ -509,7 +509,7 @@ export const api = {
   // Lease Template APIs
   getLeaseTemplates: async (): Promise<any[]> => {
     const response = await fetch(`${API_URL}/lease-templates/`, {
-      headers: getHeaders(false),
+      headers: getHeaders(false, false),
     });
     if (!response.ok) throw new Error('Failed to fetch lease templates');
     return await response.json();
