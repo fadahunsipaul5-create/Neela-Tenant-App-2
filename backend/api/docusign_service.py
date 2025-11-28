@@ -484,7 +484,7 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
                     "name": tenant_name,
                     "recipientId": "1",
                     "routingOrder": "1",
-                    "clientUserId": f"tenant_{legal_document_id}", # UNCOMMENTED FOR EMBEDDED SIGNING
+                    # "clientUserId": f"tenant_{legal_document_id}", # Commented out for remote signing (email)
                     "tabs": {
                         "signHereTabs": [{
                             "documentId": "1",
@@ -515,12 +515,12 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
         logger.info(f"DocuSign envelope created successfully (RAW): {envelope_id}")
         
         # Get signing URL
-        # For raw implementation, we can't skip this if we want embedded
-        # But we commented out clientUserId, so we skip getting signing URL for now
-        # and return success immediately for remote signing.
+        # For remote signing (email), we don't generate a signing URL.
+        # The tenant will receive an email from DocuSign.
+        signing_url = None
         
-        signing_url = get_signing_url(envelope_id, tenant_email, tenant_name)
-        # signing_url = None # Remote signing only for this test
+        # Only generate signing URL if we are doing embedded signing (clientUserId is set)
+        # signing_url = get_signing_url(envelope_id, tenant_email, tenant_name)
         
         return {
             'envelope_id': envelope_id,

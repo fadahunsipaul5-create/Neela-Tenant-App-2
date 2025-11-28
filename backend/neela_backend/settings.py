@@ -226,8 +226,14 @@ DOCUSIGN_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'neela_backend', 'dsign_priva
 
 DOCUSIGN_REDIRECT_URI = os.environ.get(
     "DOCUSIGN_REDIRECT_URI",
-    os.environ.get("DOCUSIGN_REDIRECT_URL", "http://localhost:8000/docusign/callback/")
+    os.environ.get("DOCUSIGN_REDIRECT_URL")
 )
+
+if not DOCUSIGN_REDIRECT_URI:
+    if RENDER_EXTERNAL_HOSTNAME:
+        DOCUSIGN_REDIRECT_URI = f"https://{RENDER_EXTERNAL_HOSTNAME}/docusign/callback/"
+    else:
+        DOCUSIGN_REDIRECT_URI = "http://localhost:8000/docusign/callback/"
 
 
 with open(DOCUSIGN_PRIVATE_KEY_FILE, "rb") as f:
