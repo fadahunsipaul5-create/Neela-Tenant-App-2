@@ -1,0 +1,60 @@
+services:
+  # Django Web Service
+  - type: web
+    name: neela-backend
+    runtime: docker
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: 2
+      - key: DEBUG
+        value: 'False'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: neela-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        sync: false # User must provide this (e.g., internal Redis URL or external provider)
+      - key: CELERY_RESULT_BACKEND
+        sync: false # User must provide this
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DOCUSIGN_API_CLIENT_ID
+        sync: false
+      - key: DOCUSIGN_ACCOUNT_ID
+        sync: false
+    buildCommand: docker build -t neela-backend .
+    startCommand: gunicorn neela_backend.wsgi:application --bind 0.0.0.0:$PORT
+
+  # Celery Worker Service
+  - type: worker
+    name: neela-worker
+    runtime: docker
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: neela-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+    buildCommand: docker build -t neela-backend .
+    startCommand: celery -A neela_backend worker --loglevel=info
+
+databases:
+  - name: neela-db
+    databaseName: neela
+    user: neela
+    plan: free

@@ -1,7 +1,8 @@
 import { Tenant, Payment, MaintenanceRequest, Listing, Property } from '../types';
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = `${BASE_URL}/api`;
 
 // Track if we're currently refreshing to avoid multiple simultaneous refresh attempts
 let isRefreshing = false;
