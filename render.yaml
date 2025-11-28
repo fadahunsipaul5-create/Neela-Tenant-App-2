@@ -28,8 +28,7 @@ services:
         sync: false
       - key: DOCUSIGN_ACCOUNT_ID
         sync: false
-    buildCommand: docker build -t neela-backend .
-    startCommand: gunicorn neela_backend.wsgi:application --bind 0.0.0.0:$PORT
+    dockerCommand: gunicorn neela_backend.wsgi:application --bind 0.0.0.0:$PORT
 
   # Celery Worker Service
   - type: worker
@@ -50,8 +49,7 @@ services:
         sync: false
       - key: EMAIL_HOST_PASSWORD
         sync: false
-    buildCommand: docker build -t neela-backend .
-    startCommand: celery -A neela_backend worker --loglevel=info
+    dockerCommand: celery -A neela_backend worker --loglevel=info
 
 databases:
   - name: neela-db
