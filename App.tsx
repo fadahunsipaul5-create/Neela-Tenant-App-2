@@ -15,7 +15,7 @@ import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
-  // Check if we're on a password reset page
+  // Check if we're on a password reset page - Vercel deployment trigger
   const pathname = window.location.pathname;
   const resetPasswordMatch = pathname.match(/^\/reset-password\/([^/]+)\/([^/]+)\/?$/);
   
