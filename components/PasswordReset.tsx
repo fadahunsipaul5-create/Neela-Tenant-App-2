@@ -21,7 +21,7 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ uidb64, token, onSuccess 
     // Verify token on mount
     const verifyToken = async () => {
       try {
-        const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
         const response = await fetch(`${BASE_URL}/accounts/verify-reset-token/`, {
           method: 'POST',
           headers: {
@@ -70,7 +70,7 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ uidb64, token, onSuccess 
     setIsSubmitting(true);
 
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
       const response = await fetch(`${BASE_URL}/accounts/reset-password/`, {
         method: 'POST',
         headers: {
