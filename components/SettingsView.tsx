@@ -30,7 +30,6 @@ const SettingsView: React.FC = () => {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageInputMethod, setImageInputMethod] = useState<'url' | 'upload'>('url');
   const [isSaving, setIsSaving] = useState(false);
 
   // Templates
@@ -145,23 +144,9 @@ ________________________ Tenant`);
     setImageFile(null);
     setImagePreview(null);
     
-    // Logic: 
-    // 1. If property.image is a URL starting with http/https but NOT pointing to our own media backend, it's likely an external URL -> set mode to 'url'.
-    // 2. If property.image is a local path (e.g. /media/...) or a full URL to our backend, treat it as 'upload' (so we show the file input or existing image).
-    // However, since the backend serializer converts file uploads to full URLs (e.g. http://backend.com/media/...), differentiating is tricky.
-    // SIMPLIFIED LOGIC: If we have an image string:
-    // - If it looks like a backend media URL (contains '/media/'), default to 'upload' view to show it as an existing file? 
-    //   Actually, 'upload' mode typically expects a NEW file. 
-    //   Let's stick to: If it's a file upload from us, we might want to show it in a way that indicates "Existing Image".
-    //   The user's issue is that they upload a file, save, and when they re-open, it shows as a URL.
-    //   That is technically correct behavior because the backend returns the URL of the uploaded file.
-    //   To fix the UX, if the URL looks like it comes from our backend storage, we can default to 'upload' mode but show "Current Image" preview.
-    
-    const isBackendMedia = property.image?.includes('/media/');
-    setImageInputMethod(isBackendMedia ? 'upload' : (property.image ? 'url' : 'upload'));
-    
-    // If it is a backend media, we want to show it as a preview in the upload section, not as a text URL
-    if (isBackendMedia && property.image) {
+    // Logic: Always use upload mode, but show existing image as preview
+    // Since we removed the URL option, we just set the preview if an image exists.
+    if (property.image) {
         setImagePreview(property.image);
     }
 
@@ -199,7 +184,6 @@ ________________________ Tenant`);
     setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, image: '' });
     setImageFile(null);
     setImagePreview(null);
-    setImageInputMethod('url');
   };
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -717,41 +701,7 @@ ________________________ Tenant`);
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Property Image (Optional)</label>
                 
-                {/* Toggle between Upload and URL */}
-                <div className="flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageInputMethod('upload');
-                      setEditFormData({...editFormData, image: ''});
-                    }}
-                    className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      imageInputMethod === 'upload'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    Upload File
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageInputMethod('url');
-                      setImageFile(null);
-                      setImagePreview(null);
-                    }}
-                    className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      imageInputMethod === 'url'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    Enter URL
-                  </button>
-                </div>
-
                 {/* File Upload Input */}
-                {imageInputMethod === 'upload' && (
                   <div>
                     <input
                       type="file"
@@ -766,12 +716,13 @@ ________________________ Tenant`);
                     >
                       <Upload className="w-6 h-6 mx-auto mb-2 text-slate-400" />
                       <span className="text-sm font-medium text-slate-700">
-                        {imageFile ? imageFile.name : 'Click to upload image'}
+                        {imageFile ? imageFile.name : 'Click to upload new image'}
                       </span>
                       <span className="block text-xs text-slate-500 mt-1">JPG, PNG, WebP (Max 5MB)</span>
                     </label>
                     {imagePreview && (
                       <div className="mt-3 relative">
+                        <p className="text-xs text-slate-500 mb-1 font-medium">Current / Selected Image:</p>
                         <img 
                           src={imagePreview} 
                           alt="Property preview" 
@@ -780,39 +731,14 @@ ________________________ Tenant`);
                         <button
                           type="button"
                           onClick={handleRemoveImage}
-                          className="absolute top-2 right-2 p-1 bg-rose-500 text-white rounded-full hover:bg-rose-600"
+                          className="absolute top-6 right-2 p-1 bg-rose-500 text-white rounded-full hover:bg-rose-600"
+                          title="Remove Image"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* URL Input */}
-                {imageInputMethod === 'url' && (
-                  <div>
-                    <input
-                      type="url"
-                      value={editFormData.image}
-                      onChange={(e) => setEditFormData({...editFormData, image: e.target.value})}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
-                      placeholder="https://example.com/image.jpg"
-                    />
-                    {editFormData.image && (
-                      <div className="mt-2">
-                        <img 
-                          src={editFormData.image} 
-                          alt="Property preview" 
-                          className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
               </div>
             </div>
