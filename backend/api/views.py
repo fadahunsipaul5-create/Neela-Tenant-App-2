@@ -255,6 +255,13 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         context['request'] = self.request
         return context
     
+    def get_queryset(self):
+        queryset = LegalDocument.objects.all()
+        tenant_id = self.request.query_params.get('tenant')
+        if tenant_id:
+            queryset = queryset.filter(tenant_id=tenant_id)
+        return queryset
+    
     @action(detail=False, methods=['post'])
     def generate_lease(self, request):
         """Generate lease PDF for a tenant."""
