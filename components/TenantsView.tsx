@@ -110,6 +110,44 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     }
   };
 
+  const handleFinalizeMoveIn = async () => {
+    if (!selectedApplicant) return;
+    
+    setIsSaving(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    
+    try {
+      await api.updateTenant(selectedApplicant.id, {
+        status: TenantStatus.ACTIVE
+      });
+      
+      setSuccessMessage('Move-in finalized! Applicant is now an active resident.');
+      
+      // Refresh tenant list
+      if (onTenantsChange) {
+        onTenantsChange();
+      }
+      
+      // Update selected applicant status locally
+      setSelectedApplicant({
+        ...selectedApplicant,
+        status: TenantStatus.ACTIVE
+      });
+      
+      // Close modal after a short delay and switch tab
+      setTimeout(() => {
+        setSelectedApplicant(null);
+        setSuccessMessage(null);
+        setActiveTab('residents');
+      }, 2000);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to finalize move-in');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Load lease templates when component mounts
   useEffect(() => {
     const loadTemplates = async () => {
@@ -537,8 +575,20 @@ Landlord                            Tenant
                  {/* Action Buttons */}
                  <div className="mt-auto space-y-2 pt-6 border-t border-slate-200">
                     {leaseStatus === 'Signed' ? (
-                       <button className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2">
-                         <UserPlus className="w-4 h-4" /> Finalize Move-In
+                       <button 
+                         onClick={handleFinalizeMoveIn}
+                         disabled={isSaving}
+                         className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:cursor-not-allowed"
+                       >
+                         {isSaving ? (
+                           <>
+                             <Loader2 className="w-4 h-4 animate-spin" /> Finalizing...
+                           </>
+                         ) : (
+                           <>
+                             <UserPlus className="w-4 h-4" /> Finalize Move-In
+                           </>
+                         )}
                        </button>
                     ) : (
                       <>
