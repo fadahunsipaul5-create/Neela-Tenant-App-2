@@ -444,6 +444,10 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             legal_doc.status = 'Sent'
             legal_doc.delivery_method = 'DocuSign'
             legal_doc.save()
+            
+            # Update tenant lease status
+            legal_doc.tenant.lease_status = 'Sent'
+            legal_doc.tenant.save()
 
             # Optionally send notification email
             try:
@@ -463,6 +467,77 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                 {'error': f'Failed to send lease via DocuSign: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['get', 'post'])
+    def check_status(self, request, pk=None):
+        """
+        Check DocuSign envelope status and update local status.
+        """
+        legal_doc = self.get_object()
+        
+        if not legal_doc.docusign_envelope_id:
+             return Response({'status': legal_doc.status, 'message': 'No envelope ID found'})
+
+        try:
+            # Get status from DocuSign
+            status_info = get_envelope_status(legal_doc.docusign_envelope_id)
+            
+            if not status_info:
+                return Response({'status': legal_doc.status, 'message': 'Could not fetch status from DocuSign'})
+                
+            ds_status = status_info.get('status')
+            
+            # Map DocuSign status to our status
+            # DocuSign statuses: created, sent, delivered, signed, completed, declined, voided, timedout
+            
+            if ds_status == 'completed':
+                if legal_doc.status != 'Signed':
+                    # Update status
+                    legal_doc.status = 'Signed'
+                    legal_doc.signed_at = timezone.now()
+                    
+                    # Download signed document
+                    signed_pdf_content = download_signed_document(legal_doc.docusign_envelope_id)
+                    if signed_pdf_content:
+                        # Save as signed PDF
+                        filename = f"signed_lease_{legal_doc.tenant.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                        legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
+                        # Also set signed_pdf_url if you want to distinguish, but usually replacing the main file is fine
+                        # or we can assume pdf_file now contains the signed version.
+                        # If you have a separate field:
+                        # legal_doc.signed_pdf_url = ... (requires upload to S3 or similar if URLField)
+                        # For now, we've updated the file field.
+                    
+                    legal_doc.save()
+                    
+                    # Update tenant
+                    tenant = legal_doc.tenant
+                    tenant.lease_status = 'Signed'
+                    tenant.save()
+                    
+                    # Send confirmation
+                    try:
+                        task = send_lease_signed_confirmation.delay(legal_doc.id)
+                    except:
+                        send_lease_signed_confirmation(legal_doc.id)
+
+            elif ds_status in ['declined', 'voided']:
+                legal_doc.status = 'Declined' if ds_status == 'declined' else 'Voided'
+                legal_doc.save()
+                tenant = legal_doc.tenant
+                tenant.lease_status = 'Declined' if ds_status == 'declined' else 'Voided'
+                tenant.save()
+
+            serializer = self.get_serializer(legal_doc)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error checking DocuSign status: {e}", exc_info=True)
+            return Response(
+                {'error': f'Failed to check status: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def perform_update(self, serializer):
         old_instance = self.get_object()
         old_docusign_signing_url = old_instance.docusign_signing_url

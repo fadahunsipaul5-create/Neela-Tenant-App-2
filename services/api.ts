@@ -571,6 +571,37 @@ export const api = {
     return await response.json();
   },
 
+  // Check lease status via DocuSign
+  checkLeaseStatus: async (legalDocumentId: string): Promise<any> => {
+    const response = await fetchWithAuth(
+      `${API_URL}/legal-documents/${legalDocumentId}/check_status/`,
+      {
+        method: 'POST',
+        headers: getHeaders(false, true),
+      }
+    );
+    if (!response.ok) {
+      let error: any = { detail: 'Failed to check lease status' };
+      try {
+        error = await response.json();
+      } catch {
+        // keep default
+      }
+      throw new Error(error.detail || error.message || 'Failed to check lease status');
+    }
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      tenantId: String(data.tenant),
+      pdfUrl: data.pdf_url,
+      docusignEnvelopeId: data.docusign_envelope_id,
+      docusignSigningUrl: data.docusign_signing_url,
+      signedPdfUrl: data.signed_pdf_url,
+      signedAt: data.signed_at,
+    };
+  },
+
   // Get legal documents for a tenant
   getLegalDocuments: async (tenantId?: string): Promise<any[]> => {
     let url = `${API_URL}/legal-documents/`;

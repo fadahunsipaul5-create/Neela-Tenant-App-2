@@ -5,7 +5,7 @@ import { api } from '../services/api';
 import { 
   Search, UserPlus, MoreVertical, CheckCircle, AlertCircle, Clock, 
   FileText, X, Briefcase, Shield, MessageSquare, Download, ChevronRight, Loader2,
-  Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save
+  Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save, RefreshCw
 } from 'lucide-react';
 
 interface TenantsProps {
@@ -36,6 +36,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   const [isSending, setIsSending] = useState(false);
   const [isEditingLease, setIsEditingLease] = useState(false);
   const [editedLeaseContent, setEditedLeaseContent] = useState('');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   // Add/Edit Resident Modal State
   const [isResidentModalOpen, setIsResidentModalOpen] = useState(false);
@@ -191,13 +192,74 @@ Landlord                            Tenant
     }
   };
 
+  const fetchLeaseDocument = async (tenantId: string) => {
+    try {
+      const docs = await api.getLegalDocuments(tenantId);
+      // Filter for lease agreements
+      const leaseDocs = docs.filter((d: any) => d.type === 'Lease Agreement');
+      
+      if (leaseDocs.length > 0) {
+        // Use the most recent one (assuming last in list or we could sort)
+        const leaseDoc = leaseDocs[leaseDocs.length - 1];
+        setGeneratedLeaseDoc(leaseDoc);
+        setLeaseStatus(leaseDoc.status || 'Draft');
+        
+        // If we have content, set it for preview
+        if (leaseDoc.generatedContent) {
+          setGeneratedLease(leaseDoc.generatedContent);
+        }
+        
+        // If it's Sent, auto-check status to see if it's been signed since we last looked
+        if (leaseDoc.status === 'Sent') {
+           // Don't await this, let it run in background
+           handleCheckStatus(leaseDoc.id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch lease documents:', error);
+    }
+  };
+
+  const handleCheckStatus = async (docId?: string) => {
+    const idToCheck = docId || generatedLeaseDoc?.id;
+    if (!idToCheck) return;
+    
+    setIsCheckingStatus(true);
+    try {
+      const updatedDoc = await api.checkLeaseStatus(idToCheck);
+      setGeneratedLeaseDoc(updatedDoc);
+      
+      const newStatus = updatedDoc.status || 'Sent';
+      setLeaseStatus(newStatus);
+      
+      if (newStatus === 'Signed') {
+         setSuccessMessage("Lease status updated: Signed! Document captured.");
+         // Update tenant list locally to reflect status change
+         if (onTenantsChange) onTenantsChange();
+      }
+    } catch (error) {
+      console.error('Failed to check lease status:', error);
+      // Don't show error message to user on auto-check, only on manual
+      if (!docId) {
+        setErrorMessage('Failed to check status with DocuSign');
+      }
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   const openApplicationReview = (applicant: Tenant) => {
     setSelectedApplicant(applicant);
     setInternalNotes(applicant.applicationData?.internalNotes || '');
     setApplicantModalTab('overview');
+    
+    // Reset local state
     setGeneratedLease('');
     setGeneratedLeaseDoc(null);
-    setLeaseStatus('Draft');
+    setLeaseStatus(applicant.leaseStatus || 'Draft');
+    
+    // Fetch latest lease document info
+    fetchLeaseDocument(applicant.id);
   };
 
   const runBackgroundCheck = () => {
@@ -884,7 +946,17 @@ Landlord                            Tenant
                                    <p className="text-xs text-blue-600">Envelope sent to {selectedApplicant.email}</p>
                                 </div>
                              </div>
-                             <button className="text-xs text-blue-600 underline hover:text-blue-800">Resend Link</button>
+                             <div className="flex gap-3">
+                               <button 
+                                 onClick={() => handleCheckStatus()}
+                                 disabled={isCheckingStatus}
+                                 className="text-xs text-blue-700 font-bold hover:text-blue-900 flex items-center gap-1 bg-blue-100 px-2 py-1 rounded"
+                               >
+                                 <RefreshCw className={`w-3 h-3 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                                 {isCheckingStatus ? 'Checking...' : 'Refresh Status'}
+                               </button>
+                               <button className="text-xs text-blue-600 underline hover:text-blue-800">Resend Link</button>
+                             </div>
                           </div>
                        )}
                        {leaseStatus === 'Signed' && (
