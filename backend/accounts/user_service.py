@@ -20,17 +20,30 @@ def create_user_from_tenant(tenant):
     Returns:
         tuple: (user, created) - User instance and boolean indicating if user was created
     """
-    # Check if user already exists
-    try:
-        user = User.objects.get(email=tenant.email)
-        return user, False
-    except User.DoesNotExist:
-        pass
-    
     # Extract name parts from tenant name
     name_parts = tenant.name.split(' ', 1)
     first_name = name_parts[0] if len(name_parts) > 0 else tenant.name
     last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+    # Check if user already exists
+    try:
+        user = User.objects.get(email=tenant.email)
+        
+        # Backfill name if missing
+        updated = False
+        if not user.first_name:
+            user.first_name = first_name
+            updated = True
+        if not user.last_name:
+            user.last_name = last_name
+            updated = True
+            
+        if updated:
+            user.save()
+            
+        return user, False
+    except User.DoesNotExist:
+        pass
     
     # Create user account (without password - user will set it via reset link)
     # Use create() instead of create_user() since we don't have a password yet

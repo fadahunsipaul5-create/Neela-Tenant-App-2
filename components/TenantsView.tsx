@@ -85,7 +85,22 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
         status: TenantStatus.APPROVED
       });
       
-      setSuccessMessage('Application approved successfully! Email notification sent to applicant.');
+      // Auto-generate lease
+      try {
+        const templates = await api.getLeaseTemplates();
+        // Prefer "Standard Residential Lease" or first available
+        const templateToUse = templates.find(t => t.name === 'Standard Residential Lease') || templates[0];
+        
+        if (templateToUse) {
+           await api.generateLease(selectedApplicant.id, templateToUse.id);
+           setSuccessMessage('Application approved! Lease generated and email notification sent.');
+        } else {
+           setSuccessMessage('Application approved! Email notification sent. Please generate a lease template.');
+        }
+      } catch (leaseError) {
+        console.error('Failed to auto-generate lease:', leaseError);
+        setSuccessMessage('Application approved, but lease auto-generation failed. Please generate manually.');
+      }
       
       // Refresh tenant list
       if (onTenantsChange) {

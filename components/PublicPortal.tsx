@@ -1332,9 +1332,18 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
                       <p className="text-emerald-800 mb-6 max-w-lg">
                         Your application has been approved. Please sign the lease to finalize your move-in.
                       </p>
-                      <button onClick={() => setView('lease_signing')} className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">
-                        Review & Sign Lease
-                      </button>
+                      {leaseDocument ? (
+                        <button onClick={() => setView('lease_signing')} className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">
+                          Review & Sign Lease
+                        </button>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <button disabled className="px-8 py-3 bg-emerald-400 text-white font-bold rounded-lg cursor-not-allowed flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Lease Being Prepared
+                          </button>
+                          <p className="text-emerald-700 text-xs mt-2">Your property manager is preparing your lease document.</p>
+                        </div>
+                      )}
                    </div>
                 )}
                  {userStatus === 'applicant_pending' && (

@@ -1098,7 +1098,7 @@ def send_lease_docusign_notification(legal_document_id):
 
 def _send_lease_signed_confirmation(legal_document_id):
     """
-    Internal function to send email to tenant when lease is signed.
+    Internal function to send email to tenant and manager when lease is signed.
     """
     from .models import LegalDocument
     
@@ -1110,53 +1110,80 @@ def _send_lease_signed_confirmation(legal_document_id):
     
     if not legal_doc.tenant.email:
         logger.warning(f"Tenant {legal_doc.tenant.id} has no email address for lease signed confirmation.")
-        return
+        # Continue to notify admin even if tenant has no email
     
-    subject = f'Lease Signed - Confirmation - {legal_doc.tenant.property_unit}'
-    
-    context = {
-        'tenant_name': legal_doc.tenant.name,
-        'property_unit': legal_doc.tenant.property_unit,
-        'signed_date': legal_doc.signed_at or legal_doc.created_at,
-        'lease_start': legal_doc.tenant.lease_start,
-        'lease_end': legal_doc.tenant.lease_end,
-        'signed_pdf_url': legal_doc.signed_pdf_url,
-    }
-    
-    html_message = render_to_string('emails/lease_signed_confirmation.html', context)
-    plain_message = f"""
-    Lease Signed - Confirmation
-    
-    Dear {legal_doc.tenant.name},
-    
-    Congratulations! Your lease agreement has been successfully signed.
-    
-    Property Unit: {legal_doc.tenant.property_unit}
-    Signed Date: {legal_doc.signed_at or legal_doc.created_at}
-    """
-    
-    if legal_doc.tenant.lease_start:
-        plain_message += f"Lease Start: {legal_doc.tenant.lease_start}\n"
-    if legal_doc.tenant.lease_end:
-        plain_message += f"Lease End: {legal_doc.tenant.lease_end}\n"
-    
-    plain_message += """
-    A copy of your signed lease agreement has been saved to your account.
-    
-    Welcome! We're excited to have you as a tenant.
-    
-    Best regards,
-    Neela Property Management Team
-    """
-    
-    send_email_with_logging(
-        subject=subject,
-        message=plain_message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[legal_doc.tenant.email],
-        html_message=html_message,
-        email_type=f"lease signed confirmation email (document {legal_doc.id})"
-    )
+    # 1. Notify Tenant
+    if legal_doc.tenant.email:
+        subject = f'Lease Signed - Confirmation - {legal_doc.tenant.property_unit}'
+        
+        context = {
+            'tenant_name': legal_doc.tenant.name,
+            'property_unit': legal_doc.tenant.property_unit,
+            'signed_date': legal_doc.signed_at or legal_doc.created_at,
+            'lease_start': legal_doc.tenant.lease_start,
+            'lease_end': legal_doc.tenant.lease_end,
+            'signed_pdf_url': legal_doc.signed_pdf_url,
+        }
+        
+        html_message = render_to_string('emails/lease_signed_confirmation.html', context)
+        plain_message = f"""
+        Lease Signed - Confirmation
+        
+        Dear {legal_doc.tenant.name},
+        
+        Congratulations! Your lease agreement has been successfully signed.
+        
+        Property Unit: {legal_doc.tenant.property_unit}
+        Signed Date: {legal_doc.signed_at or legal_doc.created_at}
+        """
+        
+        if legal_doc.tenant.lease_start:
+            plain_message += f"Lease Start: {legal_doc.tenant.lease_start}\n"
+        if legal_doc.tenant.lease_end:
+            plain_message += f"Lease End: {legal_doc.tenant.lease_end}\n"
+        
+        plain_message += """
+        A copy of your signed lease agreement has been saved to your account.
+        
+        Welcome! We're excited to have you as a tenant.
+        
+        Best regards,
+        Neela Property Management Team
+        """
+        
+        send_email_with_logging(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[legal_doc.tenant.email],
+            html_message=html_message,
+            email_type=f"lease signed confirmation email (document {legal_doc.id})"
+        )
+
+    # 2. Notify Admin/Manager
+    admin_emails = get_admin_emails()
+    if admin_emails:
+        admin_subject = f'Lease Signed - {legal_doc.tenant.name} - {legal_doc.tenant.property_unit}'
+        
+        admin_plain_message = f"""
+        Lease Agreement Signed
+        
+        Tenant: {legal_doc.tenant.name}
+        Property Unit: {legal_doc.tenant.property_unit}
+        Signed Date: {legal_doc.signed_at or legal_doc.created_at}
+        
+        The signed lease document has been stored in the system.
+        
+        Log in to view: {getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')}
+        """
+        
+        send_email_with_logging(
+            subject=admin_subject,
+            message=admin_plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=admin_emails,
+            email_type=f"lease signed admin notification (document {legal_doc.id})"
+        )
 
 
 @shared_task
