@@ -400,9 +400,47 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             pdf_content = None
             try:
                 if legal_doc.pdf_file:
-                    legal_doc.pdf_file.open('rb')
-                    pdf_content = legal_doc.pdf_file.read()
-                    legal_doc.pdf_file.close()
+                    try:
+                        # First try standard Django storage read
+                        legal_doc.pdf_file.open('rb')
+                        pdf_content = legal_doc.pdf_file.read()
+                        legal_doc.pdf_file.close()
+                    except Exception as read_error:
+                        logger.warning(f"Standard file read failed, attempting Cloudinary fallback: {read_error}")
+                        # If that fails (e.g. 401 on Cloudinary URL), try using Cloudinary API or signed URL
+                        if 'cloudinary' in str(legal_doc.pdf_file.storage.__class__).lower():
+                            import cloudinary.utils
+                            # Generate a signed URL for the resource
+                            # Extract public_id from the name (remove version/prefix if needed, but name usually works)
+                            resource_path = legal_doc.pdf_file.name
+                            # Cloudinary storage usually saves with resource type image/upload, but let's be safe
+                            # Force download of the PDF content using requests with the signed URL
+                            signed_url, options = cloudinary.utils.cloudinary_url(
+                                resource_path, 
+                                resource_type="image", # Cloudinary treats PDFs as images often
+                                sign_url=True
+                            )
+                            logger.info(f"Attempting download from signed Cloudinary URL: {signed_url}")
+                            import requests
+                            response = requests.get(signed_url)
+                            if response.status_code == 200:
+                                pdf_content = response.content
+                            else:
+                                logger.error(f"Failed to download from signed URL: {response.status_code}")
+                                # Try 'raw' resource type as fallback
+                                signed_url_raw, _ = cloudinary.utils.cloudinary_url(
+                                    resource_path, 
+                                    resource_type="raw", 
+                                    sign_url=True
+                                )
+                                response_raw = requests.get(signed_url_raw)
+                                if response_raw.status_code == 200:
+                                    pdf_content = response_raw.content
+                                else:
+                                    raise Exception("Could not retrieve file from Cloudinary")
+                        else:
+                            raise read_error
+
             except Exception as e:
                 logger.warning(f"Could not read PDF file directly: {e}")
             
