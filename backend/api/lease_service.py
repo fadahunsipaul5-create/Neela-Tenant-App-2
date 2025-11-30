@@ -225,11 +225,24 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
                 )
             
             # Upload as raw file
-            logger.info(f"Uploading lease PDF to Cloudinary: leases/{filename}")
+            # Use f"media/leases/{filename}" to match what Django storage likely expects for retrieval
+            # The Cloudinary storage backend typically prepends MEDIA_TAG or similar if configured.
+            # Even if we upload manually, if we set the name to "media/leases/...", the backend will look there.
+            
+            # CRITICAL: Remove the .pdf extension from public_id because format="pdf" adds it?
+            # Or keep it and remove format="pdf"?
+            # Cloudinary raw resources with format often duplicate extensions.
+            
+            public_id = f"media/leases/{filename}" 
+            if public_id.endswith('.pdf'):
+                public_id = public_id[:-4]
+
+            logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
+            
             upload_result = cloudinary.uploader.upload(
                 pdf_buffer, 
                 resource_type="raw", 
-                public_id=f"leases/{filename}",
+                public_id=public_id,
                 format="pdf"
             )
             
@@ -238,14 +251,6 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             # Manually set the file name/path to what Cloudinary returned or the expected path
             # django-cloudinary-storage typically expects just the name if configured correctly, 
             # but storing the public_id ensures we can retrieve it.
-            # However, the FileField expects a name it can use with the storage backend.
-            # If we bypass the storage backend's save(), we must be careful.
-            
-            # Ideally, we want to use the storage backend but force 'raw'.
-            # But django-cloudinary-storage behavior is complex to override per-file.
-            # So we will upload manually and set the name.
-            
-            # The storage backend (MediaCloudinaryStorage) usually expects the name to be the public_id (with extension sometimes)
             legal_doc.pdf_file.name = upload_result.get('public_id')
             legal_doc.save()
             
