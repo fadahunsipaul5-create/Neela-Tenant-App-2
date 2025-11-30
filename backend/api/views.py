@@ -428,74 +428,58 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                                 logger.info(f"Cloudinary API Secret is present (length: {len(config.api_secret)})")
 
                             # Generate a signed URL for the resource
-                            # For 'raw' resources, Cloudinary stores them with the name we gave them.
-                            # The public_id in save_lease_document was f"leases/{filename}".
-                            # legal_doc.pdf_file.name should contain this public_id.
-                            
                             resource_path = legal_doc.pdf_file.name
-                            # Ensure resource_path doesn't have leading slashes or 'media/' prefix if it was already included in public_id
-                            # Cloudinary public_ids are stored as is.
                             
-                            logger.info(f"Generating signed URL for raw resource: {resource_path}")
+                            # CRITICAL FIX: Cloudinary storage backend might have stored the public_id WITHOUT the extension
+                            # OR with the extension. But 'resource_type="raw"' requires exact match.
                             
-                            # Since we uploaded as 'raw', we MUST use resource_type='raw' first
-                            signed_url, options = cloudinary.utils.cloudinary_url(
-                                resource_path, 
-                                resource_type="raw", 
-                                sign_url=True
-                            )
+                            # If upload used f"leases/{filename}" where filename has .pdf, then public_id is "leases/foo.pdf"
+                            # But Cloudinary raw resources are tricky.
                             
-                            import requests
-                            logger.info(f"Attempting download from signed URL (raw): {signed_url}")
-                            response = requests.get(signed_url)
+                            # Try listing resources (if we could), but let's just try stripping 'media/' if present
+                            # Django storage might prepend 'media/' but Cloudinary public_id might not have it if we uploaded manually
                             
-                            if response.status_code == 200:
-                                pdf_content = response.content
-                            else:
-                                logger.warning(f"Failed to download from signed URL (raw): {response.status_code}. Body: {response.text[:200]} Trying 'image'...")
+                            logger.info(f"Original resource path from DB: {resource_path}")
+                            
+                            # Strategy: Try variations of the path
+                            paths_to_try = [
+                                resource_path,
+                                resource_path.replace('media/', ''), # If media/ was prepended
+                                f"media/{resource_path}" if not resource_path.startswith('media/') else resource_path,
+                            ]
+                            
+                            # If it ends with .pdf, try without
+                            if resource_path.lower().endswith('.pdf'):
+                                paths_to_try.append(resource_path[:-4])
+                                paths_to_try.append(resource_path.replace('media/', '')[:-4])
+                            
+                            pdf_content = None
+                            
+                            for path in paths_to_try:
+                                if pdf_content: break
                                 
-                                # Fallback: Try WITHOUT signature (public)
-                                unsigned_url, _ = cloudinary.utils.cloudinary_url(
-                                    resource_path, 
-                                    resource_type="raw", 
-                                    sign_url=False
-                                )
-                                logger.info(f"Attempting download from UNsigned URL (raw): {unsigned_url}")
-                                response_unsigned = requests.get(unsigned_url)
-                                if response_unsigned.status_code == 200:
-                                    pdf_content = response_unsigned.content
-                                else:
-                                    # Fallback to 'image' resource type (for older uploads or misidentified types)
-                                    signed_url_img, _ = cloudinary.utils.cloudinary_url(
-                                        resource_path, 
-                                        resource_type="image", 
-                                        sign_url=True
-                                    )
-                                    logger.info(f"Attempting download from signed URL (image): {signed_url_img}")
-                                    response_img = requests.get(signed_url_img)
-                                    if response_img.status_code == 200:
-                                        pdf_content = response_img.content
-                                    else:
-                                        # Last ditch: ensure resource_path matches what was uploaded (e.g. stripping prefixes)
-                                        # Sometimes 'leases/filename.pdf' needs to be just 'filename.pdf' depending on folder config
-                                        # But public_id usually includes folder.
-                                        
-                                        # Try without extension if it has one
-                                        if resource_path.lower().endswith('.pdf'):
-                                            no_ext_path = resource_path[:-4]
-                                            signed_url_no_ext, _ = cloudinary.utils.cloudinary_url(
-                                                no_ext_path, 
-                                                resource_type="raw", 
-                                                sign_url=True
-                                            )
-                                            logger.info(f"Attempting download without extension: {signed_url_no_ext}")
-                                            response_no_ext = requests.get(signed_url_no_ext)
-                                            if response_no_ext.status_code == 200:
-                                                pdf_content = response_no_ext.content
-                                            else:
-                                                raise Exception(f"Could not retrieve file from Cloudinary. Status: {response.status_code}")
-                                        else:
-                                            raise Exception(f"Could not retrieve file from Cloudinary. Status: {response.status_code}")
+                                logger.info(f"Trying path variant: {path}")
+                                
+                                # Try RAW signed
+                                signed_url, _ = cloudinary.utils.cloudinary_url(path, resource_type="raw", sign_url=True)
+                                resp = requests.get(signed_url)
+                                if resp.status_code == 200:
+                                    pdf_content = resp.content
+                                    logger.info(f"Success with RAW signed: {path}")
+                                    break
+                                    
+                                # Try IMAGE signed (fallback for older files)
+                                signed_url_img, _ = cloudinary.utils.cloudinary_url(path, resource_type="image", sign_url=True)
+                                resp = requests.get(signed_url_img)
+                                if resp.status_code == 200:
+                                    pdf_content = resp.content
+                                    logger.info(f"Success with IMAGE signed: {path}")
+                                    break
+
+                            if not pdf_content:
+                                logger.error("All retrieval attempts failed for Cloudinary file.")
+                                raise Exception("Could not retrieve file from Cloudinary after multiple attempts.")
+
 
                         else:
                             raise read_error
