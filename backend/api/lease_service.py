@@ -239,11 +239,12 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
 
             logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
             
+            # Try to upload WITHOUT format="pdf" to see if that helps avoid confusion
             upload_result = cloudinary.uploader.upload(
                 pdf_buffer, 
                 resource_type="raw", 
                 public_id=public_id,
-                format="pdf"
+                # format="pdf"  # Removed format to avoid double extension or raw/image confusion
             )
             
             logger.info(f"Cloudinary upload successful. Result public_id: {upload_result.get('public_id')}")

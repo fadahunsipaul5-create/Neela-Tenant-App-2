@@ -462,19 +462,25 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                                 
                                 # Try RAW signed
                                 signed_url, _ = cloudinary.utils.cloudinary_url(path, resource_type="raw", sign_url=True)
+                                logger.info(f"Checking RAW URL: {signed_url}")
                                 resp = requests.get(signed_url)
                                 if resp.status_code == 200:
                                     pdf_content = resp.content
                                     logger.info(f"Success with RAW signed: {path}")
                                     break
+                                else:
+                                    logger.warning(f"RAW URL failed: {resp.status_code}")
                                     
                                 # Try IMAGE signed (fallback for older files)
                                 signed_url_img, _ = cloudinary.utils.cloudinary_url(path, resource_type="image", sign_url=True)
+                                logger.info(f"Checking IMAGE URL: {signed_url_img}")
                                 resp = requests.get(signed_url_img)
                                 if resp.status_code == 200:
                                     pdf_content = resp.content
                                     logger.info(f"Success with IMAGE signed: {path}")
                                     break
+                                else:
+                                    logger.warning(f"IMAGE URL failed: {resp.status_code}")
 
                             if not pdf_content:
                                 logger.error("All retrieval attempts failed for Cloudinary file.")
