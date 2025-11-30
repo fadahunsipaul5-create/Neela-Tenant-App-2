@@ -1,9 +1,12 @@
 """
 Lease generation and PDF creation service.
 """
+import logging
 from io import BytesIO
 from datetime import datetime, timedelta
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 from django.core.files.base import ContentFile
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -222,12 +225,15 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
                 )
             
             # Upload as raw file
+            logger.info(f"Uploading lease PDF to Cloudinary: leases/{filename}")
             upload_result = cloudinary.uploader.upload(
                 pdf_buffer, 
                 resource_type="raw", 
                 public_id=f"leases/{filename}",
                 format="pdf"
             )
+            
+            logger.info(f"Cloudinary upload successful. Result public_id: {upload_result.get('public_id')}")
             
             # Manually set the file name/path to what Cloudinary returned or the expected path
             # django-cloudinary-storage typically expects just the name if configured correctly, 
