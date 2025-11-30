@@ -66,7 +66,19 @@ CLOUDINARY_STORAGE = {
     'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
 }
+
+# Storage Configuration (Django 4.2+)
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+# Legacy settings (kept for compatibility if using older Django versions, but STORAGES takes precedence in 4.2+)
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
