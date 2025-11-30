@@ -420,6 +420,13 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                                     api_secret=settings.CLOUDINARY_STORAGE['API_SECRET']
                                 )
                             
+                            # Debugging: Check if API secret is set
+                            config = cloudinary.config()
+                            if not config.api_secret:
+                                logger.error("Cloudinary API Secret is MISSING in global config!")
+                            else:
+                                logger.info(f"Cloudinary API Secret is present (length: {len(config.api_secret)})")
+
                             # Generate a signed URL for the resource
                             # For 'raw' resources, Cloudinary stores them with the name we gave them.
                             # The public_id in save_lease_document was f"leases/{filename}".
@@ -439,42 +446,56 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                             )
                             
                             import requests
+                            logger.info(f"Attempting download from signed URL (raw): {signed_url}")
                             response = requests.get(signed_url)
                             
                             if response.status_code == 200:
                                 pdf_content = response.content
                             else:
-                                logger.warning(f"Failed to download from signed URL (raw): {response.status_code}. Trying 'image'...")
-                                # Fallback to 'image' resource type just in case
-                                signed_url_img, _ = cloudinary.utils.cloudinary_url(
+                                logger.warning(f"Failed to download from signed URL (raw): {response.status_code}. Body: {response.text[:200]} Trying 'image'...")
+                                
+                                # Fallback: Try WITHOUT signature (public)
+                                unsigned_url, _ = cloudinary.utils.cloudinary_url(
                                     resource_path, 
-                                    resource_type="image", 
-                                    sign_url=True
+                                    resource_type="raw", 
+                                    sign_url=False
                                 )
-                                response_img = requests.get(signed_url_img)
-                                if response_img.status_code == 200:
-                                    pdf_content = response_img.content
+                                logger.info(f"Attempting download from UNsigned URL (raw): {unsigned_url}")
+                                response_unsigned = requests.get(unsigned_url)
+                                if response_unsigned.status_code == 200:
+                                    pdf_content = response_unsigned.content
                                 else:
-                                    # Last ditch: ensure resource_path matches what was uploaded (e.g. stripping prefixes)
-                                    # Sometimes 'leases/filename.pdf' needs to be just 'filename.pdf' depending on folder config
-                                    # But public_id usually includes folder.
-                                    
-                                    # Try without extension if it has one
-                                    if resource_path.lower().endswith('.pdf'):
-                                        no_ext_path = resource_path[:-4]
-                                        signed_url_no_ext, _ = cloudinary.utils.cloudinary_url(
-                                            no_ext_path, 
-                                            resource_type="raw", 
-                                            sign_url=True
-                                        )
-                                        logger.info(f"Attempting download without extension: {signed_url_no_ext}")
-                                        response_no_ext = requests.get(signed_url_no_ext)
-                                        if response_no_ext.status_code == 200:
-                                            pdf_content = response_no_ext.content
+                                    # Fallback to 'image' resource type (for older uploads or misidentified types)
+                                    signed_url_img, _ = cloudinary.utils.cloudinary_url(
+                                        resource_path, 
+                                        resource_type="image", 
+                                        sign_url=True
+                                    )
+                                    logger.info(f"Attempting download from signed URL (image): {signed_url_img}")
+                                    response_img = requests.get(signed_url_img)
+                                    if response_img.status_code == 200:
+                                        pdf_content = response_img.content
+                                    else:
+                                        # Last ditch: ensure resource_path matches what was uploaded (e.g. stripping prefixes)
+                                        # Sometimes 'leases/filename.pdf' needs to be just 'filename.pdf' depending on folder config
+                                        # But public_id usually includes folder.
+                                        
+                                        # Try without extension if it has one
+                                        if resource_path.lower().endswith('.pdf'):
+                                            no_ext_path = resource_path[:-4]
+                                            signed_url_no_ext, _ = cloudinary.utils.cloudinary_url(
+                                                no_ext_path, 
+                                                resource_type="raw", 
+                                                sign_url=True
+                                            )
+                                            logger.info(f"Attempting download without extension: {signed_url_no_ext}")
+                                            response_no_ext = requests.get(signed_url_no_ext)
+                                            if response_no_ext.status_code == 200:
+                                                pdf_content = response_no_ext.content
+                                            else:
+                                                raise Exception(f"Could not retrieve file from Cloudinary. Status: {response.status_code}")
                                         else:
                                             raise Exception(f"Could not retrieve file from Cloudinary. Status: {response.status_code}")
-                                    else:
-                                        raise Exception(f"Could not retrieve file from Cloudinary. Status: {response.status_code}")
 
                         else:
                             raise read_error
