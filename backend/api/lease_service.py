@@ -205,7 +205,52 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
     
     # Save PDF file
     filename = f"lease_{tenant.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
+    
+    # Check if using Cloudinary storage
+    if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+        try:
+            import cloudinary.uploader
+            # Reset buffer
+            pdf_buffer.seek(0)
+            
+            # Configure Cloudinary explicitly if needed
+            if not cloudinary.config().api_secret:
+                cloudinary.config(
+                    cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+                    api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
+                    api_secret=settings.CLOUDINARY_STORAGE['API_SECRET']
+                )
+            
+            # Upload as raw file
+            upload_result = cloudinary.uploader.upload(
+                pdf_buffer, 
+                resource_type="raw", 
+                public_id=f"leases/{filename}",
+                format="pdf"
+            )
+            
+            # Manually set the file name/path to what Cloudinary returned or the expected path
+            # django-cloudinary-storage typically expects just the name if configured correctly, 
+            # but storing the public_id ensures we can retrieve it.
+            # However, the FileField expects a name it can use with the storage backend.
+            # If we bypass the storage backend's save(), we must be careful.
+            
+            # Ideally, we want to use the storage backend but force 'raw'.
+            # But django-cloudinary-storage behavior is complex to override per-file.
+            # So we will upload manually and set the name.
+            
+            # The storage backend (MediaCloudinaryStorage) usually expects the name to be the public_id (with extension sometimes)
+            legal_doc.pdf_file.name = upload_result.get('public_id')
+            legal_doc.save()
+            
+        except Exception as e:
+            # Fallback to standard save if Cloudinary manual upload fails
+            print(f"Cloudinary raw upload failed, falling back to standard storage: {e}")
+            pdf_buffer.seek(0)
+            legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
+    else:
+        # Standard local storage
+        legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
     
     return legal_doc
 

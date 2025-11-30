@@ -409,24 +409,36 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                         logger.warning(f"Standard file read failed, attempting Cloudinary fallback: {read_error}")
                         # If that fails (e.g. 401 on Cloudinary URL), try using Cloudinary API or signed URL
                         if 'cloudinary' in str(legal_doc.pdf_file.storage.__class__).lower():
+                            import cloudinary
                             import cloudinary.utils
+                            
+                            # Ensure global config is set (django-cloudinary-storage might not set the global cloudinary config object)
+                            if not cloudinary.config().api_secret:
+                                cloudinary.config(
+                                    cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+                                    api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
+                                    api_secret=settings.CLOUDINARY_STORAGE['API_SECRET']
+                                )
+                            
                             # Generate a signed URL for the resource
-                            # Extract public_id from the name (remove version/prefix if needed, but name usually works)
                             resource_path = legal_doc.pdf_file.name
-                            # Cloudinary storage usually saves with resource type image/upload, but let's be safe
-                            # Force download of the PDF content using requests with the signed URL
+                            logger.info(f"Generating signed URL for resource: {resource_path}")
+                            
+                            # Cloudinary storage usually saves with resource type image/upload
+                            # We try 'image' first, then 'raw'
                             signed_url, options = cloudinary.utils.cloudinary_url(
                                 resource_path, 
-                                resource_type="image", # Cloudinary treats PDFs as images often
+                                resource_type="image", 
                                 sign_url=True
                             )
-                            logger.info(f"Attempting download from signed Cloudinary URL: {signed_url}")
+                            
                             import requests
                             response = requests.get(signed_url)
+                            
                             if response.status_code == 200:
                                 pdf_content = response.content
                             else:
-                                logger.error(f"Failed to download from signed URL: {response.status_code}")
+                                logger.warning(f"Failed to download from signed URL (image): {response.status_code}. Trying 'raw'...")
                                 # Try 'raw' resource type as fallback
                                 signed_url_raw, _ = cloudinary.utils.cloudinary_url(
                                     resource_path, 
@@ -437,7 +449,20 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                                 if response_raw.status_code == 200:
                                     pdf_content = response_raw.content
                                 else:
-                                    raise Exception("Could not retrieve file from Cloudinary")
+                                    # Last ditch: try accessing with .pdf extension if missing
+                                    if not resource_path.lower().endswith('.pdf'):
+                                        signed_url_pdf, _ = cloudinary.utils.cloudinary_url(
+                                            resource_path + '.pdf', 
+                                            resource_type="image", 
+                                            sign_url=True
+                                        )
+                                        response_pdf = requests.get(signed_url_pdf)
+                                        if response_pdf.status_code == 200:
+                                            pdf_content = response_pdf.content
+                                        else:
+                                            raise Exception(f"Could not retrieve file from Cloudinary. Status: {response_raw.status_code}")
+                                    else:
+                                        raise Exception(f"Could not retrieve file from Cloudinary. Status: {response_raw.status_code}")
                         else:
                             raise read_error
 
