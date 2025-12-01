@@ -266,3 +266,114 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
     
     return legal_doc
 
+
+def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
+    """
+    Check status of a DocuSign envelope and update the legal document accordingly.
+    Can be called by API views or background tasks.
+    
+    Args:
+        legal_doc: LegalDocument instance
+        
+    Returns:
+        Dictionary with status information and results of any actions taken
+    """
+    from .docusign_service import get_envelope_status, download_signed_document
+    from .email_service import send_lease_signed_confirmation, send_acceptance_email_to_user
+    from accounts.user_service import create_user_from_tenant, generate_password_reset_token, get_password_reset_url
+    from django.utils import timezone
+    from django.core.files.base import ContentFile
+    
+    if not legal_doc.docusign_envelope_id:
+        return {'status': legal_doc.status, 'message': 'No envelope ID found'}
+
+    try:
+        # Get status from DocuSign
+        status_info = get_envelope_status(legal_doc.docusign_envelope_id)
+        
+        if not status_info:
+            return {'status': legal_doc.status, 'message': 'Could not fetch status from DocuSign'}
+            
+        ds_status = status_info.get('status')
+        
+        result = {
+            'status': legal_doc.status,
+            'docusign_status': ds_status,
+            'updated': False,
+            'actions': []
+        }
+        
+        # Map DocuSign status to our status
+        if ds_status == 'completed':
+            if legal_doc.status != 'Signed':
+                # Update status
+                legal_doc.status = 'Signed'
+                legal_doc.signed_at = timezone.now()
+                
+                # Download signed document
+                signed_pdf_content = download_signed_document(legal_doc.docusign_envelope_id)
+                if signed_pdf_content:
+                    # Save as signed PDF
+                    filename = f"signed_lease_{legal_doc.tenant.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
+                    result['actions'].append('downloaded_signed_pdf')
+                
+                legal_doc.save()
+                
+                # Update tenant
+                tenant = legal_doc.tenant
+                tenant.lease_status = 'Signed'
+                tenant.save()
+                result['updated'] = True
+                
+                # Send confirmation
+                try:
+                    send_lease_signed_confirmation.delay(legal_doc.id)
+                    result['actions'].append('sent_confirmation_email')
+                except:
+                    send_lease_signed_confirmation(legal_doc.id)
+                    result['actions'].append('sent_confirmation_email_sync')
+
+                # CRITICAL: Check if user account exists, if not, create it and send setup email
+                try:
+                    user, created = create_user_from_tenant(tenant)
+                    if created or not user.has_usable_password():
+                        # Generate password reset token for account setup
+                        token, uidb64 = generate_password_reset_token(user)
+                        
+                        # Get frontend URL from settings
+                        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
+                        reset_url = get_password_reset_url(uidb64, token, frontend_url)
+                        
+                        # Send acceptance/welcome email with password setup link
+                        try:
+                            send_acceptance_email_to_user.delay(tenant.id, token, reset_url)
+                            logger.info(f"Account setup email task submitted for tenant {tenant.id}")
+                            result['actions'].append('sent_account_setup_email')
+                        except Exception as e:
+                            logger.warning(f"Celery connection failed, using threading fallback for account setup: {e}")
+                            send_acceptance_email_to_user(tenant.id, token, reset_url)
+                            result['actions'].append('sent_account_setup_email_sync')
+                except Exception as e:
+                     logger.error(f"Error ensuring user account exists after lease signing: {e}", exc_info=True)
+                     result['errors'] = str(e)
+
+        elif ds_status in ['declined', 'voided']:
+            if legal_doc.status != 'Declined' and legal_doc.status != 'Voided':
+                new_status = 'Declined' if ds_status == 'declined' else 'Voided'
+                legal_doc.status = new_status
+                legal_doc.save()
+                
+                tenant = legal_doc.tenant
+                tenant.lease_status = new_status
+                tenant.save()
+                
+                result['updated'] = True
+                result['status'] = new_status
+
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error processing DocuSign status update: {e}", exc_info=True)
+        raise e
+

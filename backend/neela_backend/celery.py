@@ -50,20 +50,14 @@ except Exception:
 def debug_task(self):
     print(f'Request: {self.request!r}')
 
-# tasks.py
-from celery import shared_task
-from django.core.mail import send_mail
 
-@shared_task
-def send_test_email():
-    try:
-        result = send_mail(
-            "Celery Test",
-            "This is a test email sent via Celery.",
-            "fadahunsipaul@gmail.com",
-            ["wahiga8943@bipochub.com"],
-            fail_silently=False
-        )
-        logger.info(f"Email sent successfully, result={result}")
-    except Exception as e:
-        logger.error(f"Email sending failed: {e}")
+# Configure periodic tasks
+from celery.schedules import crontab
+
+app.conf.beat_schedule = {
+    'check-docusign-statuses-every-15-minutes': {
+        'task': 'api.tasks.check_docusign_envelope_statuses',
+        'schedule': crontab(minute='*/15'),  # Run every 15 minutes
+    },
+}
+

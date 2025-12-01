@@ -1,5 +1,5 @@
 import sendgrid
-from sendgrid.helpers.mail import Mail, Email, To, Content
+from sendgrid.helpers.mail import Mail, Email, Content
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
 from django.core.mail.message import sanitize_address
@@ -29,9 +29,11 @@ class SendGridBackend(BaseEmailBackend):
                 body = message.body
                 
                 # SendGrid Mail Helper
+                # Pass to_emails as list of strings/Email objects. 
+                # If To class is not available, Mail helper handles strings or Email objects.
                 sg_mail = Mail(
                     from_email=Email(from_email),
-                    to_emails=[To(email) for email in to_emails],
+                    to_emails=to_emails, 
                     subject=subject,
                     plain_text_content=Content("text/plain", body)
                 )

@@ -283,11 +283,26 @@ CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
 # Append SSL requirement to Redis URL if it's a rediss:// URL and missing params
-if CELERY_BROKER_URL.startswith('rediss://') and 'ssl_cert_reqs' not in CELERY_BROKER_URL:
-    CELERY_BROKER_URL += '?ssl_cert_reqs=CERT_NONE'
-    
-if CELERY_RESULT_BACKEND.startswith('rediss://') and 'ssl_cert_reqs' not in CELERY_RESULT_BACKEND:
-    CELERY_RESULT_BACKEND += '?ssl_cert_reqs=CERT_NONE'
+def append_ssl_cert_reqs(url):
+    if url and url.startswith('rediss://') and 'ssl_cert_reqs' not in url:
+        sep = '&' if '?' in url else '?'
+        return f"{url}{sep}ssl_cert_reqs=CERT_NONE"
+    return url
+
+CELERY_BROKER_URL = append_ssl_cert_reqs(CELERY_BROKER_URL)
+CELERY_RESULT_BACKEND = append_ssl_cert_reqs(CELERY_RESULT_BACKEND)
+
+# Set Redis backend SSL options explicitly to support redis-py>=3
+if CELERY_BROKER_URL.startswith('rediss://'):
+    # Fix: SSL dictionary keys must match expected parameters for redis-py's SSLConnection
+    # AND we must use the 'ssl_cert_reqs' from the ssl module, not just a string
+    import ssl
+    CELERY_REDIS_BACKEND_USE_SSL = {
+        'ssl_cert_reqs': ssl.CERT_NONE
+    }
+    CELERY_BROKER_USE_SSL = {
+        'ssl_cert_reqs': ssl.CERT_NONE
+    }
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
