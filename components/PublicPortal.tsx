@@ -10,7 +10,7 @@ import {
   CreditCard, Clock, AlertCircle, Building2, PenTool,
   Bell, Smartphone, Banknote, Image as ImageIcon, Loader2, X,
   MessageSquare, History, FileCheck, Mail, Lock, LogIn, ChevronRight,
-  Wallet, DollarSign, Copy, Info
+  Wallet, DollarSign, Copy, Info, RefreshCw
 } from 'lucide-react';
 
 type PortalView = 'listings' | 'application' | 'dashboard' | 'lease_signing';
