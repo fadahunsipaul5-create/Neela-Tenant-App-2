@@ -1358,3 +1358,69 @@ def send_notice_to_tenant(legal_document_id, pdf_path=None):
     logger.info(f"Celery task executing: send_notice_to_tenant for document {legal_document_id}, using email backend: {email_backend}")
     _send_notice_to_tenant(legal_document_id, pdf_path)
 
+
+# ==================== Application Received Email Function ====================
+
+def _send_application_received_email_to_tenant(tenant_id):
+    """
+    Internal function to send email to tenant when application is received.
+    """
+    from .models import Tenant
+    
+    try:
+        tenant = Tenant.objects.get(id=tenant_id)
+    except Tenant.DoesNotExist:
+        logger.error(f"Tenant with ID {tenant_id} not found for application received email.")
+        return
+    
+    if not tenant.email:
+        logger.warning(f"Tenant {tenant.id} has no email address for application received email.")
+        return
+    
+    subject = f'Application Received - {tenant.property_unit}'
+    
+    context = {
+        'tenant': tenant,
+        'property_unit': tenant.property_unit,
+    }
+    
+    html_message = render_to_string('emails/application_received.html', context)
+    plain_message = f"""
+    Application Received
+    
+    Dear {tenant.name},
+    
+    Thank you for submitting your application. We have successfully received your details and our team will review them shortly.
+    
+    Property Unit: {tenant.property_unit}
+    Date Submitted: {tenant.created_at if hasattr(tenant, 'created_at') else 'Today'}
+    Status: Under Review
+    
+    We will contact you if we need any additional information. You will receive another email once a decision has been made on your application.
+    
+    If you have any questions in the meantime, please don't hesitate to contact us.
+    
+    Best regards,
+    Neela Property Management Team
+    """
+    
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[tenant.email],
+        html_message=html_message,
+        email_type=f"application received email (tenant {tenant.id})"
+    )
+
+
+@shared_task
+def send_application_received_email_to_tenant(tenant_id):
+    """
+    Celery task to send email to tenant when application is received.
+    """
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Celery task executing: send_application_received_email_to_tenant for tenant {tenant_id}, using email backend: {email_backend}")
+    _send_application_received_email_to_tenant(tenant_id)
+
+

@@ -52,6 +52,15 @@ class TenantViewSet(viewsets.ModelViewSet):
                 # Fallback to threading if Celery connection fails (non-blocking)
                 logger.warning(f"Celery connection failed, using threading fallback: {e}")
                 send_application_notification_to_admin(tenant.id)  # Will use threading internally
+            
+            # Send confirmation email to tenant
+            try:
+                task = send_application_received_email_to_tenant.delay(tenant.id)
+                logger.info(f"Application received email task submitted to Celery: {task.id}")
+            except Exception as e:
+                logger.warning(f"Celery connection failed, using threading fallback for tenant email: {e}")
+                send_application_received_email_to_tenant(tenant.id)
+
     
     def perform_update(self, serializer):
         """Override to handle status changes and send acceptance email."""
