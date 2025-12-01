@@ -337,7 +337,10 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                 # CRITICAL: Check if user account exists, if not, create it and send setup email
                 try:
                     user, created = create_user_from_tenant(tenant)
+                    # We should send the welcome email if the user was JUST created
+                    # OR if they don't have a usable password yet (pending setup)
                     if created or not user.has_usable_password():
+                        logger.info(f"Preparing account setup email for tenant {tenant.id} (created={created})")
                         # Generate password reset token for account setup
                         token, uidb64 = generate_password_reset_token(user)
                         
@@ -354,6 +357,9 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                             logger.warning(f"Celery connection failed, using threading fallback for account setup: {e}")
                             send_acceptance_email_to_user(tenant.id, token, reset_url)
                             result['actions'].append('sent_account_setup_email_sync')
+                    else:
+                        logger.info(f"User {user.email} already has a password set. Skipping setup email.")
+                        
                 except Exception as e:
                      logger.error(f"Error ensuring user account exists after lease signing: {e}", exc_info=True)
                      result['errors'] = str(e)

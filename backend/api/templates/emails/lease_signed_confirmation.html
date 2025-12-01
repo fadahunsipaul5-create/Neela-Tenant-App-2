@@ -99,6 +99,15 @@
         
         <p>A copy of your signed lease agreement has been saved to your account. You can download it at any time from your tenant portal.</p>
         
+        {% if setup_url %}
+        <div style="text-align: center; background-color: #e0e7ff; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #c7d2fe;">
+            <h3 style="color: #4f46e5; margin-top: 0;">Set Up Your Account</h3>
+            <p>To access your tenant portal and view your lease, please create your password:</p>
+            <a href="{{ setup_url }}" class="button" style="background-color: #4f46e5;">Set Up Account Password</a>
+            <p style="font-size: 12px; color: #6b7280; margin-top: 10px;">This link expires in 48 hours.</p>
+        </div>
+        {% endif %}
+
         {% if signed_pdf_url %}
         <div style="text-align: center;">
             <a href="{{ signed_pdf_url }}" class="button">Download Signed Lease</a>

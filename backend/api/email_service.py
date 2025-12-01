@@ -1101,6 +1101,7 @@ def _send_lease_signed_confirmation(legal_document_id):
     Internal function to send email to tenant and manager when lease is signed.
     """
     from .models import LegalDocument
+    from accounts.user_service import create_user_from_tenant, generate_password_reset_token, get_password_reset_url
     
     try:
         legal_doc = LegalDocument.objects.select_related('tenant').get(id=legal_document_id)
@@ -1116,6 +1117,21 @@ def _send_lease_signed_confirmation(legal_document_id):
     if legal_doc.tenant.email:
         subject = f'Lease Signed - Confirmation - {legal_doc.tenant.property_unit}'
         
+        # Generate setup URL if needed
+        setup_url = None
+        try:
+            # Ensure user exists
+            user, created = create_user_from_tenant(legal_doc.tenant)
+            
+            # If user needs to set a password (newly created or no usable password)
+            if created or not user.has_usable_password():
+                token, uidb64 = generate_password_reset_token(user)
+                frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
+                setup_url = get_password_reset_url(uidb64, token, frontend_url)
+                logger.info(f"Generated setup URL for tenant {legal_doc.tenant.id} in confirmation email")
+        except Exception as e:
+            logger.error(f"Error generating setup URL for tenant {legal_doc.tenant.id}: {e}")
+
         context = {
             'tenant_name': legal_doc.tenant.name,
             'property_unit': legal_doc.tenant.property_unit,
@@ -1123,6 +1139,7 @@ def _send_lease_signed_confirmation(legal_document_id):
             'lease_start': legal_doc.tenant.lease_start,
             'lease_end': legal_doc.tenant.lease_end,
             'signed_pdf_url': legal_doc.signed_pdf_url,
+            'setup_url': setup_url,
         }
         
         html_message = render_to_string('emails/lease_signed_confirmation.html', context)
@@ -1144,7 +1161,16 @@ def _send_lease_signed_confirmation(legal_document_id):
         
         plain_message += """
         A copy of your signed lease agreement has been saved to your account.
+        """
         
+        if setup_url:
+            plain_message += f"""
+            
+            To access your tenant portal and view your lease, please set up your password using the link below:
+            {setup_url}
+            """
+
+        plain_message += """
         Welcome! We're excited to have you as a tenant.
         
         Best regards,
@@ -1184,6 +1210,7 @@ def _send_lease_signed_confirmation(legal_document_id):
             recipient_list=admin_emails,
             email_type=f"lease signed admin notification (document {legal_doc.id})"
         )
+
 
 
 @shared_task
