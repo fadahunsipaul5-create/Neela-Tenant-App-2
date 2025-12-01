@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lease Renewal Reminder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #3b82f6;
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            background-color: #f9fafb;
+            padding: 30px;
+            border: 1px solid #e5e7eb;
+        }
+        .info-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #3b82f6;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3b82f6;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .button:hover {
+            background-color: #2563eb;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Lease Renewal Reminder</h1>
+    </div>
+    <div class="content">
+        <p>Dear {{ tenant_name }},</p>
+        
+        <p>We hope you are enjoying your stay at {{ property_unit }}. This email is a friendly reminder that your current lease agreement is approaching its expiration date.</p>
+        
+        <div class="info-box">
+            <h3>Lease Details</h3>
+            <p><strong>Property Unit:</strong> {{ property_unit }}</p>
+            <p><strong>Lease End Date:</strong> {{ lease_end_date|date:"F d, Y" }}</p>
+            <p><strong>Days Remaining:</strong> {{ days_remaining }}</p>
+        </div>
+        
+        <p>We would love to have you renew your lease with us! If you intend to renew, please contact us or visit your tenant portal to view renewal options.</p>
+        
+        <p>If you plan to vacate at the end of your lease term, please ensure you provide the required notice as outlined in your lease agreement.</p>
+        
+        <div style="text-align: center;">
+            <a href="{{ tenant_portal_url }}" class="button">Visit Tenant Portal</a>
+        </div>
+        
+        <p>Please let us know your intentions as soon as possible so we can make the necessary arrangements.</p>
+        
+        <p>Best regards,<br><strong>Neela Property Management Team</strong></p>
+    </div>
+    <div class="footer">
+        <p>This is an automated notification from Neela Tenant Management System.</p>
+    </div>
+</body>
+</html>
+

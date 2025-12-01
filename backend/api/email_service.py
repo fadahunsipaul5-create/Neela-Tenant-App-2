@@ -1451,3 +1451,146 @@ def send_application_received_email_to_tenant(tenant_id):
     _send_application_received_email_to_tenant(tenant_id)
 
 
+# ==================== Lease Renewal Email Function ====================
+
+def _send_lease_renewal_reminder(tenant_id, days_remaining):
+    """
+    Internal function to send lease renewal reminder to tenant.
+    """
+    from .models import Tenant
+    from django.utils import timezone
+    
+    try:
+        tenant = Tenant.objects.get(id=tenant_id)
+    except Tenant.DoesNotExist:
+        logger.error(f"Tenant with ID {tenant_id} not found for lease renewal reminder.")
+        return
+    
+    if not tenant.email:
+        logger.warning(f"Tenant {tenant.id} has no email address for lease renewal reminder.")
+        return
+        
+    if not tenant.lease_end:
+        logger.warning(f"Tenant {tenant.id} has no lease end date for renewal reminder.")
+        return
+    
+    subject = f'Lease Renewal Reminder - {tenant.property_unit}'
+    
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
+    tenant_portal_url = f"{frontend_url.rstrip('/')}"
+    
+    context = {
+        'tenant_name': tenant.name,
+        'property_unit': tenant.property_unit,
+        'lease_end_date': tenant.lease_end,
+        'days_remaining': days_remaining,
+        'tenant_portal_url': tenant_portal_url,
+    }
+    
+    html_message = render_to_string('emails/lease_renewal_reminder.html', context)
+    plain_message = f"""
+    Lease Renewal Reminder
+    
+    Dear {tenant.name},
+    
+    We hope you are enjoying your stay at {tenant.property_unit}. This email is a friendly reminder that your current lease agreement is approaching its expiration date.
+    
+    Property Unit: {tenant.property_unit}
+    Lease End Date: {tenant.lease_end}
+    Days Remaining: {days_remaining}
+    
+    We would love to have you renew your lease with us! If you intend to renew, please contact us or visit your tenant portal to view renewal options.
+    
+    If you plan to vacate at the end of your lease term, please ensure you provide the required notice as outlined in your lease agreement.
+    
+    Please let us know your intentions as soon as possible so we can make the necessary arrangements.
+    
+    Best regards,
+    Neela Property Management Team
+    """
+    
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[tenant.email],
+        html_message=html_message,
+        email_type=f"lease renewal reminder (tenant {tenant.id}, {days_remaining} days)"
+    )
+
+
+@shared_task
+def send_lease_renewal_reminder(tenant_id, days_remaining):
+    """
+    Celery task to send lease renewal reminder to tenant.
+    """
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Celery task executing: send_lease_renewal_reminder for tenant {tenant_id}, using email backend: {email_backend}")
+    _send_lease_renewal_reminder(tenant_id, days_remaining)
+
+
+# ==================== Admin Payment Notification Email Function ====================
+
+def _send_payment_received_notification_to_admin(payment_id):
+    """
+    Internal function to send email notification to admin when payment is received/confirmed.
+    """
+    from .models import Payment
+    
+    try:
+        payment = Payment.objects.select_related('tenant').get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with ID {payment_id} not found for admin notification.")
+        return
+        
+    admin_emails = get_admin_emails()
+    if not admin_emails:
+        return
+        
+    subject = f'Payment Received: ${payment.amount} - {payment.tenant.name} - {payment.tenant.property_unit}'
+    
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
+    admin_login_url = f"{frontend_url.rstrip('/')}/admin-login"
+    
+    plain_message = f"""
+    Payment Received
+    
+    A payment has been received and confirmed.
+    
+    Tenant: {payment.tenant.name}
+    Property Unit: {payment.tenant.property_unit}
+    Amount: ${payment.amount}
+    Type: {payment.type}
+    Date: {payment.date}
+    Method: {payment.method}
+    Status: {payment.status}
+    
+    """
+    
+    if payment.reference:
+        plain_message += f"Reference: {payment.reference}\n"
+        
+    plain_message += f"""
+    Log in to view details: {admin_login_url}
+    """
+    
+    # Simple notification, no HTML template required for internal use, but could add one
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=admin_emails,
+        email_type=f"payment received admin notification (payment {payment.id})"
+    )
+
+
+@shared_task
+def send_payment_received_notification_to_admin(payment_id):
+    """
+    Celery task to send email notification to admin when payment is received/confirmed.
+    """
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Celery task executing: send_payment_received_notification_to_admin for payment {payment_id}, using email backend: {email_backend}")
+    _send_payment_received_notification_to_admin(payment_id)
+
+

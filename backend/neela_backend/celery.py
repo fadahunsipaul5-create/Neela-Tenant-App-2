@@ -59,5 +59,13 @@ app.conf.beat_schedule = {
         'task': 'api.tasks.check_docusign_envelope_statuses',
         'schedule': crontab(minute='*/15'),  # Run every 15 minutes
     },
+    'check-lease-renewals-daily': {
+        'task': 'api.tasks.check_lease_renewals',
+        'schedule': crontab(hour=9, minute=0),  # Run daily at 9 AM
+    },
+    'send-rent-reminders-daily': {
+        'task': 'api.tasks.send_rent_reminders',
+        'schedule': crontab(hour=8, minute=0),  # Run daily at 8 AM
+    },
 }
 
