@@ -1262,7 +1262,7 @@ def _send_lease_signed_confirmation(legal_document_id):
             email_type=f"lease signed confirmation email (document {legal_doc.id})"
         )
 
-    # 2. Notify Admin/Manager
+    # 2. Notify Admin/Manager (Runs independently of tenant email availability)
     admin_emails = get_admin_emails()
     if admin_emails:
         admin_subject = f'Lease Signed - {legal_doc.tenant.name} - {legal_doc.tenant.property_unit}'

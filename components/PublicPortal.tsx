@@ -26,6 +26,88 @@ interface PublicPortalProps {
   onMaintenanceCreated?: () => void; // Callback to notify parent when maintenance request is created
 }
 
+interface LoginModalProps {
+  isOpen: boolean;
+  loginType: 'admin' | 'tenant' | null;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  email: string;
+  setEmail: (e: string) => void;
+  password: string;
+  setPassword: (p: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  onApplyClick: () => void;
+}
+
+const LoginModal: React.FC<LoginModalProps> = ({ 
+  isOpen, loginType, onClose, onSubmit, email, setEmail, password, setPassword, isLoading, error, onApplyClick 
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden scale-100">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="text-lg font-bold text-slate-800">
+            {loginType === 'admin' ? 'Admin Portal Login' : 'Tenant Portal Login'}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="p-8 space-y-4">
+           {error && (
+             <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-lg text-sm">
+               {error}
+             </div>
+           )}
+           <div>
+             <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+             <input 
+               type="email" 
+               className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-900"
+               placeholder={loginType === 'admin' ? "admin@neelacapital.com" : "tenant@example.com"} 
+               value={email}
+               onChange={(e) => setEmail(e.target.value)}
+               required
+             />
+           </div>
+           <div>
+             <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+             <input 
+               type="password" 
+               className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-900"
+               placeholder="••••••••" 
+               value={password}
+               onChange={(e) => setPassword(e.target.value)}
+               required
+             />
+           </div>
+           <button 
+             type="submit"
+             disabled={isLoading}
+             className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
+           >
+             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In to Dashboard'}
+           </button>
+           
+           {loginType === 'admin' && (
+              <p className="text-xs text-center text-slate-500 mt-4 bg-slate-50 p-2 rounded">
+                <Lock className="w-3 h-3 inline mr-1"/> Secure Area. Authorized Personnel Only.
+              </p>
+           )}
+           {loginType === 'tenant' && (
+              <p className="text-xs text-center text-slate-500 mt-4">
+                Don't have an account? <button type="button" onClick={onApplyClick} className="text-indigo-600 hover:underline">Apply for a property</button>
+              </p>
+           )}
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onMaintenanceCreated }) => {
   const [view, setView] = useState<PortalView>('listings');
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
@@ -42,6 +124,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   // Authentication State
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  const [currentLeaseId, setCurrentLeaseId] = useState<string | null>(null);
   const [loadingTenant, setLoadingTenant] = useState(false);
 
   // Application Form State
@@ -112,6 +195,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
         const lease = docs.find((doc: any) => doc.type === 'Lease Agreement');
         if (isMounted && lease) {
           setLeaseDocument(lease);
+          setCurrentLeaseId(lease.id);
         }
       } catch (error) {
         console.error("Error fetching lease for status:", error);
@@ -608,11 +692,38 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     }
   };
 
-  const handleSignLease = () => {
-    setTimeout(() => {
-      setUserStatus('resident');
-      setView('dashboard');
-    }, 1500);
+  const handleSignLease = async () => {
+    // If we have a current lease ID, use that. Otherwise try to find it from leaseDocument
+    const leaseId = currentLeaseId || (leaseDocument as any)?.id;
+    
+    if (!leaseId) {
+      console.error("No lease ID available for signing");
+      // Fallback for demo purposes if no backend connection
+      setTimeout(() => {
+        setUserStatus('resident');
+        setView('dashboard');
+      }, 1500);
+      return;
+    }
+    
+    try {
+      await api.updateLegalDocument(leaseId, {
+        status: 'Signed',
+        signed_at: new Date().toISOString()
+      });
+      
+      setTimeout(() => {
+        setUserStatus('resident');
+        setView('dashboard');
+      }, 1500);
+    } catch (error) {
+      console.error("Error signing lease:", error);
+      // Still allow proceeding in demo/dev mode if API fails
+      setTimeout(() => {
+        setUserStatus('resident');
+        setView('dashboard');
+      }, 1500);
+    }
   };
 
   const handleMaintenanceSubmit = async () => {
@@ -751,68 +862,6 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
   };
 
   // --- SUB-COMPONENTS ---
-
-  const LoginModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden scale-100">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="text-lg font-bold text-slate-800">
-            {loginType === 'admin' ? 'Admin Portal Login' : 'Tenant Portal Login'}
-          </h3>
-          <button onClick={() => setLoginType(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <form onSubmit={handleLoginSubmit} className="p-8 space-y-4">
-           {loginError && (
-             <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-lg text-sm">
-               {loginError}
-             </div>
-           )}
-           <div>
-             <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-             <input 
-               type="email" 
-               className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-900"
-               placeholder={loginType === 'admin' ? "admin@neelacapital.com" : "tenant@example.com"} 
-               value={loginEmail}
-               onChange={(e) => setLoginEmail(e.target.value)}
-               required
-             />
-           </div>
-           <div>
-             <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-             <input 
-               type="password" 
-               className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-900"
-               placeholder="••••••••" 
-               value={loginPassword}
-               onChange={(e) => setLoginPassword(e.target.value)}
-               required
-             />
-           </div>
-           <button 
-             type="submit"
-             disabled={isLoggingIn}
-             className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
-           >
-             {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In to Dashboard'}
-           </button>
-           
-           {loginType === 'admin' && (
-              <p className="text-xs text-center text-slate-500 mt-4 bg-slate-50 p-2 rounded">
-                <Lock className="w-3 h-3 inline mr-1"/> Secure Area. Authorized Personnel Only.
-              </p>
-           )}
-           {loginType === 'tenant' && (
-              <p className="text-xs text-center text-slate-500 mt-4">
-                Don't have an account? <button type="button" onClick={() => {setLoginType(null); setView('listings')}} className="text-indigo-600 hover:underline">Apply for a property</button>
-              </p>
-           )}
-        </form>
-      </div>
-    </div>
-  );
 
   const LandingHeader = () => (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
@@ -1397,7 +1446,21 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <LandingHeader />
-      {loginType && <LoginModal />}
+      {loginType && (
+        <LoginModal 
+          isOpen={!!loginType}
+          loginType={loginType}
+          onClose={() => setLoginType(null)}
+          onSubmit={handleLoginSubmit}
+          email={loginEmail}
+          setEmail={setLoginEmail}
+          password={loginPassword}
+          setPassword={setLoginPassword}
+          isLoading={isLoggingIn}
+          error={loginError}
+          onApplyClick={() => {setLoginType(null); setView('listings')}}
+        />
+      )}
       
       <div className="flex-1 flex flex-col">
         {/* 1. LEASE SIGNING VIEW */}

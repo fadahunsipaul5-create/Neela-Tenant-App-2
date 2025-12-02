@@ -548,6 +548,20 @@ export const api = {
     return await response.json();
   },
 
+  // Update legal document (e.g. for manual signing)
+  updateLegalDocument: async (id: string, data: any): Promise<any> => {
+    const response = await fetchWithAuth(`${API_URL}/legal-documents/${id}/`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to update legal document' }));
+      throw new Error(error.detail || error.message || 'Failed to update legal document');
+    }
+    return await response.json();
+  },
+
   // Send lease via DocuSign
   sendLeaseDocuSign: async (legalDocumentId: string): Promise<any> => {
     // Use auth-aware fetch to refresh tokens if needed
