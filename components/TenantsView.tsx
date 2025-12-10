@@ -875,6 +875,33 @@ Landlord                            Tenant
                                 </div>
                              ) : null}
                              
+                             {/* Background Check Files */}
+                             {selectedApplicant.backgroundCheckFiles && selectedApplicant.backgroundCheckFiles.length > 0 ? (
+                                <div>
+                                   <p className="text-xs text-slate-500 font-medium mb-2">Background Check Report</p>
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => (
+                                         <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
+                                            <div className="flex items-center gap-3">
+                                               <div className="p-2 bg-green-200 rounded text-green-700">
+                                                  <FileText className="w-4 h-4" />
+                                               </div>
+                                               <div>
+                                                  <p className="text-sm font-medium text-slate-800">{file.filename || 'Background Check'}</p>
+                                                  <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
+                                               </div>
+                                            </div>
+                                            {file.path && (
+                                               <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                                  <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
+                                               </a>
+                                            )}
+                                         </div>
+                                      ))}
+                                   </div>
+                                </div>
+                             ) : null}
+                             
                              {/* Legacy Documents */}
                              {selectedApplicant.applicationData?.documents && selectedApplicant.applicationData.documents.length > 0 ? (
                                 <div>
@@ -898,7 +925,7 @@ Landlord                            Tenant
                                 </div>
                              ) : null}
                              
-                             {!selectedApplicant.photoIdFiles?.length && !selectedApplicant.incomeVerificationFiles?.length && !selectedApplicant.applicationData?.documents?.length && (
+                             {!selectedApplicant.photoIdFiles?.length && !selectedApplicant.incomeVerificationFiles?.length && !selectedApplicant.backgroundCheckFiles?.length && !selectedApplicant.applicationData?.documents?.length && (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                                    <p className="text-sm text-slate-600">No documents uploaded</p>
                                 </div>
@@ -935,59 +962,114 @@ Landlord                            Tenant
 
                  {applicantModalTab === 'screening' && (
                     <div className="space-y-8 animate-fade-in">
-                       <div className="flex items-center justify-between">
-                          <h3 className="font-bold text-slate-800 text-lg">Background & Credit Check</h3>
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-slate-400" />
-                            <span className="text-sm font-semibold text-slate-500">Powered by TransUnion</span>
+                       <h3 className="font-bold text-slate-800 text-lg">Screening & ID Documents</h3>
+                       
+                       {/* Uploaded ID Documents */}
+                       <div className="space-y-4">
+                          <h4 className="font-semibold text-slate-700 text-base">Uploaded Documents</h4>
+                          
+                          {/* Government-Issued Photo IDs */}
+                          <div>
+                             <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                Government-Issued Photo ID
+                             </h4>
+                             {selectedApplicant.photoIdFiles && selectedApplicant.photoIdFiles.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                   {selectedApplicant.photoIdFiles.map((file: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 bg-white">
+                                         <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-100 rounded text-indigo-600">
+                                               <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Photo ID'}</p>
+                                               <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
+                                            </div>
+                                         </div>
+                                         {file.path && (
+                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
+                                            </a>
+                                         )}
+                                      </div>
+                                   ))}
+                                </div>
+                             ) : (
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                   <p className="text-sm text-slate-600">No photo IDs uploaded</p>
+                                </div>
+                             )}
+                          </div>
+                          
+                          {/* Income Verification Documents */}
+                          <div>
+                             <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                Pay Stubs / Bank Statements
+                             </h4>
+                             {selectedApplicant.incomeVerificationFiles && selectedApplicant.incomeVerificationFiles.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                   {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 bg-white">
+                                         <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-100 rounded text-green-600">
+                                               <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Income Document'}</p>
+                                               <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
+                                            </div>
+                                         </div>
+                                         {file.path && (
+                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <Download className="w-4 h-4 text-slate-400 hover:text-green-600" />
+                                            </a>
+                                         )}
+                                      </div>
+                                   ))}
+                                </div>
+                             ) : (
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                   <p className="text-sm text-slate-600">No income verification documents uploaded</p>
+                                </div>
+                             )}
+                          </div>
+                          
+                          {/* Background Check Report */}
+                          <div>
+                             <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                Background Check Report
+                             </h4>
+                             {selectedApplicant.backgroundCheckFiles && selectedApplicant.backgroundCheckFiles.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                   {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
+                                         <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-200 rounded text-green-700">
+                                               <Shield className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Background Check'}</p>
+                                               <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
+                                            </div>
+                                         </div>
+                                         {file.path && (
+                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
+                                            </a>
+                                         )}
+                                      </div>
+                                   ))}
+                                </div>
+                             ) : (
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                   <p className="text-sm text-slate-600">No background check report uploaded</p>
+                                </div>
+                             )}
                           </div>
                        </div>
-                       
-                       {selectedApplicant.backgroundCheckStatus === 'Pending' && !simulatingCheck ? (
-                          <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-12 text-center">
-                             <Shield className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                             <h4 className="text-lg font-bold text-slate-700 mb-2">No Screening Report Generated</h4>
-                             <p className="text-slate-500 mb-6">Run a SmartMove credit and criminal background check.</p>
-                             <button onClick={runBackgroundCheck} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
-                                Trigger Background Check ($45)
-                             </button>
-                          </div>
-                       ) : simulatingCheck ? (
-                          <div className="flex flex-col items-center justify-center h-64 space-y-4">
-                             <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-                             <p className="text-slate-600 font-medium">Connecting to TransUnion SmartMove...</p>
-                          </div>
-                       ) : (
-                          <div className="space-y-6">
-                             <div className="grid grid-cols-3 gap-4">
-                                <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm text-center">
-                                   <p className="text-sm text-slate-500 font-medium mb-1">Credit Score</p>
-                                   <p className="text-4xl font-extrabold text-emerald-600">{selectedApplicant.creditScore}</p>
-                                   <p className="text-xs text-emerald-600 font-bold mt-1">Good</p>
-                                </div>
-                                <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm text-center">
-                                   <p className="text-sm text-slate-500 font-medium mb-1">Criminal Record</p>
-                                   <div className="flex items-center justify-center mt-2">
-                                      <CheckCircle className="w-8 h-8 text-emerald-500" />
-                                   </div>
-                                   <p className="text-xs text-slate-500 mt-2">No Records Found</p>
-                                </div>
-                                <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm text-center">
-                                   <p className="text-sm text-slate-500 font-medium mb-1">Eviction History</p>
-                                   <div className="flex items-center justify-center mt-2">
-                                      <CheckCircle className="w-8 h-8 text-emerald-500" />
-                                   </div>
-                                   <p className="text-xs text-slate-500 mt-2">No Prior Evictions</p>
-                                </div>
-                             </div>
-                             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <h5 className="font-bold text-blue-800 text-sm mb-2">SmartMove Recommendation</h5>
-                                <p className="text-sm text-blue-700">
-                                   Based on the credit score of {selectedApplicant.creditScore} and clean history, this applicant meets the property requirements.
-                                </p>
-                             </div>
-                          </div>
-                       )}
                     </div>
                  )}
 

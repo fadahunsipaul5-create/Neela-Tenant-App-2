@@ -116,7 +116,10 @@ export const api = {
       backgroundCheckStatus: item.background_check_status,
       applicationData: item.application_data,
       leaseStatus: item.lease_status,
-      signedLeaseUrl: item.signed_lease_url
+      signedLeaseUrl: item.signed_lease_url,
+      photoIdFiles: item.photo_id_files || [],
+      incomeVerificationFiles: item.income_verification_files || [],
+      backgroundCheckFiles: item.background_check_files || []
     }));
   },
 
@@ -192,7 +195,8 @@ export const api = {
   createTenant: async (tenantData: any): Promise<Tenant> => {
     // Check if we have files to upload
     const hasFiles = (tenantData.photoIdFiles && tenantData.photoIdFiles.length > 0) ||
-                     (tenantData.incomeVerificationFiles && tenantData.incomeVerificationFiles.length > 0);
+                     (tenantData.incomeVerificationFiles && tenantData.incomeVerificationFiles.length > 0) ||
+                     tenantData.backgroundCheckFile;
     
     let body: FormData | string;
     let headers: HeadersInit;
@@ -227,6 +231,10 @@ export const api = {
         tenantData.incomeVerificationFiles.forEach((file: File) => {
           formData.append('income_verification_files_upload', file);
         });
+      }
+      
+      if (tenantData.backgroundCheckFile) {
+        formData.append('background_check_files_upload', tenantData.backgroundCheckFile);
       }
       
       body = formData;

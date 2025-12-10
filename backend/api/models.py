@@ -29,6 +29,7 @@ class Tenant(models.Model):
     # File storage fields for application documents
     photo_id_files = models.JSONField(default=list, blank=True, help_text="List of uploaded photo ID file paths")
     income_verification_files = models.JSONField(default=list, blank=True, help_text="List of uploaded income verification file paths")
+    background_check_files = models.JSONField(default=list, blank=True, help_text="List of uploaded background check file paths")
 
     def __str__(self):
         return self.name

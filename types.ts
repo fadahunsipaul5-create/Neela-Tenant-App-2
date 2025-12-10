@@ -86,6 +86,9 @@ export interface Tenant {
   applicationData?: ApplicationData;
   leaseStatus?: 'Draft' | 'Sent' | 'Signed';
   signedLeaseUrl?: string;
+  photoIdFiles?: any[];
+  incomeVerificationFiles?: any[];
+  backgroundCheckFiles?: any[];
 }
 
 export interface Payment {
@@ -244,6 +247,7 @@ export interface ApplicationForm {
   emergencyContact: string;
   additionalNotes: string;
   certificationAgreed: boolean;
+  backgroundCheckFile: File | null;
   
   // Legacy fields (for backward compatibility)
   dob?: string;

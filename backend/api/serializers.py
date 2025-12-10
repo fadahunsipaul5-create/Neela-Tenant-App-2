@@ -19,6 +19,12 @@ class TenantSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
+    background_check_files_upload = serializers.ListField(
+        child=serializers.FileField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
     
     class Meta:
         model = Tenant
@@ -26,12 +32,14 @@ class TenantSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'photo_id_files': {'read_only': True},
             'income_verification_files': {'read_only': True},
+            'background_check_files': {'read_only': True},
         }
     
     def create(self, validated_data):
         # Extract file uploads
         photo_id_uploads = validated_data.pop('photo_id_files_upload', [])
         income_verification_uploads = validated_data.pop('income_verification_files_upload', [])
+        background_check_uploads = validated_data.pop('background_check_files_upload', [])
         
         # Create the tenant instance
         tenant = super().create(validated_data)
@@ -69,9 +77,25 @@ class TenantSerializer(serializers.ModelSerializer):
                 'uploaded_at': datetime.now().isoformat()
             })
         
+        # Handle background check file uploads
+        background_check_file_paths = []
+        for file in background_check_uploads:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"applications/tenant_{tenant.id}/background_{timestamp}_{file.name}"
+            
+            path = default_storage.save(filename, ContentFile(file.read()))
+            
+            background_check_file_paths.append({
+                'filename': file.name,
+                'path': path,
+                'size': file.size,
+                'uploaded_at': datetime.now().isoformat()
+            })
+        
         # Update tenant with file paths
         tenant.photo_id_files = photo_id_file_paths
         tenant.income_verification_files = income_verification_file_paths
+        tenant.background_check_files = background_check_file_paths
         tenant.save()
         
         return tenant
@@ -81,9 +105,11 @@ class TenantSerializer(serializers.ModelSerializer):
         # Validate file uploads
         photo_id_uploads = data.get('photo_id_files_upload', [])
         income_verification_uploads = data.get('income_verification_files_upload', [])
+        background_check_uploads = data.get('background_check_files_upload', [])
         
         # Validate file sizes (max 10MB per file)
         max_size = 10 * 1024 * 1024  # 10MB in bytes
+        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
         
         for file in photo_id_uploads:
             if file.size > max_size:
@@ -92,7 +118,6 @@ class TenantSerializer(serializers.ModelSerializer):
                 })
             
             # Validate file type
-            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
             ext = os.path.splitext(file.name)[1].lower()
             if ext not in allowed_extensions:
                 raise serializers.ValidationError({
@@ -109,6 +134,18 @@ class TenantSerializer(serializers.ModelSerializer):
             if ext not in allowed_extensions:
                 raise serializers.ValidationError({
                     'income_verification_files_upload': f'File {file.name} has invalid type. Allowed: PDF, JPG, PNG'
+                })
+        
+        for file in background_check_uploads:
+            if file.size > max_size:
+                raise serializers.ValidationError({
+                    'background_check_files_upload': f'File {file.name} exceeds maximum size of 10MB'
+                })
+            
+            ext = os.path.splitext(file.name)[1].lower()
+            if ext not in allowed_extensions:
+                raise serializers.ValidationError({
+                    'background_check_files_upload': f'File {file.name} has invalid type. Allowed: PDF, JPG, PNG'
                 })
         
         return data

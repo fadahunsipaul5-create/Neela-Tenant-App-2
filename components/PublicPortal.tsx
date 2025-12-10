@@ -166,6 +166,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       emergencyContact: '',
       additionalNotes: '',
       certificationAgreed: false,
+      backgroundCheckFile: null,
     };
     
     // Load draft from localStorage if available
@@ -196,6 +197,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [applicationError, setApplicationError] = useState<string | null>(null);
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
+  const [draftSaveMessage, setDraftSaveMessage] = useState<string | null>(null);
 
   // Resident State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -666,6 +668,11 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       return;
     }
     
+    if (!formData.backgroundCheckFile) {
+      setApplicationError('Please upload your background check report from MySmartMove');
+      return;
+    }
+    
     if (!selectedListing) {
       setApplicationError('No property selected');
       return;
@@ -729,6 +736,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
         },
         photoIdFiles: formData.photoIdFiles,
         incomeVerificationFiles: formData.incomeVerificationFiles,
+        backgroundCheckFile: formData.backgroundCheckFile,
       };
       
       // Submit application with files (this will trigger admin email notification)
@@ -749,6 +757,73 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       setApplicationError(error instanceof Error ? error.message : 'Failed to submit application. Please try again.');
     } finally {
       setIsSubmittingApplication(false);
+    }
+  };
+
+  const handleSaveDraft = () => {
+    try {
+      const draftData = { ...formData };
+      // Remove File objects before saving to localStorage (they can't be serialized)
+      draftData.photoIdFiles = [];
+      draftData.incomeVerificationFiles = [];
+      draftData.backgroundCheckFile = null;
+      localStorage.setItem('application_draft', JSON.stringify(draftData));
+      
+      setDraftSaveMessage('Draft saved successfully!');
+      setTimeout(() => setDraftSaveMessage(null), 3000);
+    } catch (error) {
+      setDraftSaveMessage('Failed to save draft');
+      setTimeout(() => setDraftSaveMessage(null), 3000);
+    }
+  };
+
+  const handleClearForm = () => {
+    if (window.confirm('Are you sure you want to clear all form fields? This action cannot be undone.')) {
+      // Reset to default form state
+      setFormData({
+        // Property Preferences
+        propertyAddress: selectedListing?.address || selectedListing?.title || '',
+        bedroomsDesired: [],
+        bathroomsDesired: [],
+        
+        // Personal Information
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        dateOfBirth: '',
+        currentAddress: '',
+        
+        // Occupants
+        otherOccupants: '',
+        hasOtherAdults: null,
+        photoIdFiles: [],
+        
+        // Employment/Income
+        currentEmployer: '',
+        monthlyIncome: '',
+        incomeVerificationFiles: [],
+        
+        // Rental History
+        hasRentedRecently: null,
+        previousLandlordInfo: '',
+        hasEvictionOrFelony: null,
+        evictionFelonyExplanation: '',
+        
+        // Policies & Agreement
+        agreesToPolicy: false,
+        desiredMoveInDate: '',
+        emergencyContact: '',
+        additionalNotes: '',
+        certificationAgreed: false,
+        backgroundCheckFile: null,
+      });
+      
+      // Clear draft from localStorage
+      localStorage.removeItem('application_draft');
+      
+      setDraftSaveMessage('Form cleared successfully');
+      setTimeout(() => setDraftSaveMessage(null), 3000);
     }
   };
 
@@ -2211,7 +2286,55 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
                             rows={4}
                           />
                         </div>
-                        
+                                                
+                        {/* Background Check Section */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                          <div>
+                            <h5 className="font-semibold text-slate-800 mb-2">Background Check Required <span className="text-rose-500">*</span></h5>
+                            <p className="text-sm text-slate-600 mb-3">
+                              Please complete your background check through MySmartMove and upload the report below.
+                            </p>
+                            <a 
+                              href="https://www.mysmartmove.com" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              Complete Background Check on MySmartMove
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Upload Background Check Report <span className="text-rose-500">*</span>
+                            </label>
+                            <p className="text-xs text-slate-500 mb-2">Accepted: PDF, JPG, PNG (Max 10 MB)</p>
+                            <input 
+                              type="file" 
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setFormData({...formData, backgroundCheckFile: file});
+                              }}
+                              className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              required
+                            />
+                            {formData.backgroundCheckFile && (
+                              <div className="mt-2 text-sm text-green-600 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                File selected: {formData.backgroundCheckFile.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+
+                        {/* 8. Certification */}
                         <div>
                           <label className="flex items-start gap-2 cursor-pointer">
                             <input 
@@ -2227,14 +2350,44 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
                         </div>
                       </div>
                       
-                      {/* 7. Application Fee & Submit */}
-                      <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
-                        <h4 className="font-medium text-slate-800 mb-2">Application Fee</h4>
-                        <div className="flex justify-between text-sm mb-4">
-                          <span className="text-slate-600">Processing & Background Check</span>
-                          <span className="font-bold text-slate-800">$45.00</span>
+                      {/* Draft Save Message */}
+                      {draftSaveMessage && (
+                        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          {draftSaveMessage}
                         </div>
-                        <p className="text-xs text-slate-500 mb-4 italic">Payment will be processed after application review</p>
+                      )}
+                      
+                      {/* 7. Form Action Buttons */}
+                      <div className="space-y-3">
+                        {/* Save Draft and Clear Form Buttons */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            type="button"
+                            onClick={handleSaveDraft}
+                            className="py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            Save as Draft
+                          </button>
+                          
+                          <button 
+                            type="button"
+                            onClick={handleClearForm}
+                            className="py-2.5 bg-rose-50 text-rose-700 font-medium rounded-lg hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Clear Form
+                          </button>
+                        </div>
+                        
+                        {/* Submit Button */}
                         <button 
                           onClick={handleSubmitApplication}
                           disabled={isSubmittingApplication}
