@@ -697,31 +697,23 @@ Landlord                            Tenant
                        )}
 
                        {/* Property Preferences */}
-                       {(selectedApplicant.applicationData?.propertyAddress || selectedApplicant.applicationData?.bedroomsDesired || selectedApplicant.applicationData?.bathroomsDesired) && (
-                          <div>
-                             <h4 className="font-bold text-slate-800 mb-3">Property Preferences</h4>
-                             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-                                {selectedApplicant.applicationData?.propertyAddress && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Interested Property</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.propertyAddress}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.bedroomsDesired && selectedApplicant.applicationData.bedroomsDesired.length > 0 && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Bedrooms Desired</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.bedroomsDesired.join(', ')}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.bathroomsDesired && selectedApplicant.applicationData.bathroomsDesired.length > 0 && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Bathrooms Desired</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.bathroomsDesired.join(', ')}</p>
-                                   </div>
-                                )}
+                       <div>
+                          <h4 className="font-bold text-slate-800 mb-3">Property Preferences</h4>
+                          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Interested Property</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.propertyAddress || 'N/A'}</p>
+                             </div>
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Bedrooms Desired</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.bedroomsDesired && selectedApplicant.applicationData.bedroomsDesired.length > 0 ? selectedApplicant.applicationData.bedroomsDesired.join(', ') : 'N/A'}</p>
+                             </div>
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Bathrooms Desired</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.bathroomsDesired && selectedApplicant.applicationData.bathroomsDesired.length > 0 ? selectedApplicant.applicationData.bathroomsDesired.join(', ') : 'N/A'}</p>
                              </div>
                           </div>
-                       )}
+                       </div>
 
                        {/* Personal Information */}
                        <div>
@@ -747,107 +739,83 @@ Landlord                            Tenant
                        </div>
 
                        {/* Occupants */}
-                       {(selectedApplicant.applicationData?.otherOccupants || selectedApplicant.applicationData?.hasOtherAdults !== undefined) && (
-                          <div>
-                             <h4 className="font-bold text-slate-800 mb-3">Occupants</h4>
-                             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-                                {selectedApplicant.applicationData?.otherOccupants && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Other Occupants</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.otherOccupants}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.hasOtherAdults !== undefined && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Other Adults (18+)</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.hasOtherAdults ? 'Yes' : 'No'}</p>
-                                   </div>
-                                )}
+                       <div>
+                          <h4 className="font-bold text-slate-800 mb-3">Occupants</h4>
+                          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Other Occupants</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.otherOccupants || 'N/A'}</p>
+                             </div>
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Other Adults (18+)</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.hasOtherAdults !== undefined ? (selectedApplicant.applicationData.hasOtherAdults ? 'Yes' : 'No') : 'N/A'}</p>
                              </div>
                           </div>
-                       )}
+                       </div>
 
                        {/* Employment Section */}
-                       {(selectedApplicant.applicationData?.currentEmployer || selectedApplicant.applicationData?.employment) && (
-                          <div>
-                             <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Briefcase className="w-4 h-4" /> Employment</h4>
-                             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-                                <p className="text-slate-800 font-medium">{selectedApplicant.applicationData?.currentEmployer || selectedApplicant.applicationData?.employment?.employer || 'N/A'}</p>
-                                {selectedApplicant.applicationData?.employment?.jobTitle && (
-                                   <p className="text-slate-600">{selectedApplicant.applicationData.employment.jobTitle}</p>
-                                )}
-                                {selectedApplicant.applicationData?.employment?.duration && (
-                                   <p className="text-sm text-slate-500">Employed for: {selectedApplicant.applicationData.employment.duration}</p>
-                                )}
-                             </div>
+                       <div>
+                          <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Briefcase className="w-4 h-4" /> Employment</h4>
+                          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                             <p className="text-slate-800 font-medium">{selectedApplicant.applicationData?.currentEmployer || selectedApplicant.applicationData?.employment?.employer || 'N/A'}</p>
+                             {selectedApplicant.applicationData?.employment?.jobTitle && (
+                                <p className="text-slate-600">{selectedApplicant.applicationData.employment.jobTitle}</p>
+                             )}
+                             <p className="text-sm text-slate-500">Employed for: {selectedApplicant.applicationData?.employment?.duration || 'N/A'}</p>
                           </div>
-                       )}
+                       </div>
 
                        {/* Rental History */}
-                       {(selectedApplicant.applicationData?.hasRentedRecently !== undefined || selectedApplicant.applicationData?.hasEvictionOrFelony !== undefined) && (
-                          <div>
-                             <h4 className="font-bold text-slate-800 mb-3">Rental History</h4>
-                             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-                                {selectedApplicant.applicationData?.hasRentedRecently !== undefined && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Rented in Past 2 Years</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.hasRentedRecently ? 'Yes' : 'No'}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.previousLandlordInfo && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Previous Landlord</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.previousLandlordInfo}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.hasEvictionOrFelony !== undefined && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Eviction/Felony History</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.hasEvictionOrFelony ? 'Yes' : 'No'}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.evictionFelonyExplanation && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Explanation</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.evictionFelonyExplanation}</p>
-                                   </div>
-                                )}
+                       <div>
+                          <h4 className="font-bold text-slate-800 mb-3">Rental History</h4>
+                          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Rented in Past 2 Years</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.hasRentedRecently !== undefined ? (selectedApplicant.applicationData.hasRentedRecently ? 'Yes' : 'No') : 'N/A'}</p>
                              </div>
+                             {selectedApplicant.applicationData?.previousLandlordInfo && (
+                                <div>
+                                   <p className="text-xs text-slate-500 font-medium">Previous Landlord</p>
+                                   <p className="text-slate-800">{selectedApplicant.applicationData.previousLandlordInfo}</p>
+                                </div>
+                             )}
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Eviction/Felony History</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.hasEvictionOrFelony !== undefined ? (selectedApplicant.applicationData.hasEvictionOrFelony ? 'Yes' : 'No') : 'N/A'}</p>
+                             </div>
+                             {selectedApplicant.applicationData?.evictionFelonyExplanation && (
+                                <div>
+                                   <p className="text-xs text-slate-500 font-medium">Explanation</p>
+                                   <p className="text-slate-800">{selectedApplicant.applicationData.evictionFelonyExplanation}</p>
+                                </div>
+                             )}
                           </div>
-                       )}
+                       </div>
 
                        {/* Policies & Preferences */}
-                       {(selectedApplicant.applicationData?.agreesToPolicy !== undefined || selectedApplicant.applicationData?.desiredMoveInDate || selectedApplicant.applicationData?.emergencyContact) && (
-                          <div>
-                             <h4 className="font-bold text-slate-800 mb-3">Additional Information</h4>
-                             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-                                {selectedApplicant.applicationData?.agreesToPolicy !== undefined && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Agrees to No-Smoking/No-Pet Policy</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.agreesToPolicy ? 'Yes' : 'No'}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.desiredMoveInDate && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Desired Move-In Date</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.desiredMoveInDate}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.emergencyContact && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Emergency Contact</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.emergencyContact}</p>
-                                   </div>
-                                )}
-                                {selectedApplicant.applicationData?.additionalNotes && (
-                                   <div>
-                                      <p className="text-xs text-slate-500 font-medium">Additional Notes</p>
-                                      <p className="text-slate-800">{selectedApplicant.applicationData.additionalNotes}</p>
-                                   </div>
-                                )}
+                       <div>
+                          <h4 className="font-bold text-slate-800 mb-3">Additional Information</h4>
+                          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Agrees to No-Smoking/No-Pet Policy</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.agreesToPolicy !== undefined ? (selectedApplicant.applicationData.agreesToPolicy ? 'Yes' : 'No') : 'N/A'}</p>
                              </div>
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Desired Move-In Date</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.desiredMoveInDate || 'N/A'}</p>
+                             </div>
+                             <div>
+                                <p className="text-xs text-slate-500 font-medium">Emergency Contact</p>
+                                <p className="text-slate-800">{selectedApplicant.applicationData?.emergencyContact || 'N/A'}</p>
+                             </div>
+                             {selectedApplicant.applicationData?.additionalNotes && (
+                                <div>
+                                   <p className="text-xs text-slate-500 font-medium">Additional Notes</p>
+                                   <p className="text-slate-800">{selectedApplicant.applicationData.additionalNotes}</p>
+                                </div>
+                             )}
                           </div>
-                       )}
+                       </div>
 
                        {/* Documents Section */}
                        <div>
