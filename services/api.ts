@@ -620,14 +620,14 @@ export const api = {
   },
 
   // Send lease via DocuSign
-  sendLeaseDocuSign: async (legalDocumentId: string): Promise<any> => {
+  sendLeaseDocuSign: async (legalDocumentId: string, createDraft: boolean = false): Promise<any> => {
     // Use auth-aware fetch to refresh tokens if needed
     const response = await fetchWithAuth(
       `${API_URL}/legal-documents/${legalDocumentId}/send_docusign/`,
       {
         method: 'POST',
-        // No body; just send Authorization header (no Content-Type needed)
-        headers: getHeaders(false, true),
+        headers: getHeaders(true, true), // Need JSON content type
+        body: JSON.stringify({ create_draft: createDraft }),
       }
     );
     if (!response.ok) {

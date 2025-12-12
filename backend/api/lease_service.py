@@ -41,7 +41,14 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
     
     # Get employment info from application data
     employment = tenant.application_data.get('employment', {}) if tenant.application_data else {}
+    application_data = tenant.application_data or {}
     
+    # Get other occupants
+    other_occupants = application_data.get('otherOccupants', 'None')
+    if not other_occupants and application_data.get('hasOtherAdults'):
+         # specific handling if needed
+         pass
+
     # Template variables
     replacements = {
         '{{tenant_name}}': tenant.name,
@@ -52,13 +59,40 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{property_unit}}': tenant.property_unit,
         '{{rent_amount}}': f"${tenant.rent_amount:,.2f}",
         '{{deposit_amount}}': f"${tenant.deposit:,.2f}",
-        '{{lease_start_date}}': lease_start.strftime('%B %d, %Y'),
-        '{{lease_end_date}}': lease_end.strftime('%B %d, %Y'),
+        '{{lease_start_date}}': lease_start.strftime('%m/%d/%Y'),
+        '{{lease_end_date}}': lease_end.strftime('%m/%d/%Y'),
         '{{employer}}': employment.get('employer', 'N/A'),
         '{{job_title}}': employment.get('jobTitle', 'N/A'),
         '{{monthly_income}}': f"${employment.get('monthlyIncome', 0):,.2f}" if employment.get('monthlyIncome') else 'N/A',
-        '{{current_date}}': datetime.now().strftime('%B %d, %Y'),
-        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', 'Property Management'),
+        '{{current_date}}': datetime.now().strftime('%m/%d/%Y'),
+        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', 'PropGuard Management'),
+        
+        # Extended fields for Texas Lease
+        '{{landlord_name}}': getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez'), # Defaulting to client sample for now
+        '{{landlord_address}}': getattr(settings, 'LANDLORD_ADDRESS', '6838 Avenue R, Houston, Texas, 77011'),
+        '{{landlord_phone}}': getattr(settings, 'LANDLORD_PHONE', '(346) 255-6143'),
+        '{{landlord_email}}': getattr(settings, 'LANDLORD_EMAIL', 'N/A'),
+        
+        # Address split helpers (assuming property_unit contains city/state or we default)
+        '{{property_city_state_zip}}': 'Houston, Texas, 77011', # Ideally parsed from property model if available
+        
+        # Date helpers for Notices
+        '{{period_start_date}}': lease_start.replace(day=1).strftime('%m/%d/%Y'), # Default to 1st of start month
+        '{{period_end_date}}': (lease_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1), # End of that month
+        
+        # Termination Helper (Default to 30 days from now)
+        '{{move_out_deadline}}': (datetime.now() + timedelta(days=30)).strftime('%B %d, %Y'),
+        
+        # New helpers for Application Packet
+        '{{tenant_current_address}}': application_data.get('currentAddress', ''),
+        '{{move_in_date}}': application_data.get('desiredMoveInDate', ''),
+        
+        '{{occupants}}': other_occupants,
+        '{{bedrooms}}': '___', # Placeholder for manual fill if not in DB
+        '{{bathrooms}}': '___',
+        '{{late_fee_amount}}': '$50.00',
+        '{{late_fee_day}}': '3rd',
+        '{{returned_check_fee}}': '$55.00',
     }
     
     # Replace all placeholders

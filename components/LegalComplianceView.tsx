@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tenant, LegalNoticeType, LegalDocument, NoticeTemplate } from '../types';
-import { generateLegalNotice } from '../services/geminiService';
+import { api } from '../services/api';
 import { 
   AlertTriangle, FileText, Send, Printer, Loader2, History, 
   FileSignature, Download, CheckCircle2, Search, Mail, PenTool, Save, Plus
@@ -74,8 +74,29 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
 
     setIsGenerating(true);
     try {
-      const doc = await generateLegalNotice(tenant, noticeType);
-      setGeneratedDoc(doc);
+      // Use the new generateLease API which now supports templates
+      // NOTICE_TO_VACATE_3_DAY maps to our new "Texas 3-Day Notice to Pay or Quit" template in DB
+      
+      // First fetch templates to find the ID
+      const templates = await api.getLeaseTemplates();
+      let templateName = 'Standard Residential Lease';
+      
+      if (noticeType === LegalNoticeType.NOTICE_TO_VACATE_3_DAY) {
+         templateName = 'Texas 3-Day Notice to Pay or Quit';
+      } else if (noticeType === LegalNoticeType.LEASE_TERMINATION_30_DAY) {
+         templateName = 'Texas Lease Termination Letter';
+      }
+          
+      const templateToUse = templates.find(t => t.name === templateName) || templates[0];
+      
+      if (templateToUse) {
+          const doc = await api.generateLease(tenant.id, templateToUse.id);
+          setGeneratedDoc(doc.generated_content);
+          // Also set history/state if needed
+      } else {
+         setGeneratedDoc("Template not found. Please contact support.");
+      }
+      
     } catch (e) {
       console.error(e);
       setGeneratedDoc("Error creating document. Please try again.");

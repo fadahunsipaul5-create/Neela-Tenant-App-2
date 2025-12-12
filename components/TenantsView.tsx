@@ -172,9 +172,16 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       setTemplateError(null);
       try {
         const templates = await api.getLeaseTemplates();
-        setLeaseTemplates(templates);
-        if (templates.length > 0 && !selectedTemplateId) {
-          setSelectedTemplateId(String(templates[0].id));
+        
+        // Filter out "Notice" type templates from the Lease dropdown
+        const leaseOnlyTemplates = templates.filter(t => 
+            !t.name.includes('Notice') && 
+            !t.name.includes('Termination')
+        );
+        
+        setLeaseTemplates(leaseOnlyTemplates);
+        if (leaseOnlyTemplates.length > 0 && !selectedTemplateId) {
+          setSelectedTemplateId(String(leaseOnlyTemplates[0].id));
         }
       } catch (error) {
         console.error('Failed to load lease templates:', error);
@@ -373,10 +380,27 @@ Landlord                            Tenant
     setSuccessMessage(null);
     
     try {
-      const updatedDoc = await api.sendLeaseDocuSign(generatedLeaseDoc.id);
-      setGeneratedLeaseDoc(updatedDoc);
-      setLeaseStatus(updatedDoc.status || 'Sent');
-      setSuccessMessage('Lease sent via DocuSign! The tenant will receive an email to sign.');
+      // Check if this is "Wills Lease Packet"
+      const isWillsPacket = leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet';
+      
+      const response = await api.sendLeaseDocuSign(generatedLeaseDoc.id, isWillsPacket);
+      
+      // If we got a sender view URL, open it in new tab
+      if (response.sender_view_url) {
+          window.open(response.sender_view_url, '_blank');
+          setSuccessMessage('DocuSign Draft Created! Please review and add checkboxes in the opened tab.');
+      } else {
+          setSuccessMessage('Lease sent via DocuSign! The tenant will receive an email to sign.');
+      }
+      
+      // Refresh doc status
+      const updatedDoc = await api.getLegalDocuments(selectedApplicant!.id);
+      const leaseDocs = updatedDoc.filter((d: any) => d.type === 'Lease Agreement');
+      if (leaseDocs.length > 0) {
+          setGeneratedLeaseDoc(leaseDocs[leaseDocs.length - 1]);
+          setLeaseStatus(leaseDocs[leaseDocs.length - 1].status || 'Sent');
+      }
+      
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to send lease via DocuSign');
     } finally {
@@ -1212,10 +1236,22 @@ Landlord                            Tenant
                                <button 
                                   onClick={handleSendDocuSign}
                                   disabled={isSending}
-                                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-lg shadow-indigo-200"
+                                  className={`px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg ${
+                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet'
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                                      : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                                  }`}
                                >
-                                  {isSending ? <Loader2 className="animate-spin w-4 h-4"/> : <Send className="w-4 h-4"/>}
-                                  {isSending ? 'Sending...' : 'Send via DocuSign'}
+                                  {isSending ? <Loader2 className="animate-spin w-4 h-4"/> : (
+                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet' 
+                                      ? <PenTool className="w-4 h-4"/> 
+                                      : <Send className="w-4 h-4"/>
+                                  )}
+                                  {isSending ? 'Processing...' : (
+                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet'
+                                      ? 'Review & Tag in DocuSign'
+                                      : 'Send via DocuSign'
+                                  )}
                                </button>
                              )}
                              {leaseStatus === 'Sent' && (
