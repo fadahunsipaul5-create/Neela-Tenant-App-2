@@ -105,9 +105,55 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
     }
   };
 
-  const handleSendNotice = (method: 'Email' | 'Certified Mail' | 'Portal') => {
+  const handleSendNotice = async (method: 'Email' | 'Certified Mail' | 'Portal') => {
     if (!selectedTenantId || !generatedDoc) return;
 
+    // Assuming we use DocuSign for "Certified Mail" option or explicit Email
+    if (method === 'Certified Mail' || method === 'Email') {
+        // Find existing draft if any, or create new? 
+        // Notice Logic: We are generating content on the fly, we don't have a "LegalDocument" ID yet unless we saved it.
+        // Let's first save the document, then send it via DocuSign.
+        
+        try {
+            // 1. Create Legal Document record
+            // Since our generateLease API doesn't return the ID, we might need to rely on history or update API.
+            // For now, let's assume we can generate AND save in one go if we pass a flag, 
+            // OR we assume the generateLease call ALREADY saved a draft (it does in backend view: save_lease_document).
+            
+            // To get the ID of the document we just generated, we need to fetch the latest for this tenant.
+            // This is a bit race-condition prone but works for MVP.
+            const docs = await api.getLegalDocuments(selectedTenantId);
+            const latestDoc = docs[docs.length - 1]; // Assuming it's the last one created
+            
+            if (latestDoc) {
+                await api.sendLeaseDocuSign(latestDoc.id);
+                alert(`Official Notice Sent via DocuSign to Tenant & Landlord!`);
+                
+                // Update local history
+                const newDoc: LegalDocument = {
+                  id: latestDoc.id,
+                  tenantId: selectedTenantId,
+                  type: noticeType,
+                  generatedContent: generatedDoc,
+                  createdAt: new Date().toISOString().split('T')[0],
+                  status: 'Sent',
+                  deliveryMethod: 'DocuSign',
+                  trackingNumber: 'DOCUSIGN-TRACKING'
+                };
+                setHistory([newDoc, ...history]);
+                setActiveTab('history');
+                setGeneratedDoc('');
+                setSelectedTenantId('');
+                return;
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to send notice via DocuSign. Please try again.");
+            return;
+        }
+    }
+
+    // Fallback for Portal / Mock
     const newDoc: LegalDocument = {
       id: `doc-${Date.now()}`,
       tenantId: selectedTenantId,
@@ -277,7 +323,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                              onClick={() => handleSendNotice('Certified Mail')}
                              className="px-4 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
                           >
-                             <Send className="w-4 h-4" /> Send Certified Mail
+                             <Send className="w-4 h-4" /> Send Official Notice (DocuSign)
                           </button>
                        </div>
                     )}

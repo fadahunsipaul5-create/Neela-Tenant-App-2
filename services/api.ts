@@ -696,6 +696,28 @@ export const api = {
     }));
   },
 
+  // Check Application Status
+  checkApplicationStatus: async (email: string, phone: string): Promise<any> => {
+    const response = await fetch(`${API_URL}/tenants/check_status/`, {
+      method: 'POST',
+      headers: getHeaders(true, false), // Public endpoint
+      body: JSON.stringify({ email, phone }),
+    });
+    if (!response.ok) {
+      if (response.status === 404) return null; // Not found
+      // Try to parse error message from response
+      let errorMessage = 'Failed to check status';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // If response is not JSON, use default message
+      }
+      throw new Error(errorMessage);
+    }
+    return await response.json();
+  },
+
   // Get current user's tenant
   getMyTenant: async (): Promise<Tenant> => {
     const response = await fetchWithAuth(`${API_URL}/tenants/me/`, {

@@ -121,6 +121,58 @@ class TenantViewSet(viewsets.ModelViewSet):
                 logger.warning(f"Celery connection failed, using threading fallback for declined email: {e}")
                 send_application_declined_email_to_user(tenant.id)
     
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
+    def check_status(self, request):
+        """Check application status by email and phone."""
+        try:
+            email = request.data.get('email')
+            phone = request.data.get('phone')
+            
+            if not email or not phone:
+                return Response(
+                    {"error": "Email and phone are required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            # Flexible phone matching (strip non-digits)
+            clean_phone = ''.join(filter(str.isdigit, str(phone))) if phone else ''
+            
+            if not clean_phone:
+                return Response(
+                    {"error": "Invalid phone number provided"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Try to find tenant
+            tenants = Tenant.objects.filter(email__iexact=email)
+            
+            matched_tenant = None
+            for t in tenants:
+                if not t.phone:
+                    continue
+                t_phone_clean = ''.join(filter(str.isdigit, str(t.phone)))
+                if clean_phone in t_phone_clean or t_phone_clean in clean_phone:
+                    matched_tenant = t
+                    break
+            
+            if matched_tenant:
+                serializer = self.get_serializer(matched_tenant)
+                return Response({
+                    "status": matched_tenant.status,
+                    "tenant": serializer.data
+                })
+                
+            return Response(
+                {"error": "Application not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error checking application status: {e}", exc_info=True)
+            return Response(
+                {"error": f"Failed to check status: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path='me', url_name='me')
     def me(self, request):
         """

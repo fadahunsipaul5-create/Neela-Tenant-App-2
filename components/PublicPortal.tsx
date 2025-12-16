@@ -10,10 +10,10 @@ import {
   CreditCard, Clock, AlertCircle, Building2, PenTool,
   Bell, Smartphone, Banknote, Image as ImageIcon, Loader2, X,
   MessageSquare, History, FileCheck, Mail, Lock, LogIn, ChevronRight,
-  Wallet, DollarSign, Copy, Info, RefreshCw
+  Wallet, DollarSign, Copy, Info, RefreshCw, Search, Shield, CheckCircle, CheckCircle2, Phone
 } from 'lucide-react';
 
-type PortalView = 'listings' | 'application' | 'dashboard' | 'lease_signing';
+type PortalView = 'listings' | 'application' | 'dashboard' | 'lease_signing' | 'status_check';
 type UserStatus = 'guest' | 'applicant_pending' | 'applicant_approved' | 'resident';
 type ResidentTab = 'overview' | 'payments' | 'maintenance' | 'documents';
 type PaymentSubTab = 'history' | 'payment-options';
@@ -108,11 +108,166 @@ const LoginModal: React.FC<LoginModalProps> = ({
   );
 };
 
+// Application Status Check Component
+const CheckStatusView: React.FC<{ onBack: () => void, onStatusFound: (status: string, tenant: Tenant) => void }> = ({ onBack, onStatusFound }) => {
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCheck = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !phone) {
+      setError('Please enter both email and phone number.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await api.checkApplicationStatus(email, phone);
+      
+      if (result) {
+        onStatusFound(result.status, result.tenant);
+      } else {
+        setError('No application found with these details. Please check and try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      // Extract error message if available
+      const errorMessage = err instanceof Error ? err.message : 'Failed to check status. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
+          Check Application Status
+        </h2>
+        <p className="mt-2 text-center text-sm text-slate-600">
+          Enter your email and phone number to track your progress.
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleCheck}>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+                Email address
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full pl-10 px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-700">
+                Phone Number
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="appearance-none block w-full pl-10 px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...
+                  </>
+                ) : (
+                  'Check Status'
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or</span>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <button
+                onClick={onBack}
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+              >
+                Back to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onMaintenanceCreated }) => {
   const [view, setView] = useState<PortalView>('listings');
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [activeTab, setActiveTab] = useState<ResidentTab>('overview');
+
+  // Status Check State
+  const [tempTenant, setTempTenant] = useState<Tenant | null>(null);
+
+  // Status Check Handler
+  const handleStatusFound = (status: string, tenant: Tenant) => {
+    setTempTenant(tenant);
+    setView('status_tracker');
+  };
   
   // Login State
   const [loginType, setLoginType] = useState<LoginType>(null);
@@ -1082,6 +1237,7 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
 
   // --- SUB-COMPONENTS ---
 
+
   const LandingHeader = () => (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -1660,6 +1816,9 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
     );
   };
 
+
+  // Status Check View Component (defined inside PublicPortal to access state)
+
   // --- VIEWS ---
 
   return (
@@ -1803,6 +1962,9 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
                     <p className="text-indigo-200 text-lg mb-8">Browse our curated selection of premium rentals with transparent pricing and instant applications.</p>
                     
                     <div className="flex flex-wrap gap-4">
+                       <button onClick={() => setView('check_status')} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-lg shadow-emerald-200 transition-colors flex items-center gap-2">
+                          <Clock className="w-5 h-5" /> Check Application Status
+                       </button>
                        <button onClick={() => setLoginType('tenant')} className="px-6 py-3 bg-white text-indigo-900 font-bold rounded-lg hover:bg-indigo-50 transition-colors">
                          Resident Login
                        </button>
@@ -1836,6 +1998,14 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
                 )}
             </div>
           </div>
+        )}
+
+        {/* 4. STATUS CHECK VIEW */}
+        {view === 'check_status' && (
+           <CheckStatusView 
+              onBack={() => setView('listings')} 
+              onStatusFound={handleStatusFound} 
+           />
         )}
 
         {/* 3. APPLICATION VIEW */}
