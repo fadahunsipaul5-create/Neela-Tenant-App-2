@@ -332,10 +332,11 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
 
             logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
             
-            # Try to upload WITHOUT format="pdf" to see if that helps avoid confusion
+            # Use 'auto' instead of 'raw' to better support PDF viewing/URL generation in Django
+            # PDFs are often treated as images by Cloudinary
             upload_result = cloudinary.uploader.upload(
                 pdf_buffer, 
-                resource_type="raw", 
+                resource_type="auto", 
                 public_id=public_id,
                 # format="pdf"  # Removed format to avoid double extension or raw/image confusion
             )
@@ -346,7 +347,9 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             # django-cloudinary-storage typically expects just the name if configured correctly, 
             # but storing the public_id ensures we can retrieve it.
             # Using the SECURE url directly if available, otherwise public_id
-            legal_doc.pdf_file.name = public_id # Store the relative path/public_id
+            
+            # Store the public_id, which likely includes the extension for 'auto' uploads if we provided it
+            legal_doc.pdf_file.name = upload_result.get('public_id')
             legal_doc.save()
             
         except Exception as e:
@@ -419,12 +422,13 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                             import cloudinary.uploader
                             public_id = f"media/signed_leases/{filename}"
                             logger.info(f"Uploading SIGNED lease to Cloudinary: {public_id}")
+                            # Use auto for signed leases too
                             upload_result = cloudinary.uploader.upload(
                                 signed_pdf_content, 
-                                resource_type="raw", 
+                                resource_type="auto", 
                                 public_id=public_id
                             )
-                            legal_doc.pdf_file.name = public_id
+                            legal_doc.pdf_file.name = upload_result.get('public_id')
                         except Exception as e:
                             logger.error(f"Cloudinary upload failed for signed lease: {e}")
                             legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
