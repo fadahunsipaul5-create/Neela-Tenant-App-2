@@ -639,8 +639,8 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                 logger.info(f"Creating DocuSign envelope for legal document {legal_doc.id}")
                 
                 # Get landlord details from settings
-                landlord_email = getattr(settings, 'LANDLORD_EMAIL', 'admin@example.com')
-                landlord_name = getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez')
+                landlord_email = getattr(settings, 'LANDLORD_EMAIL', None) or 'admin@example.com'
+                landlord_name = getattr(settings, 'LANDLORD_NAME', None) or 'Rosa Martinez'
                 
                 result = create_envelope(
                     legal_document_id=legal_doc.id,

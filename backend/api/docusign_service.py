@@ -394,11 +394,13 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
             logger.error("Failed to authenticate with DocuSign")
             return None
         
-        # Default landlord if not provided
+        # Default landlord if not provided (DocuSign requires recipient name/userName)
         if not landlord_email:
-            landlord_email = getattr(settings, 'LANDLORD_EMAIL', 'admin@example.com')
+            landlord_email = (getattr(settings, 'LANDLORD_EMAIL', None) or 'admin@example.com')
+        # settings.LANDLORD_NAME may exist but be None/empty; always fall back to a real string
         if not landlord_name:
-            landlord_name = getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez')
+            landlord_name = (getattr(settings, 'LANDLORD_NAME', None) or 'Rosa Martinez')
+        landlord_name = str(landlord_name).strip() if landlord_name else 'Rosa Martinez'
 
         pdf_base64 = None
         
