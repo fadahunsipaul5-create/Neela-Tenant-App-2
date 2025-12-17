@@ -408,12 +408,18 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
         elif pdf_url:
             # Download PDF from URL
             logger.info(f"Downloading PDF from {pdf_url}")
-            pdf_response = requests.get(pdf_url, timeout=30)
-            if pdf_response.status_code != 200:
-                logger.error(f"Failed to download PDF: {pdf_response.status_code}")
+            try:
+                pdf_response = requests.get(pdf_url, timeout=30)
+                if pdf_response.status_code != 200:
+                    logger.error(f"Failed to download PDF: {pdf_response.status_code}")
+                    # Don't return None immediately, we might have valid base64 in subsequent attempts or if caller provided fallback?
+                    # But here, we have no content.
+                    return None
+                pdf_bytes = pdf_response.content
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+            except Exception as e:
+                logger.error(f"Exception downloading PDF from URL: {e}")
                 return None
-            pdf_bytes = pdf_response.content
-            pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
         else:
             logger.error("No PDF content or URL provided")
             return None

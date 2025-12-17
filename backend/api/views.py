@@ -576,14 +576,19 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
 
                             if not pdf_content:
                                 logger.error("All retrieval attempts failed for Cloudinary file.")
-                                raise Exception("Could not retrieve file from Cloudinary after multiple attempts.")
-
+                                # Fallback: return None here, so we can fail gracefully or check if we have URL
+                                # raise Exception("Could not retrieve file from Cloudinary after multiple attempts.")
+                                pdf_content = None # Explicitly None to trigger fallback check
 
                         else:
                             raise read_error
 
             except Exception as e:
                 logger.warning(f"Could not read PDF file directly: {e}")
+            
+            # If we failed to get content but have a URL, we can still try to let DocuSign download it
+            # BUT: DocuSign needs a public URL. Cloudinary raw/private URLs might not work if they expire quickly or need auth headers not supported by DocuSign fetch.
+            # AND: We prefer sending base64 content.
             
             if not pdf_url and not pdf_content:
                 return Response(
