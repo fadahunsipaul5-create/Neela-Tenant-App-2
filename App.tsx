@@ -24,7 +24,7 @@ const App: React.FC = () => {
   const [tenantsInitialTab, setTenantsInitialTab] = useState<'residents' | 'applicants'>('residents');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // State for datas
+  // State for data
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
