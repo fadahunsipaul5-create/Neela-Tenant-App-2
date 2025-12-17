@@ -1185,11 +1185,38 @@ def _send_lease_signed_confirmation(legal_document_id):
         logger.error(f"Legal document with ID {legal_document_id} not found for signed confirmation email.")
         return
     
+    # Notify Admin/Manager First (Runs independently of tenant email availability)
+    admin_emails = get_admin_emails()
+    if admin_emails:
+        admin_subject = f'Lease Signed by All Parties - {legal_doc.tenant.name} - {legal_doc.tenant.property_unit}'
+        
+        admin_plain_message = f"""
+        Lease Agreement Fully Signed
+        
+        The lease agreement has been signed by both the Tenant and the Landlord.
+        
+        Tenant: {legal_doc.tenant.name}
+        Property Unit: {legal_doc.tenant.property_unit}
+        Signed Date: {legal_doc.signed_at or legal_doc.created_at}
+        
+        The final signed lease document has been stored in the system.
+        
+        Log in to view: {getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')}
+        """
+        
+        send_email_with_logging(
+            subject=admin_subject,
+            message=admin_plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=admin_emails,
+            email_type=f"lease signed admin notification (document {legal_doc.id})"
+        )
+
     if not legal_doc.tenant.email:
         logger.warning(f"Tenant {legal_doc.tenant.id} has no email address for lease signed confirmation.")
-        # Continue to notify admin even if tenant has no email
+        return
     
-    # 1. Notify Tenant
+    # Notify Tenant
     if legal_doc.tenant.email:
         subject = f'Lease Signed - Confirmation - {legal_doc.tenant.property_unit}'
         
@@ -1224,7 +1251,7 @@ def _send_lease_signed_confirmation(legal_document_id):
         
         Dear {legal_doc.tenant.name},
         
-        Congratulations! Your lease agreement has been successfully signed.
+        Congratulations! Your lease agreement has been successfully signed by all parties.
         
         Property Unit: {legal_doc.tenant.property_unit}
         Signed Date: {legal_doc.signed_at or legal_doc.created_at}
@@ -1260,31 +1287,6 @@ def _send_lease_signed_confirmation(legal_document_id):
             recipient_list=[legal_doc.tenant.email],
             html_message=html_message,
             email_type=f"lease signed confirmation email (document {legal_doc.id})"
-        )
-
-    # 2. Notify Admin/Manager (Runs independently of tenant email availability)
-    admin_emails = get_admin_emails()
-    if admin_emails:
-        admin_subject = f'Lease Signed - {legal_doc.tenant.name} - {legal_doc.tenant.property_unit}'
-        
-        admin_plain_message = f"""
-        Lease Agreement Signed
-        
-        Tenant: {legal_doc.tenant.name}
-        Property Unit: {legal_doc.tenant.property_unit}
-        Signed Date: {legal_doc.signed_at or legal_doc.created_at}
-        
-        The signed lease document has been stored in the system.
-        
-        Log in to view: {getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')}
-        """
-        
-        send_email_with_logging(
-            subject=admin_subject,
-            message=admin_plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=admin_emails,
-            email_type=f"lease signed admin notification (document {legal_doc.id})"
         )
 
 

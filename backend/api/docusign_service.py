@@ -375,9 +375,10 @@ def get_docusign_api_client() -> Optional[ApiClient]:
         return None
 
 
-def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str, pdf_url: str = None, pdf_content: bytes = None) -> Optional[Dict[str, Any]]:
+def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str, landlord_email: str = None, landlord_name: str = None, pdf_url: str = None, pdf_content: bytes = None) -> Optional[Dict[str, Any]]:
     """
     Create a DocuSign envelope for a lease document.
+    Supports dual signing (Tenant and Landlord) and auto-placement of tabs.
     """
     if not is_docusign_configured():
         return None
@@ -393,6 +394,12 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
             logger.error("Failed to authenticate with DocuSign")
             return None
         
+        # Default landlord if not provided
+        if not landlord_email:
+            landlord_email = getattr(settings, 'LANDLORD_EMAIL', 'admin@example.com')
+        if not landlord_name:
+            landlord_name = getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez')
+
         pdf_base64 = None
         
         if pdf_content:
@@ -414,50 +421,87 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
         # Log document encoding status
         logger.debug(f"Document base64 length: {len(pdf_base64)}")
         
-        # Create document
-        document = Document(
-            document_base64=pdf_base64,
-            name=f"Lease Agreement - {tenant_name}",
-            file_extension='pdf',
-            document_id='1'
-        )
+        # Create document object (referenced in envelope)
+        document_data = {
+            "documentBase64": pdf_base64,
+            "name": f"Lease Agreement - {tenant_name}",
+            "fileExtension": "pdf",
+            "documentId": "1"
+        }
         
-        # Create signer
-        signer = Signer(
-            email=tenant_email,
-            name=tenant_name,
-            recipient_id='1',
-            routing_order='1',
-            # Re-adding client_user_id as this is required for embedded signing
-            # and often fixes 401s related to remote sending permissions
-            # client_user_id=f"tenant_{legal_document_id}" 
-        )
-        
-        # Create sign here tab (signature field)
-        sign_here = SignHere(
-            document_id='1',
-            page_number='1',
-            recipient_id='1',
-            x_position='100',
-            y_position='700'
-        )
-        
-        signer.tabs = Tabs(sign_here_tabs=[sign_here])
-        
-        # Create recipients
-        recipients = Recipients(signers=[signer])
-        
-        # Create envelope definition
-        envelope_definition = EnvelopeDefinition(
-            email_subject="Please sign your lease agreement",
-            documents=[document],
-            recipients=recipients,
-            status='sent'
-        )
-        
-        # Create envelope
-        # envelopes_api = EnvelopesApi(api_client) # OLD
-        
+        # --- RECIPIENT 1: TENANT ---
+        # Tenant signs first (routing order 1)
+        # Tabs: Signature, Date, Text Fields (___), Checkboxes ([ ])
+        tenant_recipient = {
+            "email": tenant_email,
+            "name": tenant_name,
+            "recipientId": "1",
+            "routingOrder": "1",
+            # "clientUserId": f"tenant_{legal_document_id}", # Keep commented out for remote (email) signing
+            "tabs": {
+                "signHereTabs": [{
+                    "anchorString": "Tenant's Signature:",
+                    "anchorYOffset": "10", 
+                    "anchorXOffset": "20",
+                    "anchorUnits": "pixels",
+                    "documentId": "1",
+                    "pageNumber": "1", # Optional with anchor
+                }],
+                "dateSignedTabs": [{
+                    "anchorString": "Tenant's Signature:",
+                    "anchorYOffset": "40", # Below signature
+                    "anchorXOffset": "20",
+                    "anchorUnits": "pixels",
+                    "documentId": "1"
+                }],
+                # Auto-place text fields for missing info (___)
+                "textTabs": [{
+                    "anchorString": "___",
+                    "anchorYOffset": "-2", 
+                    "anchorXOffset": "0",
+                    "anchorUnits": "pixels",
+                    "width": "80", # Approximate width
+                    "required": "false", # Let them fill what they can
+                    "documentId": "1"
+                }],
+                # Auto-place checkboxes for [ ]
+                # Note: DocuSign checkbox placement can be tricky with exact text match
+                # We assume the PDF has "[ ]" literal text
+                "checkboxTabs": [{
+                    "anchorString": "[ ]",
+                    "anchorYOffset": "0",
+                    "anchorXOffset": "0",
+                    "anchorUnits": "pixels",
+                    "documentId": "1"
+                }]
+            }
+        }
+
+        # --- RECIPIENT 2: LANDLORD ---
+        # Landlord signs second (routing order 2)
+        landlord_recipient = {
+            "email": landlord_email,
+            "name": landlord_name,
+            "recipientId": "2",
+            "routingOrder": "2",
+            "tabs": {
+                "signHereTabs": [{
+                    "anchorString": "Landlord's Signature:",
+                    "anchorYOffset": "10",
+                    "anchorXOffset": "20",
+                    "anchorUnits": "pixels",
+                    "documentId": "1"
+                }],
+                "dateSignedTabs": [{
+                    "anchorString": "Landlord's Signature:",
+                    "anchorYOffset": "40",
+                    "anchorXOffset": "20",
+                    "anchorUnits": "pixels",
+                    "documentId": "1"
+                }]
+            }
+        }
+
         # RAW REQUEST ATTEMPT TO BYPASS SDK ISSUES
         import json as json_lib
         
@@ -480,29 +524,9 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
         envelope_json = {
             "emailSubject": "Please sign your lease agreement",
             "status": "sent",
-            "documents": [{
-                "documentBase64": pdf_base64,
-                "name": f"Lease Agreement - {tenant_name}",
-                "fileExtension": "pdf",
-                "documentId": "1"
-            }],
+            "documents": [document_data],
             "recipients": {
-                "signers": [{
-                    "email": tenant_email,
-                    "name": tenant_name,
-                    "recipientId": "1",
-                    "routingOrder": "1",
-                    # "clientUserId": f"tenant_{legal_document_id}", # Commented out for remote signing (email)
-                    "tabs": {
-                        "signHereTabs": [{
-                            "documentId": "1",
-                            "pageNumber": "1",
-                            "recipientId": "1",
-                            "xPosition": "100",
-                            "yPosition": "700"
-                        }]
-                    }
-                }]
+                "signers": [tenant_recipient, landlord_recipient]
             }
         }
         

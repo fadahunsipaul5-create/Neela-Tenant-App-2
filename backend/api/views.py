@@ -579,10 +579,17 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             # Create DocuSign envelope (uses JWT authentication automatically)
             try:
                 logger.info(f"Creating DocuSign envelope for legal document {legal_doc.id}")
+                
+                # Get landlord details from settings
+                landlord_email = getattr(settings, 'LANDLORD_EMAIL', 'admin@example.com')
+                landlord_name = getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez')
+                
                 result = create_envelope(
                     legal_document_id=legal_doc.id,
                     tenant_email=legal_doc.tenant.email,
                     tenant_name=legal_doc.tenant.name,
+                    landlord_email=landlord_email,
+                    landlord_name=landlord_name,
                     pdf_url=pdf_url,
                     pdf_content=pdf_content
                 )
