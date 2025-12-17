@@ -327,8 +327,8 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             # Cloudinary raw resources with format often duplicate extensions.
             
             public_id = f"media/leases/{filename}" 
-            if public_id.endswith('.pdf'):
-                public_id = public_id[:-4]
+            # if public_id.endswith('.pdf'):
+            #     public_id = public_id[:-4]
 
             logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
             
@@ -345,7 +345,8 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             # Manually set the file name/path to what Cloudinary returned or the expected path
             # django-cloudinary-storage typically expects just the name if configured correctly, 
             # but storing the public_id ensures we can retrieve it.
-            legal_doc.pdf_file.name = upload_result.get('public_id')
+            # Using the SECURE url directly if available, otherwise public_id
+            legal_doc.pdf_file.name = public_id # Store the relative path/public_id
             legal_doc.save()
             
         except Exception as e:
@@ -397,29 +398,52 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
         }
         
         # Map DocuSign status to our status
+        # 'completed' means ALL signers have signed
         if ds_status == 'completed':
-            if legal_doc.status != 'Signed':
+            # Always update if it's completed (even if already marked signed, to ensure PDF is captured)
+            if legal_doc.status != 'Signed' or not legal_doc.pdf_file or 'signed' not in legal_doc.pdf_file.name:
                 # Update status
                 legal_doc.status = 'Signed'
-                legal_doc.signed_at = timezone.now()
+                if not legal_doc.signed_at:
+                    legal_doc.signed_at = timezone.now()
                 
-                # Download signed document
+                # Download signed document logic... (same as above)
                 signed_pdf_content = download_signed_document(legal_doc.docusign_envelope_id)
                 if signed_pdf_content:
                     # Save as signed PDF
                     filename = f"signed_lease_{legal_doc.tenant.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
+                    
+                    # Check if using Cloudinary
+                    if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+                        try:
+                            import cloudinary.uploader
+                            public_id = f"media/signed_leases/{filename}"
+                            logger.info(f"Uploading SIGNED lease to Cloudinary: {public_id}")
+                            upload_result = cloudinary.uploader.upload(
+                                signed_pdf_content, 
+                                resource_type="raw", 
+                                public_id=public_id
+                            )
+                            legal_doc.pdf_file.name = public_id
+                        except Exception as e:
+                            logger.error(f"Cloudinary upload failed for signed lease: {e}")
+                            legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
+                    else:
+                        legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
+                        
                     result['actions'].append('downloaded_signed_pdf')
                 
                 legal_doc.save()
                 
                 # Update tenant
                 tenant = legal_doc.tenant
-                tenant.lease_status = 'Signed'
-                tenant.save()
+                if tenant.lease_status != 'Signed':
+                    tenant.lease_status = 'Signed'
+                    tenant.save()
                 result['updated'] = True
                 
-                # Send confirmation
+                # Send confirmation (check if already sent to avoid duplicate spam)
+                # We can check a flag or just rely on status change
                 try:
                     send_lease_signed_confirmation.delay(legal_doc.id)
                     result['actions'].append('sent_confirmation_email')
@@ -427,7 +451,7 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                     send_lease_signed_confirmation(legal_doc.id)
                     result['actions'].append('sent_confirmation_email_sync')
 
-                # CRITICAL: Check if user account exists, if not, create it and send setup email
+                # CRITICAL: Check if user account exists... (same as above)
                 try:
                     user, created = create_user_from_tenant(tenant)
                     # We should send the welcome email if the user was JUST created
@@ -456,6 +480,13 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                 except Exception as e:
                      logger.error(f"Error ensuring user account exists after lease signing: {e}", exc_info=True)
                      result['errors'] = str(e)
+
+        elif ds_status in ['sent', 'delivered']:
+             # Handle partial status updates if needed
+             # 'sent': Email sent to current recipient
+             # 'delivered': Recipient has viewed the document
+             pass
+
 
         elif ds_status in ['declined', 'voided']:
             if legal_doc.status != 'Declined' and legal_doc.status != 'Voided':
