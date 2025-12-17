@@ -519,7 +519,8 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
                     { "anchorString": "Applicant was referred to Landlord by:", "anchorXOffset": "0", "anchorYOffset": "18", "width": "250", "required": "false", "documentId": "1", "tabLabel": "ReferralAgentName" },
                     { "anchorString": "(phone)", "anchorXOffset": "-140", "anchorYOffset": "-2", "width": "120", "required": "false", "documentId": "1", "tabLabel": "ReferralPhone" },
                     { "anchorString": "(e-mail)", "anchorXOffset": "-180", "anchorYOffset": "-2", "width": "160", "required": "false", "documentId": "1", "tabLabel": "ReferralEmail" },
-                    { "anchorString": "(name/initials)", "anchorXOffset": "-200", "anchorYOffset": "-2", "width": "180", "required": "false", "documentId": "1", "tabLabel": "LandlordUseNotifiedBy" },
+                    # Offset was too far left and exceeded page boundaries; keep within page.
+                    { "anchorString": "(name/initials)", "anchorXOffset": "-110", "anchorYOffset": "-2", "width": "180", "required": "false", "documentId": "1", "tabLabel": "LandlordUseNotifiedBy" },
                     { "anchorString": "Reason for disapproval:", "anchorXOffset": "160", "anchorYOffset": "-2", "width": "250", "required": "false", "documentId": "1", "tabLabel": "ReasonForDisapproval" },
                 ],
                 # Auto-place checkboxes for [ ]
