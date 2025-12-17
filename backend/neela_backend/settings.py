@@ -244,6 +244,10 @@ DOCUSIGN_BASE_PATH = os.environ.get('DOCUSIGN_BASE_PATH', 'https://demo.docusign
 DOCUSIGN_USER_ID = os.environ.get('DOCUSIGN_USER_ID', '').strip()
 DOCUSIGN_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'neela_backend', 'dsign_private.key')
 
+# Landlord/Admin contact (used for DocuSign routing notifications)
+LANDLORD_EMAIL = os.environ.get('LANDLORD_EMAIL', '').strip() or None
+LANDLORD_NAME = os.environ.get('LANDLORD_NAME', '').strip() or None
+
 DOCUSIGN_REDIRECT_URI = os.environ.get(
     "DOCUSIGN_REDIRECT_URI",
     os.environ.get("DOCUSIGN_REDIRECT_URL")
