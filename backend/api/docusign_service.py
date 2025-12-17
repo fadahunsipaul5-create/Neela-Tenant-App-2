@@ -441,39 +441,71 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
             "tabs": {
                 "signHereTabs": [{
                     "anchorString": "Tenant's Signature:",
-                    "anchorYOffset": "10", 
-                    "anchorXOffset": "20",
+                    "anchorYOffset": "-20", # Move up slightly to sit on line
+                    "anchorXOffset": "140", # Move right to be after the label
                     "anchorUnits": "pixels",
                     "documentId": "1",
                     "pageNumber": "1", # Optional with anchor
                 }],
                 "dateSignedTabs": [{
                     "anchorString": "Tenant's Signature:",
-                    "anchorYOffset": "40", # Below signature
-                    "anchorXOffset": "20",
+                    "anchorYOffset": "20", # Below signature
+                    "anchorXOffset": "140",
                     "anchorUnits": "pixels",
                     "documentId": "1"
                 }],
                 # Auto-place text fields for missing info (___)
-                "textTabs": [{
-                    "anchorString": "___",
-                    "anchorYOffset": "-2", 
-                    "anchorXOffset": "0",
-                    "anchorUnits": "pixels",
-                    "width": "80", # Approximate width
-                    "required": "false", # Let them fill what they can
-                    "documentId": "1"
-                }],
+                "textTabs": [
+                    # Bedrooms
+                    { "anchorString": "[_Beds_]", "anchorYOffset": "-2", "width": "40", "required": "false", "documentId": "1", "tabLabel": "Bedrooms" },
+                    # Bathrooms
+                    { "anchorString": "[_Baths_]", "anchorYOffset": "-2", "width": "40", "required": "false", "documentId": "1", "tabLabel": "Bathrooms" },
+                    # DOB
+                    { "anchorString": "[_DOB_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "DOB" },
+                    # Driver License
+                    { "anchorString": "[_DL_]", "anchorYOffset": "-2", "width": "100", "required": "false", "documentId": "1", "tabLabel": "DriverLicense" },
+                    # DL State
+                    { "anchorString": "[_DLState_]", "anchorYOffset": "-2", "width": "40", "required": "false", "documentId": "1", "tabLabel": "DLState" },
+                    # SSN
+                    { "anchorString": "[_SSN_]", "anchorYOffset": "-2", "width": "100", "required": "false", "documentId": "1", "tabLabel": "SSN" },
+                    # Marital Status
+                    { "anchorString": "[_Marital_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "MaritalStatus" },
+                    # Citizenship
+                    { "anchorString": "[_Citizen_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "Citizenship" },
+                    # Height
+                    { "anchorString": "[_Height_]", "anchorYOffset": "-2", "width": "60", "required": "false", "documentId": "1", "tabLabel": "Height" },
+                    # Weight
+                    { "anchorString": "[_Weight_]", "anchorYOffset": "-2", "width": "60", "required": "false", "documentId": "1", "tabLabel": "Weight" },
+                    # Hair
+                    { "anchorString": "[_Hair_]", "anchorYOffset": "-2", "width": "60", "required": "false", "documentId": "1", "tabLabel": "HairColor" },
+                    # Eye
+                    { "anchorString": "[_Eye_]", "anchorYOffset": "-2", "width": "60", "required": "false", "documentId": "1", "tabLabel": "EyeColor" },
+                    # Emergency Contact
+                    { "anchorString": "[_EmergName_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "EmergName" },
+                    { "anchorString": "[_EmergPhone_]", "anchorYOffset": "-2", "width": "100", "required": "false", "documentId": "1", "tabLabel": "EmergPhone" },
+                    { "anchorString": "[_EmergAddr_]", "anchorYOffset": "-2", "width": "200", "required": "false", "documentId": "1", "tabLabel": "EmergAddr" },
+                    { "anchorString": "[_EmergEmail_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "EmergEmail" },
+                    # Employment
+                    { "anchorString": "[_SupName_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "SupName" },
+                    { "anchorString": "[_SupPhone_]", "anchorYOffset": "-2", "width": "100", "required": "false", "documentId": "1", "tabLabel": "SupPhone" },
+                    { "anchorString": "[_EmpStart_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "EmpStart" },
+                    { "anchorString": "[_EmpDur_]", "anchorYOffset": "-2", "width": "60", "required": "false", "documentId": "1", "tabLabel": "EmpDur" },
+                    { "anchorString": "[_Employer_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "Employer" },
+                    { "anchorString": "[_JobTitle_]", "anchorYOffset": "-2", "width": "100", "required": "false", "documentId": "1", "tabLabel": "JobTitle" },
+                    { "anchorString": "[_Income_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "Income" },
+                    # Previous Rental
+                    { "anchorString": "[_PrevAddr_]", "anchorYOffset": "-2", "width": "200", "required": "false", "documentId": "1", "tabLabel": "PrevAddr" },
+                    { "anchorString": "[_PrevLandlord_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "PrevLandlord" },
+                    { "anchorString": "[_PrevRent_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "PrevRent" },
+                    { "anchorString": "[_LeaveReason_]", "anchorYOffset": "-2", "width": "200", "required": "false", "documentId": "1", "tabLabel": "LeaveReason" },
+                ],
                 # Auto-place checkboxes for [ ]
-                # Note: DocuSign checkbox placement can be tricky with exact text match
-                # We assume the PDF has "[ ]" literal text
-                "checkboxTabs": [{
-                    "anchorString": "[ ]",
-                    "anchorYOffset": "0",
-                    "anchorXOffset": "0",
-                    "anchorUnits": "pixels",
-                    "documentId": "1"
-                }]
+                "checkboxTabs": [
+                    { "anchorString": "[_PetY_]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "HasPets" },
+                    { "anchorString": "[_PetN_]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "NoPets" },
+                    # Generic fallback just in case
+                    { "anchorString": "[ ]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "GenericCheckbox" }
+                ]
             }
         }
 
@@ -487,15 +519,15 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
             "tabs": {
                 "signHereTabs": [{
                     "anchorString": "Landlord's Signature:",
-                    "anchorYOffset": "10",
-                    "anchorXOffset": "20",
+                    "anchorYOffset": "-20",
+                    "anchorXOffset": "140",
                     "anchorUnits": "pixels",
                     "documentId": "1"
                 }],
                 "dateSignedTabs": [{
                     "anchorString": "Landlord's Signature:",
-                    "anchorYOffset": "40",
-                    "anchorXOffset": "20",
+                    "anchorYOffset": "20",
+                    "anchorXOffset": "140",
                     "anchorUnits": "pixels",
                     "documentId": "1"
                 }]
