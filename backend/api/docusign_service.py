@@ -442,6 +442,28 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
             "documentId": "1"
         }
         
+        # Generate dynamic tabs for visual anchors
+        dynamic_text_tabs = []
+        for i in range(1, 151):
+            dynamic_text_tabs.append({
+                "anchorString": f"/txt{i}/",
+                "anchorYOffset": "-2", 
+                "anchorXOffset": "0",
+                "width": "150", 
+                "documentId": "1", 
+                "tabLabel": f"Text Field {i}" 
+            })
+
+        dynamic_checkbox_tabs = []
+        for i in range(1, 101):
+            dynamic_checkbox_tabs.append({
+                "anchorString": f"/chk{i}/",
+                "anchorYOffset": "0",
+                "anchorXOffset": "-20", # Shift left to cover [ ]
+                "documentId": "1", 
+                "tabLabel": f"Checkbox {i}"
+            })
+        
         # --- RECIPIENT 1: TENANT ---
         # Tenant signs first (routing order 1)
         # Tabs: Signature, Date, Text Fields (___), Checkboxes ([ ])
@@ -511,47 +533,14 @@ def create_envelope(legal_document_id: int, tenant_email: str, tenant_name: str,
                     { "anchorString": "[_PrevLandlord_]", "anchorYOffset": "-2", "width": "150", "required": "false", "documentId": "1", "tabLabel": "PrevLandlord" },
                     { "anchorString": "[_PrevRent_]", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "PrevRent" },
                     { "anchorString": "[_LeaveReason_]", "anchorYOffset": "-2", "width": "200", "required": "false", "documentId": "1", "tabLabel": "LeaveReason" },
-
-                    # --- Texas Lease Application style fields (when template uses underscores + labels) ---
-                    # These anchors avoid generic "____" which repeats everywhere; instead we anchor to the label text.
-                    { "anchorString": "Initial Lease Term Requested:", "anchorXOffset": "220", "anchorYOffset": "-2", "width": "80", "required": "false", "documentId": "1", "tabLabel": "InitialLeaseTermMonths" },
-                    { "anchorString": "Property Address:", "anchorXOffset": "130", "anchorYOffset": "-2", "width": "250", "required": "false", "documentId": "1", "tabLabel": "PropertyAddress" },
-                    { "anchorString": "Applicant was referred to Landlord by:", "anchorXOffset": "0", "anchorYOffset": "18", "width": "250", "required": "false", "documentId": "1", "tabLabel": "ReferralAgentName" },
-                    { "anchorString": "(phone)", "anchorXOffset": "-140", "anchorYOffset": "-2", "width": "120", "required": "false", "documentId": "1", "tabLabel": "ReferralPhone" },
-                    { "anchorString": "(e-mail)", "anchorXOffset": "-180", "anchorYOffset": "-2", "width": "160", "required": "false", "documentId": "1", "tabLabel": "ReferralEmail" },
-                    # Offset was too far left and exceeded page boundaries; keep within page.
-                    { "anchorString": "(name/initials)", "anchorXOffset": "-110", "anchorYOffset": "-2", "width": "180", "required": "false", "documentId": "1", "tabLabel": "LandlordUseNotifiedBy" },
-                    { "anchorString": "Reason for disapproval:", "anchorXOffset": "160", "anchorYOffset": "-2", "width": "250", "required": "false", "documentId": "1", "tabLabel": "ReasonForDisapproval" },
-                ],
+                ] + dynamic_text_tabs,
                 # Auto-place checkboxes for [ ]
                 "checkboxTabs": [
                     { "anchorString": "[_PetY_]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "HasPets" },
                     { "anchorString": "[_PetN_]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "NoPets" },
-
-                    # --- Texas Lease Application style checkboxes ---
-                    # IMPORTANT: each checkbox MUST have a unique tabLabel, otherwise DocuSign links them.
-                    # Anchor to nearby label text and offset left into the checkbox box.
-                    { "anchorString": "real estate agent", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkReferralRealEstateAgent" },
-                    { "anchorString": "newspaper", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkReferralNewspaper" },
-                    { "anchorString": "sign", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkReferralSign" },
-                    { "anchorString": "internet", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkReferralInternet" },
-                    { "anchorString": "other", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkReferralOther" },
-
-                    # Co-applicant yes/no (kept independent; if you want mutual exclusion we can switch to radioGroupTabs)
-                    { "anchorString": "Is there a co-applicant?", "anchorXOffset": "175", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkCoApplicantYes" },
-                    { "anchorString": "Is there a co-applicant?", "anchorXOffset": "235", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkCoApplicantNo" },
-
-                    # Landlord use notification method
-                    { "anchorString": "phone", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotifyPhone" },
-                    { "anchorString": "e-mail", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotifyEmail" },
-                    { "anchorString": "mail", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotifyMail" },
-                    { "anchorString": "fax", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotifyFax" },
-                    { "anchorString": "in person", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotifyInPerson" },
-
-                    # Approved / not approved
-                    { "anchorString": "approved.", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkApproved" },
-                    { "anchorString": "not approved.", "anchorXOffset": "-22", "anchorYOffset": "0", "documentId": "1", "tabLabel": "ChkNotApproved" },
-                ]
+                    # Generic fallback just in case
+                    { "anchorString": "[ ]", "anchorYOffset": "0", "documentId": "1", "tabLabel": "GenericCheckbox" }
+                ] + dynamic_checkbox_tabs
             }
         }
 

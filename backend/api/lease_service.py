@@ -2,6 +2,7 @@
 Lease generation and PDF creation service.
 """
 import logging
+import re
 from io import BytesIO
 from datetime import datetime, timedelta
 from django.conf import settings
@@ -156,7 +157,50 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
     for placeholder, value in replacements.items():
         filled_content = filled_content.replace(placeholder, str(value))
     
+    # Process visual anchors (underscores and brackets) for DocuSign
+    filled_content = _process_visual_anchors(filled_content)
+    
     return filled_content
+
+
+def _process_visual_anchors(content: str) -> str:
+    """
+    Process filled content to inject DocuSign anchors into visual elements.
+    - [ ] becomes [ ]<font color="white" size="1">/chk{i}/</font>
+    - ______ becomes <font color="white" size="1">/txt{i}/</font>______
+    """
+    
+    # Process Checkboxes
+    # Note: chk_counter must be unique across the document
+    # We use a mutable container to simulate nonlocal behavior easily if needed, 
+    # but separate functions with nonlocal works fine.
+    
+    chk_counter = 1
+    
+    def replace_checkbox(match):
+        nonlocal chk_counter
+        # Append anchor to checkbox
+        # Using white text to make it invisible but detectable by DocuSign
+        replacement = f'[ ]<font color="white" size="1">/chk{chk_counter}/</font>'
+        chk_counter += 1
+        return replacement
+
+    # Match [ ] with optional internal whitespace
+    content = re.sub(r'\[\s*\]', replace_checkbox, content)
+
+    # Process Text Lines (3 or more underscores)
+    txt_counter = 1
+    
+    def replace_underscore(match):
+        nonlocal txt_counter
+        # Prepend anchor to underscore line so text tab starts at the beginning
+        replacement = f'<font color="white" size="1">/txt{txt_counter}/</font>{match.group(0)}'
+        txt_counter += 1
+        return replacement
+
+    content = re.sub(r'_{3,}', replace_underscore, content)
+    
+    return content
 
 
 def generate_lease_pdf(tenant: Tenant, template: LeaseTemplate = None):
