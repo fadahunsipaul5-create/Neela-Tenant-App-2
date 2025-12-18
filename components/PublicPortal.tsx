@@ -22,7 +22,7 @@ type LoginType = 'admin' | 'tenant' | null;
 
 interface PublicPortalProps {
   onAdminLogin?: () => void;
-  tenantId?: string; // Optional tenant ID for fetching maintenance requests
+  tenantId?: string; // Optional tenant ID for fetching maintenance request
   onMaintenanceCreated?: () => void; // Callback to notify parent when maintenance request is created
 }
 
