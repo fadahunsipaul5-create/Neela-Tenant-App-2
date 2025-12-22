@@ -8,6 +8,7 @@ class Tenant(models.Model):
         ('Active', 'Active'),
         ('Past', 'Past'),
         ('Eviction Pending', 'Eviction Pending'),
+        ('Declined', 'Declined'),
     ]
 
     name = models.CharField(max_length=255)
