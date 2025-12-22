@@ -73,6 +73,36 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     }
   };
 
+  const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
+    setIsSaving(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    
+    try {
+      await api.updateTenant(tenantId, { status: newStatus });
+      setSuccessMessage(`Application ${newStatus === 'Declined' ? 'declined' : 'status updated'} successfully.`);
+      
+      // Update local state if selected
+      if (selectedApplicant && selectedApplicant.id === tenantId) {
+        setSelectedApplicant({ ...selectedApplicant, status: newStatus });
+      }
+      
+      // Refresh list
+      if (onTenantsChange) onTenantsChange();
+      
+      // Close modal after brief delay if declined
+      if (newStatus === 'Declined' || newStatus === TenantStatus.PAST) {
+        setTimeout(() => setSelectedApplicant(null), 1500);
+      }
+      
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to update application status');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleApproveApplication = async () => {
     if (!selectedApplicant) return;
     
