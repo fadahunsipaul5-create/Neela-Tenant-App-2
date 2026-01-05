@@ -80,7 +80,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     
     try {
       await api.updateTenant(tenantId, { status: newStatus });
-      setSuccessMessage(`Application ${newStatus === 'Declined' ? 'declined' : 'status updated'} successfully.`);
+      setSuccessMessage(`Application ${String(newStatus) === 'Declined' ? 'declined' : 'status updated'} successfully.`);
       
       // Update local state if selected
       if (selectedApplicant && selectedApplicant.id === tenantId) {
@@ -91,7 +91,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       if (onTenantsChange) onTenantsChange();
       
       // Close modal after brief delay if declined
-      if (newStatus === 'Declined' || newStatus === TenantStatus.PAST) {
+      if (String(newStatus) === 'Declined' || newStatus === TenantStatus.PAST) {
         setTimeout(() => setSelectedApplicant(null), 1500);
       }
       
@@ -555,101 +555,112 @@ Landlord                            Tenant
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in px-2 sm:px-0">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="w-full sm:w-auto">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800">
             {activeTab === 'residents' ? 'Current Residents' : 'Application Management'}
           </h2>
-          <p className="text-slate-500 text-sm mt-1">
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
             {activeTab === 'residents' 
               ? 'Manage leases, balances, and tenant profiles.' 
               : 'Review, screen, and approve incoming applications.'}
           </p>
         </div>
-        <div className="flex gap-3">
-           <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+           <div className="flex bg-white p-0.5 sm:p-1 rounded-lg border border-slate-200 shadow-sm w-full sm:w-auto">
              <button 
                 onClick={() => setActiveTab('residents')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'residents' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-colors ${activeTab === 'residents' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}
              >
                 Residents
              </button>
              <button 
                 onClick={() => setActiveTab('applicants')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'applicants' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-colors ${activeTab === 'applicants' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}
              >
-                Applications ({applicants.length})
+                <span className="hidden sm:inline">Applications </span>({applicants.length})
              </button>
            </div>
+           {activeTab === 'residents' && (
+             <button
+               onClick={openAddResidentModal}
+               className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
+             >
+               <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+               <span className="hidden sm:inline">Add Resident</span>
+               <span className="sm:hidden">Add</span>
+             </button>
+           )}
         </div>
       </div>
 
       {/* APPLICATION REVIEW MODAL */}
       {selectedApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-slate-50">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                <div className="h-10 w-10 sm:h-12 sm:w-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-lg sm:text-xl flex-shrink-0">
                    {selectedApplicant.name.charAt(0)}
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-800">{selectedApplicant.name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                     <span>{selectedApplicant.email}</span>
-                     <span>•</span>
-                     <span>Applying for: {selectedApplicant.propertyUnit}</span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-800 truncate">{selectedApplicant.name}</h3>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm text-slate-500">
+                     <span className="truncate">{selectedApplicant.email}</span>
+                     <span className="hidden sm:inline">•</span>
+                     <span className="truncate">Applying for: {selectedApplicant.propertyUnit}</span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                 <div className={`px-3 py-1 rounded-full text-sm font-bold ${getStatusColor(selectedApplicant.status)}`}>
+              <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+                 <div className={`px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold ${getStatusColor(selectedApplicant.status)}`}>
                     {selectedApplicant.status}
                  </div>
-                 <button onClick={() => setSelectedApplicant(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full">
-                    <X className="w-6 h-6" />
+                 <button onClick={() => setSelectedApplicant(null)} className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors" aria-label="Close modal">
+                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
                  </button>
               </div>
             </div>
 
             {/* Modal Body */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
               {/* Sidebar Tabs */}
-              <div className="w-64 bg-slate-50 border-r border-slate-200 p-4 flex flex-col gap-2">
+              <div className="w-full sm:w-48 lg:w-64 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-3 sm:p-4 flex flex-row sm:flex-col gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
                  {[
-                   { id: 'overview', label: 'Application Details', icon: FileText },
-                   { id: 'screening', label: 'Screening & ID', icon: Shield },
-                   { id: 'notes', label: 'Internal Notes', icon: MessageSquare },
-                   { id: 'lease', label: 'Lease Generation', icon: Sparkles },
+                   { id: 'overview', label: 'Application Details', shortLabel: 'Details', icon: FileText },
+                   { id: 'screening', label: 'Screening & ID', shortLabel: 'Screening', icon: Shield },
+                   { id: 'notes', label: 'Internal Notes', shortLabel: 'Notes', icon: MessageSquare },
+                   { id: 'lease', label: 'Lease Generation', shortLabel: 'Lease', icon: Sparkles },
                  ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setApplicantModalTab(tab.id as any)}
                       className={`
-                        flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                        flex items-center sm:w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 sm:flex-shrink
                         ${applicantModalTab === tab.id 
                           ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
                           : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}
                       `}
                     >
-                       <tab.icon className="w-4 h-4 mr-3" />
-                       {tab.label}
+                       <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 sm:mr-3 flex-shrink-0" />
+                       <span className="hidden sm:inline">{tab.label}</span>
+                       <span className="sm:hidden">{tab.shortLabel}</span>
                        {tab.id === 'lease' && leaseStatus === 'Signed' && (
-                         <CheckCircle className="w-3 h-3 ml-auto text-emerald-500" />
+                         <CheckCircle className="w-3 h-3 ml-auto text-emerald-500 flex-shrink-0" />
                        )}
                     </button>
                  ))}
 
                  {/* Action Buttons */}
-                 <div className="mt-auto space-y-2 pt-6 border-t border-slate-200">
+                 <div className="mt-auto space-y-2 pt-4 sm:pt-6 border-t border-slate-200 hidden sm:block">
                     {leaseStatus === 'Signed' ? (
                        <button 
                          onClick={handleFinalizeMoveIn}
                          disabled={isSaving}
-                         className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:cursor-not-allowed"
+                         className="w-full py-2 sm:py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:cursor-not-allowed text-sm"
                        >
                          {isSaving ? (
                            <>
@@ -666,7 +677,7 @@ Landlord                            Tenant
                         <button 
                           onClick={handleApproveApplication}
                           disabled={isSaving}
-                          className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-indigo-400 disabled:cursor-not-allowed"
+                          className="w-full py-2 sm:py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-indigo-400 disabled:cursor-not-allowed text-sm"
                         >
                           {isSaving ? (
                             <>
@@ -684,7 +695,7 @@ Landlord                            Tenant
                               handleStatusChange(selectedApplicant.id, 'Declined' as TenantStatus);
                             }
                           }}
-                          className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors"
+                          className="w-full py-2 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
                         >
                            Decline
                         </button>
@@ -694,7 +705,7 @@ Landlord                            Tenant
               </div>
 
               {/* Content Area */}
-              <div className="flex-1 overflow-y-auto p-8">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
                  {/* Success/Error Messages */}
                  {successMessage && (
                    <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg text-sm">
@@ -1664,126 +1675,149 @@ Landlord                            Tenant
 
       {/* MAIN TABLE CONTENT */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center gap-4 bg-slate-50">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-3 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 bg-slate-50">
+          <div className="relative flex-1 max-w-full sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input 
               type="text" 
               placeholder={activeTab === 'residents' ? "Search residents..." : "Search applicants..."}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-slate-900 placeholder-slate-500"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-slate-900 placeholder-slate-500 text-sm sm:text-base"
             />
           </div>
           {activeTab === 'residents' && (
              <button 
                onClick={openAddResidentModal}
-               className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors ml-auto"
+               className="flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm sm:text-base font-medium"
              >
-               <UserPlus className="w-4 h-4 mr-2" /> Add Resident
+               <UserPlus className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">Add Resident</span><span className="sm:hidden">Add</span>
              </button>
           )}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4">{activeTab === 'residents' ? 'Tenant' : 'Applicant'}</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Unit</th>
-                {activeTab === 'residents' ? (
-                   <>
-                     <th className="px-6 py-4">Balance</th>
-                     <th className="px-6 py-4">Lease End</th>
-                   </>
-                ) : (
-                   <>
-                     <th className="px-6 py-4">Submitted</th>
-                     <th className="px-6 py-4">Credit</th>
-                     <th className="px-6 py-4">Income</th>
-                   </>
-                )}
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {(activeTab === 'residents' ? residents : applicants).map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-800">{t.name}</span>
-                      <span className="text-xs text-slate-500">{t.email}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(t.status)}`}>
-                      {t.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">{t.propertyUnit}</td>
-                  
+        <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <div className="inline-block min-w-full align-middle px-2 sm:px-0">
+            <table className="w-full text-xs sm:text-sm text-left">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">{activeTab === 'residents' ? 'Tenant' : 'Applicant'}</th>
+                  <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">Status</th>
+                  <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden sm:table-cell">Unit</th>
                   {activeTab === 'residents' ? (
-                    <>
-                      <td className="px-6 py-4">
-                        <span className={`font-medium ${t.balance > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
-                          ${t.balance.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-slate-500">{t.leaseEnd}</td>
-                      <td className="px-6 py-4 text-right">
-                         <div className="flex items-center justify-end gap-2">
-                           <button 
-                             onClick={() => openEditResidentModal(t)}
-                             className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                             title="Edit"
-                           >
-                             <Edit className="w-4 h-4" />
-                           </button>
-                           <button 
-                             onClick={() => handleDeleteResident(t)}
-                             className="p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-                             title="Delete"
-                           >
-                             <Trash2 className="w-4 h-4" />
-                           </button>
-                         </div>
-                      </td>
-                    </>
+                     <>
+                       <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden md:table-cell">Balance</th>
+                       <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden lg:table-cell">Lease End</th>
+                     </>
                   ) : (
-                    <>
-                      <td className="px-6 py-4 text-slate-500">{t.applicationData?.submissionDate || 'N/A'}</td>
-                      <td className="px-6 py-4">
-                         {t.backgroundCheckStatus === 'Clear' ? (
-                            <span className="flex items-center text-emerald-600 text-xs font-bold"><CheckCircle className="w-3 h-3 mr-1"/> {t.creditScore}</span>
-                         ) : (
-                            <span className="flex items-center text-slate-400 text-xs"><Clock className="w-3 h-3 mr-1"/> Pending</span>
-                         )}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 font-medium">
-                         {t.applicationData?.employment?.monthlyIncome 
-                           ? `$${t.applicationData.employment.monthlyIncome.toLocaleString()}/mo`
-                           : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                         <button 
-                           onClick={() => openApplicationReview(t)}
-                           className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 text-xs font-bold transition-all"
-                         >
-                            Review
-                         </button>
-                      </td>
-                    </>
+                     <>
+                       <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden md:table-cell">Submitted</th>
+                       <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden lg:table-cell">Credit</th>
+                       <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden lg:table-cell">Income</th>
+                     </>
                   )}
+                  <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right">Actions</th>
                 </tr>
-              ))}
-              {(activeTab === 'residents' ? residents : applicants).length === 0 && (
-                 <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                       No {activeTab} found.
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(activeTab === 'residents' ? residents : applicants).map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium text-slate-800 truncate">{t.name}</span>
+                        <span className="text-xs text-slate-500 truncate">{t.email}</span>
+                        <span className="text-xs text-slate-500 sm:hidden mt-0.5">{t.propertyUnit}</span>
+                        {activeTab === 'residents' && (
+                          <>
+                            <span className="text-xs text-slate-500 md:hidden mt-0.5">Balance: ${t.balance.toLocaleString()}</span>
+                            <span className="text-xs text-slate-500 lg:hidden mt-0.5">Lease End: {t.leaseEnd}</span>
+                          </>
+                        )}
+                        {activeTab === 'applicants' && (
+                          <>
+                            <span className="text-xs text-slate-500 md:hidden mt-0.5">Submitted: {t.applicationData?.submissionDate || 'N/A'}</span>
+                            <span className="text-xs text-slate-500 lg:hidden mt-0.5">
+                              {t.backgroundCheckStatus === 'Clear' ? (
+                                <span className="text-emerald-600 font-bold">Credit: {t.creditScore}</span>
+                              ) : (
+                                <span className="text-slate-400">Credit: Pending</span>
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </td>
-                 </tr>
-              )}
-            </tbody>
-          </table>
+                    <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                      <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(t.status)}`}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-slate-600 hidden sm:table-cell">{t.propertyUnit}</td>
+                    
+                    {activeTab === 'residents' ? (
+                      <>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden md:table-cell">
+                          <span className={`font-medium ${t.balance > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+                            ${t.balance.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-slate-500 hidden lg:table-cell">{t.leaseEnd}</td>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right">
+                           <div className="flex items-center justify-end gap-1 sm:gap-2">
+                             <button 
+                               onClick={() => openEditResidentModal(t)}
+                               className="p-1.5 sm:p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                               title="Edit"
+                               aria-label="Edit resident"
+                             >
+                               <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                             </button>
+                             <button 
+                               onClick={() => handleDeleteResident(t)}
+                               className="p-1.5 sm:p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                               title="Delete"
+                               aria-label="Delete resident"
+                             >
+                               <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                             </button>
+                           </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-slate-500 hidden md:table-cell">{t.applicationData?.submissionDate || 'N/A'}</td>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 hidden lg:table-cell">
+                           {t.backgroundCheckStatus === 'Clear' ? (
+                              <span className="flex items-center text-emerald-600 text-xs font-bold"><CheckCircle className="w-3 h-3 mr-1"/> {t.creditScore}</span>
+                           ) : (
+                              <span className="flex items-center text-slate-400 text-xs"><Clock className="w-3 h-3 mr-1"/> Pending</span>
+                           )}
+                        </td>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-slate-600 font-medium hidden lg:table-cell">
+                           {t.applicationData?.employment?.monthlyIncome 
+                             ? `$${t.applicationData.employment.monthlyIncome.toLocaleString()}/mo`
+                             : 'N/A'}
+                        </td>
+                        <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right">
+                           <button 
+                             onClick={() => openApplicationReview(t)}
+                             className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 text-xs font-bold transition-all whitespace-nowrap"
+                           >
+                              Review
+                           </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+                {(activeTab === 'residents' ? residents : applicants).length === 0 && (
+                   <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                         No {activeTab} found.
+                      </td>
+                   </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1791,3 +1825,4 @@ Landlord                            Tenant
 };
 
 export default TenantsView;
+
