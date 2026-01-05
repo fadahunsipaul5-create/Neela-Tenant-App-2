@@ -137,21 +137,37 @@ export const api = {
   },
 
   getMaintenanceRequests: async (): Promise<MaintenanceRequest[]> => {
-    const response = await fetchWithAuth(`${API_URL}/maintenance/`, {
-      headers: getHeaders(false, true),
-    });
-    if (!response.ok) throw new Error('Failed to fetch maintenance requests');
-    const data = await response.json();
-    return data.map((item: any) => ({
-      ...item,
-      id: String(item.id), // Ensure ID is always a string
-      tenantId: String(item.tenant), // Convert tenant ForeignKey ID to string
-      createdAt: item.created_at,
-      assignedTo: item.assigned_to,
-      completionAttachments: item.completion_attachments || [],
-      images: item.images || [],
-      updates: item.updates || []
-    }));
+    try {
+      const response = await fetchWithAuth(`${API_URL}/maintenance/`, {
+        headers: getHeaders(false, true),
+      });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Failed to fetch maintenance requests: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      // Handle case where data might be null or not an array
+      if (!data || !Array.isArray(data)) {
+        return [];
+      }
+      return data.map((item: any) => ({
+        ...item,
+        id: String(item.id), // Ensure ID is always a string
+        tenantId: String(item.tenant), // Convert tenant ForeignKey ID to string
+        createdAt: item.created_at,
+        assignedTo: item.assigned_to,
+        completionAttachments: item.completion_attachments || [],
+        images: item.images || [],
+        updates: item.updates || []
+      }));
+    } catch (error: any) {
+      // If it's already our error, rethrow it
+      if (error.message?.includes('Failed to fetch maintenance requests')) {
+        throw error;
+      }
+      // Otherwise wrap it
+      throw new Error(`Failed to fetch maintenance requests: ${error.message || 'Network error'}`);
+    }
   },
 
   getListings: async (): Promise<Listing[]> => {
