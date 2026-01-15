@@ -7,6 +7,7 @@ import {
   User, Calendar, CheckCircle, X, Paperclip, Send, AlertTriangle,
   Clock, ArrowRight, FileText
 } from 'lucide-react';
+import Modal from './Modal';
 
 interface MaintenanceProps {
   requests: MaintenanceRequest[];
@@ -31,6 +32,12 @@ const MaintenanceView: React.FC<MaintenanceProps> = ({ requests: initialRequests
   // Modal State
   const [commentText, setCommentText] = useState('');
   const [assigneeName, setAssigneeName] = useState('');
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success' as 'success' | 'error' | 'info' | 'warning',
+  });
 
   const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
 
@@ -478,7 +485,14 @@ const MaintenanceView: React.FC<MaintenanceProps> = ({ requests: initialRequests
                               <Paperclip className="w-4 h-4" /> Attach Photo / PDF
                            </button>
                            <button 
-                              onClick={() => { alert(`Email sent to ${tenantsMap[selectedTicket.tenantId]?.email}`); }}
+                              onClick={() => {
+                                setAlertModal({
+                                  isOpen: true,
+                                  title: 'Email Sent',
+                                  message: `Email sent to ${tenantsMap[selectedTicket.tenantId]?.email}`,
+                                  type: 'success',
+                                });
+                              }}
                               className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700"
                            >
                               Send Completion Email
@@ -514,6 +528,15 @@ const MaintenanceView: React.FC<MaintenanceProps> = ({ requests: initialRequests
             </button>
          </div>
       </div>
+
+      {/* Alert Modal */}
+      <Modal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </div>
   );
 };

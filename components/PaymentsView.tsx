@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Tenant, Payment, Invoice } from '../types';
 import { api } from '../services/api';
+import Modal from './Modal';
 
 interface PaymentsViewProps {
   tenants: Tenant[];
@@ -42,6 +43,14 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   // Send Notice State
   const [selectedNoticeType, setSelectedNoticeType] = useState<string>('Notice of Late Rent');
   const [isSendingNotice, setIsSendingNotice] = useState(false);
+
+  // Modal State
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info' as 'success' | 'error' | 'info' | 'warning',
+  });
 
   const tenantsMap = initialTenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
 
@@ -101,7 +110,12 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       resetForms();
     } catch (error) {
       console.error('Error recording payment:', error);
-      alert(error instanceof Error ? error.message : 'Failed to record payment');
+      setModalState({
+        isOpen: true,
+        title: 'Payment Error',
+        message: error instanceof Error ? error.message : 'Failed to record payment',
+        type: 'error',
+      });
     }
   };
 
@@ -109,11 +123,21 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     // Logic to adjust tenant balance would go here
     // For demo visual, we'll just close modal
     setShowAdjustment(false);
-    alert(`${type} applied to account!`);
+    setModalState({
+      isOpen: true,
+      title: 'Adjustment Applied',
+      message: `${type} applied to account!`,
+      type: 'success',
+    });
   };
 
   const handleReceipt = (paymentId: string) => {
-    alert(`Generating receipt for Payment #${paymentId}... Sent to tenant.`);
+    setModalState({
+      isOpen: true,
+      title: 'Receipt Generated',
+      message: `Generating receipt for Payment #${paymentId}... Sent to tenant.`,
+      type: 'success',
+    });
   };
 
   const handleSendNotice = async () => {
@@ -124,12 +148,22 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       // Generate and send the legal notice with tenant details automatically filled in
       const response = await api.generateLegalNotice(selectedTenantId, selectedNoticeType);
       
-      alert(`Notice sent successfully to tenant! Document ID: ${response.id}`);
+      setModalState({
+        isOpen: true,
+        title: 'Notice Sent',
+        message: `Notice sent successfully to tenant! Document ID: ${response.id}`,
+        type: 'success',
+      });
       setShowSendNotice(false);
       resetForms();
     } catch (error) {
       console.error('Error sending notice:', error);
-      alert(error instanceof Error ? error.message : 'Failed to send notice');
+      setModalState({
+        isOpen: true,
+        title: 'Send Notice Error',
+        message: error instanceof Error ? error.message : 'Failed to send notice',
+        type: 'error',
+      });
     } finally {
       setIsSendingNotice(false);
     }
@@ -596,6 +630,15 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
             </div>
          </div>
       )}
+
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ ...modalState, isOpen: false })}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
 
     </div>
   );

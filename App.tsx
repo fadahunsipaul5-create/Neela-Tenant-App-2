@@ -312,6 +312,7 @@ const App: React.FC = () => {
             maintenance={maintenance}
             properties={properties}
             onReviewApplications={handleReviewApplications}
+            onNavigateToSettings={() => setActiveTab('settings')}
           />
         );
       case 'tenants':

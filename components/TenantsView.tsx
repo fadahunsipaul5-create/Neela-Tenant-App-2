@@ -7,6 +7,7 @@ import {
   FileText, X, Briefcase, Shield, MessageSquare, Download, ChevronRight, Loader2,
   Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save, RefreshCw
 } from 'lucide-react';
+import Modal from './Modal';
 
 interface TenantsProps {
   tenants: Tenant[];
@@ -542,21 +543,25 @@ Landlord                            Tenant
   };
 
   const handleDeleteResident = async (tenant: Tenant) => {
-    if (!confirm(`Are you sure you want to delete ${tenant.name}? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      await api.deleteTenant(tenant.id);
-      if (onTenantsChange) {
-        onTenantsChange();
-      }
-      setSuccessMessage(`${tenant.name} deleted successfully`);
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete resident');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Tenant',
+      message: `Are you sure you want to delete ${tenant.name}? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await api.deleteTenant(tenant.id);
+          setTenants(tenants.filter(t => t.id !== tenant.id));
+          if (onTenantsChange) {
+            onTenantsChange();
+          }
+          setSuccessMessage(`${tenant.name} deleted successfully`);
+          setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Failed to delete resident');
+          setTimeout(() => setErrorMessage(null), 5000);
+        }
+      },
+    });
   };
 
   return (
@@ -696,9 +701,14 @@ Landlord                            Tenant
                         </button>
                         <button 
                           onClick={() => {
-                            if (window.confirm('Are you sure you want to decline this application?')) {
-                              handleStatusChange(selectedApplicant.id, 'Declined' as TenantStatus);
-                            }
+                            setConfirmModal({
+                              isOpen: true,
+                              title: 'Decline Application',
+                              message: 'Are you sure you want to decline this application?',
+                              onConfirm: () => {
+                                handleStatusChange(selectedApplicant.id, 'Declined' as TenantStatus);
+                              },
+                            });
                           }}
                           className="w-full py-2 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
                         >
@@ -1835,6 +1845,18 @@ Landlord                            Tenant
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type="confirm"
+        onConfirm={confirmModal.onConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+      />
     </div>
   );
 };

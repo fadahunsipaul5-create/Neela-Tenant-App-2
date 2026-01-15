@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Property } from '../types';
+import Modal from './Modal';
 
 const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'properties' | 'templates' | 'finance' | 'branding'>('properties');
@@ -120,17 +121,23 @@ ________________________ Tenant`);
   };
 
   const handleDeleteProperty = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this property?')) return;
-    try {
-      setIsSaving(true);
-      setError(null);
-      await api.deleteProperty(id);
-      setProperties(properties.filter(p => p.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete property');
-    } finally {
-      setIsSaving(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Property',
+      message: 'Are you sure you want to delete this property?',
+      onConfirm: async () => {
+        try {
+          setIsSaving(true);
+          setError(null);
+          await api.deleteProperty(id);
+          setProperties(properties.filter(p => p.id !== id));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to delete property');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
   };
 
   const handleEditClick = (property: Property) => {
@@ -812,6 +819,18 @@ ________________________ Tenant`);
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type="confirm"
+        onConfirm={confirmModal.onConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+      />
     </div>
   );
 };

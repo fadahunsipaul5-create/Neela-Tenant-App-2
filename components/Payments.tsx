@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import {
   ArrowLeft, X, CreditCard, Smartphone, DollarSign, Building2, Info, Download, History, Loader2
 } from 'lucide-react';
+import Modal from './Modal';
 
 export type PaymentSubTab = 'history' | 'payment-options';
 export type PaymentMethod = 'zelle' | 'cashapp' | 'venmo' | 'applepay' | 'ach' | 'card' | 'cash' | null;
@@ -28,6 +29,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   renderPaymentInstructions,
 }) => {
   const [modalMethod, setModalMethod] = useState<string | null>(null);
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success' as 'success' | 'error' | 'info' | 'warning',
+  });
 
   if (!showPaymentModal) return null;
 
@@ -145,7 +152,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <input type="date" className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" />
                 </div>
                 <button 
-                  onClick={() => { alert("Payment reported!"); setShowPaymentModal(false); setManualPaymentMode(false); }}
+                  onClick={() => {
+                    setAlertModal({
+                      isOpen: true,
+                      title: 'Payment Reported',
+                      message: 'Payment reported!',
+                      type: 'success',
+                    });
+                    setShowPaymentModal(false);
+                    setManualPaymentMode(false);
+                  }}
                   className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 mt-4"
                 >
                   Submit Report
@@ -523,7 +539,8 @@ export const usePayments = (currentTenant: Tenant | null, tenantId?: string): Us
     // Find the payment in the payments array
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) {
-      alert('Receipt not available for this payment.');
+      // Note: Modal should be handled by the calling component
+      // This function will just return early if payment not found
       return;
     }
     

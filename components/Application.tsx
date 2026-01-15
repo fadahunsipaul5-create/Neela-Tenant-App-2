@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ApplicationForm, Listing, Property, TenantStatus } from '../types';
 import { api } from '../services/api';
 import { ArrowLeft, Loader2 } from 'lucide-react';
+import Modal from './Modal';
 
 export interface UseApplicationReturn {
   // Application state
@@ -308,9 +309,13 @@ export const useApplication = (): UseApplicationReturn => {
   };
 
   const handleClearForm = () => {
-    if (window.confirm('Are you sure you want to clear all form fields? This action cannot be undone.')) {
-      // Reset to default form state
-      setFormData({
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Form',
+      message: 'Are you sure you want to clear all form fields? This action cannot be undone.',
+      onConfirm: () => {
+        // Reset to default form state
+        setFormData({
         // Property Preferences
         propertyAddress: selectedListing?.address || selectedListing?.title || '',
         bedroomsDesired: [],
@@ -374,6 +379,8 @@ export const useApplication = (): UseApplicationReturn => {
     handleSaveDraft,
     handleClearForm,
     propertyToListing,
+    confirmModal,
+    setConfirmModal,
   };
 };
 
@@ -389,6 +396,8 @@ export interface ApplicationFormViewProps {
   handleSaveDraft: () => void;
   handleClearForm: () => void;
   setView: (view: string) => void;
+  confirmModal: { isOpen: boolean; title: string; message: string; onConfirm: () => void };
+  setConfirmModal: (state: { isOpen: boolean; title: string; message: string; onConfirm: () => void }) => void;
 }
 
 export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
@@ -1010,6 +1019,18 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
              </div>
           </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type="confirm"
+        onConfirm={confirmModal.onConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+      />
     </div>
   );
 };
