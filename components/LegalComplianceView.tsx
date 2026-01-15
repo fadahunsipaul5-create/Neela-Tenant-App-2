@@ -5,6 +5,7 @@ import {
   AlertTriangle, FileText, Send, Printer, Loader2, History, 
   FileSignature, Download, CheckCircle2, Search, Mail, PenTool, Save, Plus
 } from 'lucide-react';
+import Modal from './Modal';
 
 interface LegalComplianceProps {
   tenants: Tenant[];
@@ -41,6 +42,14 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
       deliveryMethod: 'Portal'
     }
   ]);
+
+  // Modal State
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info' as 'success' | 'error' | 'info' | 'warning',
+  });
 
   // Templates State
   const [templates, setTemplates] = useState<NoticeTemplate[]>([
@@ -127,7 +136,12 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
             
             if (latestDoc) {
                 await api.sendLeaseDocuSign(latestDoc.id);
-                alert(`Official Notice Sent via DocuSign to Tenant & Landlord!`);
+                setModalState({
+                  isOpen: true,
+                  title: 'Notice Sent',
+                  message: 'Official Notice Sent via DocuSign to Tenant & Landlord!',
+                  type: 'success',
+                });
                 
                 // Update local history
                 const newDoc: LegalDocument = {
@@ -148,7 +162,12 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to send notice via DocuSign. Please try again.");
+            setModalState({
+              isOpen: true,
+              title: 'Send Notice Error',
+              message: 'Failed to send notice via DocuSign. Please try again.',
+              type: 'error',
+            });
             return;
         }
     }
@@ -169,7 +188,12 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
     setActiveTab('history');
     setGeneratedDoc('');
     setSelectedTenantId('');
-    alert(`Notice sent via ${method} successfully!`);
+    setModalState({
+      isOpen: true,
+      title: 'Notice Sent',
+      message: `Notice sent via ${method} successfully!`,
+      type: 'success',
+    });
   };
 
   const handleExportHistory = () => {
@@ -200,7 +224,12 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
       setTemplates([...templates, newTpl]);
       setSelectedTemplateId(newTpl.id);
     }
-    alert("Template saved!");
+    setModalState({
+      isOpen: true,
+      title: 'Template Saved',
+      message: 'Template saved!',
+      type: 'success',
+    });
   };
 
   // --- Renderers ---
@@ -460,6 +489,15 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
         )}
 
       </div>
+
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ ...modalState, isOpen: false })}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </div>
   );
 };

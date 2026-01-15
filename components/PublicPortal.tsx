@@ -79,6 +79,8 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     handleSaveDraft,
     handleClearForm,
     propertyToListing,
+    confirmModal,
+    setConfirmModal,
   } = useApplication();
 
   const {
@@ -694,6 +696,8 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
             handleSaveDraft={handleSaveDraft}
             handleClearForm={handleClearForm}
             setView={setView}
+            confirmModal={confirmModal}
+            setConfirmModal={setConfirmModal}
           />
         )}
 

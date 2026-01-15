@@ -259,12 +259,12 @@
 
 // export default DashboardView;
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap } from 'lucide-react';
+import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize } from 'lucide-react';
 import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property } from '../types';
 
 interface DashboardProps {
@@ -273,6 +273,7 @@ interface DashboardProps {
   maintenance: MaintenanceRequest[];
   properties: Property[];
   onReviewApplications: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications }) => {
@@ -613,11 +614,15 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             </h3>
             <p className="text-xs sm:text-sm text-slate-600">Manage your properties and units</p>
           </div>
-          <a 
-            href="#settings"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.hash = 'settings';
+          <button
+            onClick={() => {
+              if (onNavigateToSettings) {
+                onNavigateToSettings();
+              } else {
+                window.location.hash = 'settings';
+                // Fallback: trigger hashchange event
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              }
             }}
             className="group flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm sm:text-base"
           >
@@ -625,7 +630,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             <span className="hidden sm:inline">Manage Properties</span>
             <span className="sm:hidden">Manage</span>
             <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform hidden sm:block" />
-          </a>
+          </button>
         </div>
         
         {properties.length === 0 ? (
@@ -675,7 +680,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                       <div className="text-sm text-slate-500">
                         Occupancy: <span className="font-semibold text-slate-700">85%</span>
                       </div>
-                      <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                      <button 
+                        onClick={() => {
+                          setSelectedProperty(prop);
+                          setShowPropertyModal(true);
+                        }}
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                      >
                         View Details
                         <ArrowUpRight className="w-3 h-3" />
                       </button>
@@ -835,6 +846,172 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
         </div>
       </div>
+
+      {/* Property Details Modal */}
+      {showPropertyModal && selectedProperty && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowPropertyModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-800">{selectedProperty.name}</h3>
+                  <p className="text-xs sm:text-sm text-slate-500">Property Details</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPropertyModal(false)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="space-y-6">
+                {/* Property Image */}
+                {selectedProperty.image && (
+                  <div className="relative h-48 sm:h-64 rounded-lg overflow-hidden border border-slate-200">
+                    <img
+                      src={selectedProperty.image}
+                      alt={selectedProperty.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Property Information Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Location */}
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="p-2 bg-white rounded-lg">
+                      <MapPin className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Location</p>
+                      <p className="text-sm sm:text-base font-medium text-slate-800">
+                        {selectedProperty.address}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {selectedProperty.city}, {selectedProperty.state}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Units */}
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="p-2 bg-white rounded-lg">
+                      <Building2 className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Units</p>
+                      <p className="text-sm sm:text-base font-bold text-slate-800">
+                        {selectedProperty.units} {selectedProperty.units === 1 ? 'Unit' : 'Units'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bedrooms */}
+                  {selectedProperty.bedrooms && (
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="p-2 bg-white rounded-lg">
+                        <Bed className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Bedrooms</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800">
+                          {selectedProperty.bedrooms}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bathrooms */}
+                  {selectedProperty.bathrooms && (
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="p-2 bg-white rounded-lg">
+                        <Bath className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Bathrooms</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800">
+                          {selectedProperty.bathrooms}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Square Footage */}
+                  {selectedProperty.square_footage && (
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="p-2 bg-white rounded-lg">
+                        <Maximize className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Square Footage</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800">
+                          {selectedProperty.square_footage.toLocaleString()} sq ft
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price */}
+                  {selectedProperty.price && (
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="p-2 bg-white rounded-lg">
+                        <DollarSign className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Price</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800">
+                          ${selectedProperty.price.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 p-4 sm:p-6 border-t border-slate-200 bg-slate-50">
+              <button
+                onClick={() => {
+                  setShowPropertyModal(false);
+                  if (onNavigateToSettings) {
+                    onNavigateToSettings();
+                  } else {
+                    window.location.hash = 'settings';
+                    window.dispatchEvent(new HashChangeEvent('hashchange'));
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors text-sm sm:text-base flex items-center justify-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Manage Property
+              </button>
+              <button
+                onClick={() => setShowPropertyModal(false)}
+                className="px-4 py-2.5 sm:py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 font-medium transition-colors text-sm sm:text-base"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
