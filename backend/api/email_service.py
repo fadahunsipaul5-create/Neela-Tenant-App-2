@@ -3,7 +3,8 @@ Email service for sending application-related emails.
 """
 import threading
 import logging
-from django.core.mail import send_mail, EmailMessage
+import os
+from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -1423,7 +1424,7 @@ def send_application_declined_email_to_user(tenant_id):
 
 # ==================== Notice Email Function ====================
 
-def _send_notice_to_tenant(legal_document_id, pdf_path=None):
+def _send_notice_to_tenant(legal_document_id, pdf_path=None, pdf_bytes_b64=None):
     """
     Internal function to send notice email to tenant with PDF attachment.
     """
@@ -1482,7 +1483,7 @@ def _send_notice_to_tenant(legal_document_id, pdf_path=None):
     fail_silently = not getattr(settings, 'DEBUG', False)
     
     try:
-        email = EmailMessage(
+        email = EmailMultiAlternatives(
             subject=subject,
             body=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
@@ -1490,15 +1491,47 @@ def _send_notice_to_tenant(legal_document_id, pdf_path=None):
         )
         email.attach_alternative(html_message, "text/html")
         
-        # Attach PDF if available
-        if legal_doc.pdf_file:
+        # Attach PDF if available.
+        # Prefer pdf_bytes_b64 (avoids fetching from remote storage like Cloudinary).
+        if pdf_bytes_b64:
             try:
-                email.attach_file(legal_doc.pdf_file.path)
+                import base64
+                pdf_content = base64.b64decode(pdf_bytes_b64.encode("utf-8"))
+                email.attach(
+                    filename=f"notice_{legal_doc.id}.pdf",
+                    content=pdf_content,
+                    mimetype='application/pdf'
+                )
+                logger.info(f"Attached PDF from provided bytes for document {legal_doc.id}")
+            except Exception as e:
+                logger.warning(f"Could not attach PDF bytes to notice email: {e}")
+        # Fallback to stored file (may fail if storage requires signed/auth URL)
+        elif legal_doc.pdf_file:
+            try:
+                # Read file content and attach as bytes (works with SendGrid backend)
+                legal_doc.pdf_file.open('rb')
+                try:
+                    pdf_content = legal_doc.pdf_file.read()
+                finally:
+                    legal_doc.pdf_file.close()
+                email.attach(
+                    filename=os.path.basename(legal_doc.pdf_file.name),
+                    content=pdf_content,
+                    mimetype='application/pdf'
+                )
+                logger.info(f"Attached PDF: {legal_doc.pdf_file.name}")
             except Exception as e:
                 logger.warning(f"Could not attach PDF to notice email: {e}")
         elif pdf_path:
             try:
-                email.attach_file(pdf_path)
+                with open(pdf_path, 'rb') as f:
+                    pdf_content = f.read()
+                email.attach(
+                    filename=os.path.basename(pdf_path),
+                    content=pdf_content,
+                    mimetype='application/pdf'
+                )
+                logger.info(f"Attached PDF: {pdf_path}")
             except Exception as e:
                 logger.warning(f"Could not attach PDF to notice email: {e}")
         
@@ -1513,13 +1546,13 @@ def _send_notice_to_tenant(legal_document_id, pdf_path=None):
 
 
 @shared_task
-def send_notice_to_tenant(legal_document_id, pdf_path=None):
+def send_notice_to_tenant(legal_document_id, pdf_path=None, pdf_bytes_b64=None):
     """
     Celery task to send notice email to tenant with PDF attachment.
     """
     email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
     logger.info(f"Celery task executing: send_notice_to_tenant for document {legal_document_id}, using email backend: {email_backend}")
-    _send_notice_to_tenant(legal_document_id, pdf_path)
+    _send_notice_to_tenant(legal_document_id, pdf_path, pdf_bytes_b64)
 
 
 # ==================== Application Received Email Function ====================

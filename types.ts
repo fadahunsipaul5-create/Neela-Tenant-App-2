@@ -202,6 +202,9 @@ export interface Property {
   id: string;
   name: string;
   address: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  square_footage?: number;
   city: string;
   state: string;
   units: number;

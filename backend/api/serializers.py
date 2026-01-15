@@ -33,6 +33,7 @@ class TenantSerializer(serializers.ModelSerializer):
             'photo_id_files': {'read_only': True},
             'income_verification_files': {'read_only': True},
             'background_check_files': {'read_only': True},
+            'balance': {'read_only': True},  # Balance is auto-calculated
         }
     
     def create(self, validated_data):
@@ -40,6 +41,9 @@ class TenantSerializer(serializers.ModelSerializer):
         photo_id_uploads = validated_data.pop('photo_id_files_upload', [])
         income_verification_uploads = validated_data.pop('income_verification_files_upload', [])
         background_check_uploads = validated_data.pop('background_check_files_upload', [])
+        
+        # Remove balance from validated_data if present (it's auto-calculated)
+        validated_data.pop('balance', None)
         
         # Create the tenant instance
         tenant = super().create(validated_data)
@@ -92,11 +96,29 @@ class TenantSerializer(serializers.ModelSerializer):
                 'uploaded_at': datetime.now().isoformat()
             })
         
-        # Update tenant with file paths
+        # Update tenant with file paths and calculate balance
         tenant.photo_id_files = photo_id_file_paths
         tenant.income_verification_files = income_verification_file_paths
         tenant.background_check_files = background_check_file_paths
-        tenant.save()
+        tenant.update_balance()  # Auto-calculate balance
+        
+        return tenant
+    
+    def update(self, instance, validated_data):
+        """Override update to auto-calculate balance"""
+        # Remove balance from validated_data if present (it's auto-calculated)
+        validated_data.pop('balance', None)
+        
+        # Extract file uploads (for update operations)
+        validated_data.pop('photo_id_files_upload', None)
+        validated_data.pop('income_verification_files_upload', None)
+        validated_data.pop('background_check_files_upload', None)
+        
+        # Update the tenant instance
+        tenant = super().update(instance, validated_data)
+        
+        # Recalculate balance after update
+        tenant.update_balance()
         
         return tenant
     
@@ -154,6 +176,41 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
+    
+    def create(self, validated_data):
+        """Override create to auto-update tenant balance after payment"""
+        from django.db import transaction
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Ensure payment is fully committed before updating tenant balance
+        with transaction.atomic():
+            payment = super().create(validated_data)
+            logger.info(f"Payment created: {payment.id} for tenant {payment.tenant.name}, amount: {payment.amount}")
+            
+            # Get balance before update
+            old_balance = payment.tenant.balance
+            
+            # Update the tenant's balance after payment is recorded
+            payment.tenant.update_balance()
+            
+            # Get balance after update
+            new_balance = payment.tenant.balance
+            logger.info(f"Tenant {payment.tenant.name} balance updated: {old_balance} -> {new_balance}")
+            
+            # Refresh the tenant to ensure we have the latest data
+            payment.tenant.refresh_from_db()
+        
+        # Refresh payment to get updated tenant data
+        payment.refresh_from_db()
+        return payment
+    
+    def update(self, instance, validated_data):
+        """Override update to auto-update tenant balance after payment update"""
+        payment = super().update(instance, validated_data)
+        # Update the tenant's balance after payment is updated
+        payment.tenant.update_balance()
+        return payment
 
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
     class Meta:

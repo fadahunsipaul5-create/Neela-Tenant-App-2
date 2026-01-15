@@ -226,8 +226,12 @@ const App: React.FC = () => {
 
   const refreshTenants = async () => {
     try {
+      console.log('refreshTenants: Fetching tenant data...');
       const tenantsData = await api.getTenants();
+      console.log('refreshTenants: Received', tenantsData.length, 'tenants');
+      console.log('refreshTenants: Tenant balances:', tenantsData.map(t => ({ name: t.name, balance: t.balance })));
       setTenants(tenantsData);
+      console.log('refreshTenants: State updated');
     } catch (error) {
       console.error("Error refreshing tenants:", error);
     }
@@ -239,6 +243,23 @@ const App: React.FC = () => {
       setMaintenance(maintenanceData);
     } catch (error) {
       console.error("Error refreshing maintenance:", error);
+    }
+  };
+
+  const refreshPaymentsAndTenants = async () => {
+    try {
+      console.log('Refreshing payments and tenants...');
+      const [tenantsData, paymentsData] = await Promise.all([
+        api.getTenants(),
+        api.getPayments()
+      ]);
+      console.log('Fetched tenants:', tenantsData.length, 'tenants');
+      console.log('Tenant balances:', tenantsData.map(t => ({ name: t.name, balance: t.balance })));
+      setTenants(tenantsData);
+      setPayments(paymentsData);
+      console.log('State updated successfully');
+    } catch (error) {
+      console.error("Error refreshing payments and tenants:", error);
     }
   };
 
@@ -294,7 +315,14 @@ const App: React.FC = () => {
           />
         );
       case 'tenants':
-        return <TenantsView tenants={tenants} initialTab={tenantsInitialTab} onTenantsChange={refreshTenants} />;
+        return (
+          <TenantsView 
+            key={`tenants-${tenants.length}-${tenants.map(t => `${t.id}-${t.balance}`).join('-')}`}
+            tenants={tenants} 
+            initialTab={tenantsInitialTab} 
+            onTenantsChange={refreshTenants} 
+          />
+        );
       case 'maintenance':
         return <MaintenanceView requests={maintenance} tenants={tenants} onMaintenanceChange={refreshMaintenance} />;
       case 'legal':
@@ -302,7 +330,15 @@ const App: React.FC = () => {
       case 'settings':
         return <SettingsView />;
       case 'payments':
-        return <PaymentsView tenants={tenants} payments={payments} invoices={MOCK_INVOICES} />;
+        return (
+          <PaymentsView 
+            key={`payments-${tenants.length}-${payments.length}`}
+            tenants={tenants} 
+            payments={payments} 
+            invoices={MOCK_INVOICES} 
+            onDataChange={refreshPaymentsAndTenants} 
+          />
+        );
       case 'documents':
         return (
           <div className="flex items-center justify-center h-96 text-slate-500 px-4">

@@ -34,6 +34,35 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.name
+    
+    def calculate_balance(self):
+        """
+        Calculate current balance based on:
+        - Rent amount (what tenant owes)
+        - Deposit paid (reduces balance)
+        - Payments received (reduce balance)
+        
+        Balance = Rent Amount - Deposit - Total Payments
+        Positive balance = Tenant owes money
+        Negative balance = Tenant has overpaid/credit
+        """
+        from decimal import Decimal
+        from django.db.models import Sum
+        
+        # Get sum of all paid payments for this tenant using aggregation
+        total_payments = self.payments.filter(status='Paid').aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        
+        # Calculate balance: Rent - Deposit - Payments
+        balance = self.rent_amount - self.deposit - total_payments
+        
+        return balance
+    
+    def update_balance(self):
+        """Update the balance field with the calculated value"""
+        self.balance = self.calculate_balance()
+        self.save(update_fields=['balance'])
 
 class Payment(models.Model):
     STATUS_CHOICES = [
@@ -137,6 +166,9 @@ class Property(models.Model):
     state = models.CharField(max_length=50)
     units = models.IntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    bedrooms = models.IntegerField(default=2, help_text="Number of bedrooms")
+    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, default=2.0, help_text="Number of bathrooms")
+    square_footage = models.IntegerField(default=1000, help_text="Square footage")
     image = models.ImageField(upload_to='properties/', null=True, blank=True)
     image_url = models.URLField(null=True, blank=True)  # For external URLs
     created_at = models.DateTimeField(auto_now_add=True)

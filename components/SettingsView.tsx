@@ -26,6 +26,9 @@ const SettingsView: React.FC = () => {
     state: '',
     units: 1,
     price: undefined as number | undefined,
+    bedrooms: 2,
+    bathrooms: 2,
+    square_footage: 1000,
     image: '',
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -139,6 +142,9 @@ ________________________ Tenant`);
       state: property.state,
       units: property.units,
       price: property.price,
+      bedrooms: property.bedrooms || 2,
+      bathrooms: property.bathrooms || 2,
+      square_footage: property.square_footage || 1000,
       image: property.image || '',
     });
     setImageFile(null);
@@ -181,7 +187,7 @@ ________________________ Tenant`);
   const handleEditCancel = () => {
     setIsEditModalOpen(false);
     setEditingProperty(null);
-    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, image: '' });
+    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
     setImageFile(null);
     setImagePreview(null);
   };
@@ -694,6 +700,43 @@ ________________________ Tenant`);
                     min="0"
                     step="0.01"
                     placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label>
+                  <input
+                    type="number"
+                    value={editFormData.bedrooms}
+                    onChange={(e) => setEditFormData({...editFormData, bedrooms: parseInt(e.target.value) || 2})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    placeholder="2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label>
+                  <input
+                    type="number"
+                    value={editFormData.bathrooms}
+                    onChange={(e) => setEditFormData({...editFormData, bathrooms: parseFloat(e.target.value) || 2})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    step="0.5"
+                    placeholder="2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label>
+                  <input
+                    type="number"
+                    value={editFormData.square_footage}
+                    onChange={(e) => setEditFormData({...editFormData, square_footage: parseInt(e.target.value) || 1000})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    placeholder="1000"
                   />
                 </div>
               </div>

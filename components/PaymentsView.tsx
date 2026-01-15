@@ -1,32 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, CreditCard, Plus, Download, Mail, Filter, 
   AlertCircle, CheckCircle, Clock, FileText, Search, 
   MoreVertical, ArrowUpRight, ArrowDownLeft, Wallet, Trash2
 } from 'lucide-react';
 import { Tenant, Payment, Invoice } from '../types';
+import { api } from '../services/api';
 
 interface PaymentsViewProps {
   tenants: Tenant[];
   payments: Payment[];
   invoices: Invoice[];
+  onDataChange?: () => void; // Callback to refresh data after payment is recorded
 }
 
 const PaymentsView: React.FC<PaymentsViewProps> = ({ 
   tenants: initialTenants, 
   payments: initialPayments, 
-  invoices: initialInvoices 
+  invoices: initialInvoices,
+  onDataChange
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions'>('overview');
   
   // Mutable State for Demo
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
   
   // Modals State
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
   const [showAdjustment, setShowAdjustment] = useState(false);
+  const [showSendNotice, setShowSendNotice] = useState(false);
 
   // Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,11 +38,15 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  
+  // Send Notice State
+  const [selectedNoticeType, setSelectedNoticeType] = useState<string>('Notice of Late Rent');
+  const [isSendingNotice, setIsSendingNotice] = useState(false);
 
   const tenantsMap = initialTenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
 
-  // Derived Data
-  const totalCollected = payments
+  // Derived Data - Use props directly to ensure reactivity
+  const totalCollected = initialPayments
     .filter(p => p.status === 'Paid' && new Date(p.date).getMonth() === new Date().getMonth())
     .reduce((acc, p) => acc + p.amount, 0);
   
@@ -47,7 +54,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     .filter(i => i.status === 'Overdue')
     .reduce((acc, i) => acc + i.amount, 0);
 
-  const recentActivity = [...payments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  const recentActivity = [...initialPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
   const overdueTenants = initialTenants.filter(t => t.balance > 0);
 
@@ -69,20 +76,33 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     resetForms();
   };
 
-  const handleRecordPayment = () => {
+  const handleRecordPayment = async () => {
     if (!selectedTenantId || !amount) return;
-    const newPayment: Payment = {
-      id: `pay-${Date.now()}`,
-      tenantId: selectedTenantId,
-      amount: Number(amount),
-      date: new Date().toISOString().split('T')[0],
-      status: 'Paid',
-      type: 'Rent', // Simplification
-      method: 'Check', // Simplification
-    };
-    setPayments([newPayment, ...payments]);
-    setShowRecordPayment(false);
-    resetForms();
+    
+    try {
+      const newPayment: Partial<Payment> = {
+        tenantId: selectedTenantId,
+        amount: Number(amount),
+        date: new Date().toISOString().split('T')[0],
+        status: 'Paid',
+        type: 'Rent', // Simplification
+        method: 'Check', // Simplification
+      };
+      
+      // Save payment to the backend
+      await api.createPayment(newPayment);
+      
+      // Refresh data to get updated tenant balances
+      if (onDataChange) {
+        await onDataChange();
+      }
+      
+      setShowRecordPayment(false);
+      resetForms();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to record payment');
+    }
   };
 
   const handleAdjustment = (type: 'Charge' | 'Waive') => {
@@ -96,11 +116,36 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     alert(`Generating receipt for Payment #${paymentId}... Sent to tenant.`);
   };
 
+  const handleSendNotice = async () => {
+    if (!selectedTenantId || !selectedNoticeType) return;
+    
+    setIsSendingNotice(true);
+    try {
+      // Generate and send the legal notice with tenant details automatically filled in
+      const response = await api.generateLegalNotice(selectedTenantId, selectedNoticeType);
+      
+      alert(`Notice sent successfully to tenant! Document ID: ${response.id}`);
+      setShowSendNotice(false);
+      resetForms();
+    } catch (error) {
+      console.error('Error sending notice:', error);
+      alert(error instanceof Error ? error.message : 'Failed to send notice');
+    } finally {
+      setIsSendingNotice(false);
+    }
+  };
+
   const resetForms = () => {
     setSelectedTenantId('');
     setAmount('');
     setDescription('');
   };
+
+  // Debug: Log when tenants prop changes
+  useEffect(() => {
+    console.log('PaymentsView - Tenants updated:', initialTenants.length, 'tenants');
+    console.log('PaymentsView - Overdue tenants:', overdueTenants.length);
+  }, [initialTenants]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -214,7 +259,10 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                                 >
                                   Adjust
                                 </button>
-                                <button className="text-rose-600 hover:text-rose-800 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded border border-rose-200">
+                                <button 
+                                  onClick={() => { setSelectedTenantId(t.id); setShowSendNotice(true); }}
+                                  className="text-rose-600 hover:text-rose-800 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded border border-rose-200"
+                                >
                                   Send Notice
                                 </button>
                              </td>
@@ -334,7 +382,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
-                    {payments.map((pay) => (
+                    {initialPayments.map((pay) => (
                        <tr key={pay.id} className="hover:bg-slate-50">
                           <td className="px-6 py-4 text-slate-600">{pay.date}</td>
                           <td className="px-6 py-4 font-medium text-slate-800">{tenantsMap[pay.tenantId]?.name}</td>
@@ -494,6 +542,56 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                          Add Charge
                       </button>
                    </div>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Send Notice Modal */}
+      {showSendNotice && selectedTenantId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+           <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">Send Legal Notice</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Send a legal notice to <strong>{tenantsMap[selectedTenantId]?.name}</strong> regarding their outstanding balance of <strong className="text-rose-600">${tenantsMap[selectedTenantId]?.balance}</strong>.
+              </p>
+              <div className="space-y-4">
+                  <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-2">Notice Type</label>
+                     <select 
+                        value={selectedNoticeType}
+                        onChange={(e) => setSelectedNoticeType(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                     >
+                        <option value="Notice of Late Rent">Late Fee Reminder (Friendly)</option>
+                        <option value="3-Day Notice to Vacate">3-Day Notice to Vacate (Texas)</option>
+                        <option value="30-Day Lease Termination">30-Day Lease Termination</option>
+                        <option value="Lease Violation Notice">Lease Violation Notice</option>
+                     </select>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                     <p className="text-xs text-blue-800">
+                        <strong>Auto-populated details:</strong> The notice will automatically include the tenant's name, property unit, balance amount, and other relevant information.
+                     </p>
+                  </div>
+               </div>
+
+               <div className="flex gap-3 mt-6">
+                  <button 
+                    onClick={() => { setShowSendNotice(false); resetForms(); }}
+                    className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium"
+                    disabled={isSendingNotice}
+                  >
+                     Cancel
+                  </button>
+                  <button 
+                    onClick={handleSendNotice}
+                    disabled={isSendingNotice}
+                    className="flex-1 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium disabled:bg-slate-400 disabled:cursor-not-allowed"
+                  >
+                     {isSendingNotice ? 'Sending...' : 'Send Notice'}
+                  </button>
                </div>
             </div>
          </div>

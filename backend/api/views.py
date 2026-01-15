@@ -324,6 +324,124 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
                                 maintenance_request.id, comment_author, comment_message, comment_date
                             )
 
+def generate_notice_content(tenant, notice_type):
+    """Generate notice content with tenant details auto-populated."""
+    from datetime import datetime, timedelta
+    
+    today = datetime.now().strftime("%B %d, %Y")
+    three_days_later = (datetime.now() + timedelta(days=3)).strftime("%B %d, %Y")
+    
+    if notice_type == "Notice of Late Rent":
+        return f"""RENT PAYMENT BALANCE
+
+Dear {tenant.name},
+
+This is a friendly reminder that we have not received your outstanding rent balance for {tenant.property_unit}.
+
+Account Details:
+- Tenant Name: {tenant.name}
+- Property Unit: {tenant.property_unit}
+- Monthly Rent: ${tenant.rent_amount}
+- Current Balance Due: ${tenant.balance}
+
+Please remit payment as soon as possible to avoid late fees and potential legal action.
+
+Payment can be made via:
+- Online portal
+- Check (payable to Property Management)
+- Electronic transfer
+
+If you have already made payment, please disregard this notice and contact our office with payment confirmation.
+
+Best regards,
+Neela Property Management Team
+Date: {today}"""
+    
+    elif notice_type == "3-Day Notice to Vacate":
+        return f"""THREE (3) DAY NOTICE TO VACATE
+Pursuant to Texas Property Code Section 24.005
+
+TO: {tenant.name}
+PROPERTY ADDRESS: {tenant.property_unit}
+DATE: {today}
+
+YOU ARE HEREBY NOTIFIED that you are indebted to the undersigned in the sum of ${tenant.balance} for rent and/or other charges due for the above-described premises.
+
+DEMAND IS HEREBY MADE that you pay said sum within THREE (3) DAYS (excluding Saturdays, Sundays, and legal holidays) from the date of delivery of this notice or vacate and deliver up possession of the above-described premises which you currently hold and occupy.
+
+If you fail to pay the amount due or vacate the premises within the time specified, legal proceedings will be instituted against you to recover possession of the premises, declare the lease forfeited, and recover rents and damages for the period of unlawful detention.
+
+Landlord: Neela Property Management
+Date of Notice: {today}
+Date Possession Required: {three_days_later}
+
+This notice is given pursuant to Texas Property Code Section 24.005."""
+    
+    elif notice_type == "30-Day Lease Termination":
+        return f"""THIRTY (30) DAY NOTICE OF LEASE TERMINATION
+
+TO: {tenant.name}
+PROPERTY ADDRESS: {tenant.property_unit}
+DATE: {today}
+
+This letter serves as official notice that your lease agreement for the above property will terminate thirty (30) days from the date of this notice.
+
+Lease Details:
+- Tenant: {tenant.name}
+- Property: {tenant.property_unit}
+- Lease Start Date: {tenant.lease_start}
+- Lease End Date: {tenant.lease_end}
+- Outstanding Balance: ${tenant.balance}
+
+You are required to vacate the premises and return all keys by the termination date. Any outstanding balance must be paid in full before or at move-out.
+
+Move-Out Requirements:
+1. Clean the premises thoroughly
+2. Repair any damages (normal wear and tear excepted)
+3. Return all keys and access devices
+4. Provide forwarding address for security deposit return
+5. Schedule final walk-through inspection
+
+Please contact our office to schedule your move-out inspection.
+
+Neela Property Management Team
+Date: {today}"""
+    
+    elif notice_type == "Lease Violation Notice":
+        return f"""LEASE VIOLATION NOTICE
+
+TO: {tenant.name}
+PROPERTY ADDRESS: {tenant.property_unit}
+DATE: {today}
+
+This notice is to inform you that you are in violation of your lease agreement.
+
+Tenant Information:
+- Name: {tenant.name}
+- Property: {tenant.property_unit}
+- Current Balance: ${tenant.balance}
+
+Please rectify this situation within five (5) business days from the date of this notice. Failure to comply may result in further action, including lease termination and eviction proceedings.
+
+If you have questions or need clarification, please contact our office immediately.
+
+Neela Property Management Team
+Date: {today}"""
+    
+    else:
+        # Default template
+        return f"""LEGAL NOTICE
+
+TO: {tenant.name}
+PROPERTY ADDRESS: {tenant.property_unit}
+DATE: {today}
+
+Outstanding Balance: ${tenant.balance}
+
+Please contact Neela Property Management immediately to resolve this matter.
+
+Neela Property Management Team"""
+
 class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()
     serializer_class = LeaseTemplateSerializer
@@ -422,6 +540,100 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             logger.error(f"Error generating lease: {e}")
             return Response(
                 {'error': f'Failed to generate lease: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def generate_notice(self, request):
+        """Generate and send a legal notice to a tenant with auto-populated details."""
+        from .email_service import send_notice_to_tenant
+        import base64
+        tenant_id = request.data.get('tenant_id')
+        notice_type = request.data.get('notice_type', 'Notice of Late Rent')
+        
+        if not tenant_id:
+            return Response(
+                {'error': 'tenant_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return Response(
+                {'error': 'Tenant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        try:
+            # Generate notice content with auto-populated tenant details
+            notice_content = generate_notice_content(tenant, notice_type)
+            
+            # Create PDF
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter,
+                                   rightMargin=72, leftMargin=72,
+                                   topMargin=72, bottomMargin=18)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor=colors.HexColor('#1e293b'),
+                spaceAfter=30,
+                alignment=1,
+            )
+            elements.append(Paragraph(notice_type.upper(), title_style))
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Content - split by paragraphs
+            paragraphs = notice_content.split('\n\n')
+            for para in paragraphs:
+                if para.strip():
+                    para = para.strip().replace('\n', '<br/>')
+                    elements.append(Paragraph(para, styles['Normal']))
+                    elements.append(Spacer(1, 0.15*inch))
+            
+            doc.build(elements)
+            buffer.seek(0)
+            
+            # Save legal document
+            filename = f'notice_{tenant.id}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+            legal_doc = LegalDocument.objects.create(
+                tenant=tenant,
+                type=notice_type,
+                generated_content=notice_content,
+                status='Sent',
+                delivery_method='Email'
+            )
+            legal_doc.pdf_file.save(filename, ContentFile(buffer.getvalue()))
+            legal_doc.save()
+            
+            # Send email notification to tenant
+            try:
+                # Pass PDF bytes directly to avoid fetching from remote storage (Cloudinary may require auth)
+                pdf_bytes_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                try:
+                    send_notice_to_tenant.delay(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
+                except Exception:
+                    # Celery not available or misconfigured; run inline
+                    send_notice_to_tenant(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
+                logger.info(f"Queued notice email to tenant {tenant.email} for document {legal_doc.id}")
+            except Exception as e:
+                logger.error(f"Failed to send notice email: {e}")
+                # Don't fail the whole request if email fails
+            
+            # Serialize and return
+            serializer = self.get_serializer(legal_doc)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Error generating notice: {e}")
+            return Response(
+                {'error': f'Failed to generate notice: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     

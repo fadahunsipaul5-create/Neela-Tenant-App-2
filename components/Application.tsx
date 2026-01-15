@@ -116,9 +116,9 @@ export const useApplication = (): UseApplicationReturn => {
       title: property.name,
       address: `${property.address}, ${property.city}, ${property.state}`,
       price: property.price || 0,
-      beds: 2, // Default since Property model doesn't have beds
-      baths: 2, // Default since Property model doesn't have baths
-      sqft: 1000, // Default since Property model doesn't have sqft
+      beds: property.bedrooms || 2,
+      baths: property.bathrooms || 2,
+      sqft: property.square_footage || 1000,
       image: imageUrl,
       description: `Beautiful ${property.name} located in ${property.city}, ${property.state}. ${property.units} ${property.units === 1 ? 'unit' : 'units'} available.`,
       amenities: [] // Property model doesn't have amenities

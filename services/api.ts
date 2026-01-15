@@ -2,6 +2,7 @@ import { Tenant, Payment, MaintenanceRequest, Listing, Property } from '../types
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
+// const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_URL = `${BASE_URL}/api`;
 
 // Track if we're currently refreshing to avoid multiple simultaneous refresh attempts
@@ -136,6 +137,78 @@ export const api = {
     }));
   },
 
+  createPayment: async (paymentData: Partial<Payment>): Promise<Payment> => {
+    const backendData = {
+      tenant: paymentData.tenantId,
+      amount: paymentData.amount?.toString(),
+      date: paymentData.date,
+      status: paymentData.status,
+      type: paymentData.type,
+      method: paymentData.method,
+      reference: paymentData.reference || null,
+    };
+    
+    const response = await fetchWithAuth(`${API_URL}/payments/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(backendData),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to create payment' }));
+      throw new Error(error.detail || error.message || 'Failed to create payment');
+    }
+    
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      tenantId: String(data.tenant),
+      amount: parseFloat(data.amount),
+    };
+  },
+
+  updatePayment: async (id: string, paymentData: Partial<Payment>): Promise<Payment> => {
+    const backendData: any = {};
+    if (paymentData.tenantId) backendData.tenant = paymentData.tenantId;
+    if (paymentData.amount !== undefined) backendData.amount = paymentData.amount.toString();
+    if (paymentData.date) backendData.date = paymentData.date;
+    if (paymentData.status) backendData.status = paymentData.status;
+    if (paymentData.type) backendData.type = paymentData.type;
+    if (paymentData.method) backendData.method = paymentData.method;
+    if (paymentData.reference !== undefined) backendData.reference = paymentData.reference || null;
+    
+    const response = await fetchWithAuth(`${API_URL}/payments/${id}/`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(backendData),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to update payment' }));
+      throw new Error(error.detail || error.message || 'Failed to update payment');
+    }
+    
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      tenantId: String(data.tenant),
+      amount: parseFloat(data.amount),
+    };
+  },
+
+  deletePayment: async (id: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_URL}/payments/${id}/`, {
+      method: 'DELETE',
+      headers: getHeaders(false),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to delete payment' }));
+      throw new Error(error.detail || error.message || 'Failed to delete payment');
+    }
+  },
+
   getMaintenanceRequests: async (): Promise<MaintenanceRequest[]> => {
     try {
       const response = await fetchWithAuth(`${API_URL}/maintenance/`, {
@@ -199,7 +272,7 @@ export const api = {
       lease_end: leaseEnd,
       rent_amount: tenant.rentAmount?.toString(),
       deposit: tenant.deposit?.toString(),
-      balance: tenant.balance?.toString() || '0',
+      // balance is auto-calculated on the backend, don't send it
       credit_score: tenant.creditScore || null,
       background_check_status: tenant.backgroundCheckStatus || null,
       application_data: tenant.applicationData || null,
@@ -229,7 +302,7 @@ export const api = {
       formData.append('property_unit', tenantData.propertyUnit || '');
       formData.append('rent_amount', String(tenantData.rentAmount || 0));
       formData.append('deposit', String(tenantData.deposit || 0));
-      formData.append('balance', String(tenantData.balance || 0));
+      // balance is auto-calculated on the backend, don't send it
       
       // Add application data as JSON string
       if (tenantData.applicationData) {
@@ -300,7 +373,7 @@ export const api = {
 
   updateTenant: async (id: string, tenantData: Partial<Tenant>): Promise<Tenant> => {
     const backendData = api.mapTenantToBackend(tenantData);
-    const response = await fetch(`${API_URL}/tenants/${id}/`, {
+    const response = await fetchWithAuth(`${API_URL}/tenants/${id}/`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(backendData),
@@ -310,6 +383,8 @@ export const api = {
       throw new Error(error.detail || error.message || 'Failed to update tenant');
     }
     const data = await response.json();
+    console.log('API updateTenant response:', data);
+    console.log('Parsed balance:', parseFloat(data.balance));
     // Map backend response to frontend format
     return {
       ...data,
@@ -459,6 +534,9 @@ export const api = {
       formData.append('state', propertyData.state || '');
       formData.append('units', String(propertyData.units || 1));
       if (propertyData.price !== undefined) formData.append('price', String(propertyData.price));
+      formData.append('bedrooms', String(propertyData.bedrooms || 2));
+      formData.append('bathrooms', String(propertyData.bathrooms || 2));
+      formData.append('square_footage', String(propertyData.square_footage || 1000));
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -472,6 +550,9 @@ export const api = {
         state: propertyData.state,
         units: propertyData.units || 1,
         price: propertyData.price !== undefined ? propertyData.price : null,
+        bedrooms: propertyData.bedrooms || 2,
+        bathrooms: propertyData.bathrooms || 2,
+        square_footage: propertyData.square_footage || 1000,
         image_url: propertyData.image || null, // Use image_url for URL input
       });
       headers = {
@@ -519,6 +600,9 @@ export const api = {
       if (propertyData.state) formData.append('state', propertyData.state);
       if (propertyData.units !== undefined) formData.append('units', String(propertyData.units));
       if (propertyData.price !== undefined) formData.append('price', String(propertyData.price));
+      if (propertyData.bedrooms !== undefined) formData.append('bedrooms', String(propertyData.bedrooms));
+      if (propertyData.bathrooms !== undefined) formData.append('bathrooms', String(propertyData.bathrooms));
+      if (propertyData.square_footage !== undefined) formData.append('square_footage', String(propertyData.square_footage));
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -532,6 +616,9 @@ export const api = {
       if (propertyData.state !== undefined) jsonData.state = propertyData.state;
       if (propertyData.units !== undefined) jsonData.units = propertyData.units;
       if (propertyData.price !== undefined) jsonData.price = propertyData.price;
+      if (propertyData.bedrooms !== undefined) jsonData.bedrooms = propertyData.bedrooms;
+      if (propertyData.bathrooms !== undefined) jsonData.bathrooms = propertyData.bathrooms;
+      if (propertyData.square_footage !== undefined) jsonData.square_footage = propertyData.square_footage;
       if (propertyData.image !== undefined) {
         jsonData.image_url = propertyData.image || null; // Use image_url for URL input
       }
@@ -710,6 +797,31 @@ export const api = {
       signedPdfUrl: item.signed_pdf_url,
       signedAt: item.signed_at,
     }));
+  },
+
+  // Generate and send legal notice to tenant
+  generateLegalNotice: async (tenantId: string, noticeType: string): Promise<any> => {
+    const response = await fetchWithAuth(`${API_URL}/legal-documents/generate_notice/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        notice_type: noticeType,
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to generate and send notice' }));
+      throw new Error(error.detail || error.message || 'Failed to generate and send notice');
+    }
+    
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      tenantId: String(data.tenant),
+      pdfUrl: data.pdf_url,
+    };
   },
 
   // Check Application Status

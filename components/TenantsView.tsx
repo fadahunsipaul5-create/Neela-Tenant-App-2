@@ -511,17 +511,22 @@ Landlord                            Tenant
     try {
       if (editingTenant) {
         // Update existing tenant
-        await api.updateTenant(editingTenant.id, formData);
+        console.log('Updating tenant:', editingTenant.id, 'with data:', formData);
+        const updatedTenant = await api.updateTenant(editingTenant.id, formData);
+        console.log('Tenant updated, new balance:', updatedTenant.balance);
         setSuccessMessage('Resident updated successfully!');
       } else {
         // Create new tenant
+        console.log('Creating new tenant with data:', formData);
         await api.createTenant(formData);
         setSuccessMessage('Resident added successfully!');
       }
       
-      // Refresh tenant list
+      // Refresh tenant list and wait for it to complete
       if (onTenantsChange) {
-        onTenantsChange();
+        console.log('Refreshing tenant list...');
+        await onTenantsChange();
+        console.log('Tenant list refreshed');
       }
       
       // Close modal after a short delay
@@ -1623,19 +1628,29 @@ Landlord                            Tenant
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Current Balance
+                        Current Balance <span className="text-xs font-normal text-slate-500">(Preview)</span>
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
                         <input
-                          type="number"
-                          step="0.01"
-                          value={formData.balance || ''}
-                          onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-                          className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                          placeholder="0.00"
+                          type="text"
+                          value={((formData.rentAmount || 0) - (formData.deposit || 0)).toFixed(2)}
+                          disabled
+                          className={`w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed ${
+                            ((formData.rentAmount || 0) - (formData.deposit || 0)) < 0 
+                              ? 'text-green-600 font-medium' 
+                              : ((formData.rentAmount || 0) - (formData.deposit || 0)) > 0
+                              ? 'text-rose-600 font-medium'
+                              : 'text-slate-600'
+                          }`}
+                          title="Automatically calculated from rent amount and deposit"
                         />
                       </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {editingTenant 
+                          ? 'Preview based on rent and deposit. Actual balance will be recalculated from all payments after save.' 
+                          : 'Initial balance (Rent - Deposit). Will be recalculated when payments are recorded.'}
+                      </p>
                     </div>
                   </div>
                 </div>
