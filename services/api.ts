@@ -11,7 +11,7 @@ let refreshPromise: Promise<void> | null = null;
 
 /**
  * Helper function to get headers with authentication.
- * @param includeContentType - Whether to include Content-Type header
+ * @param includeContentType - Whether to include Content-Type headers
  * @param includeAuth - Whether to include Authorization header (default: true)
  */
 const getHeaders = (includeContentType: boolean = true, includeAuth: boolean = true): HeadersInit => {
