@@ -98,6 +98,12 @@ export const useApplication = (): UseApplicationReturn => {
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
   const [draftSaveMessage, setDraftSaveMessage] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Convert Property to Listing format
   const propertyToListing = (property: Property): Listing => {
@@ -413,6 +419,8 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
   handleSaveDraft,
   handleClearForm,
   setView,
+  confirmModal,
+  setConfirmModal,
 }) => {
   // Save application draft to localStorage whenever formData changes
   useEffect(() => {

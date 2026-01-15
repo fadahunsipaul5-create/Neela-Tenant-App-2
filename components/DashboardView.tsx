@@ -276,7 +276,10 @@ interface DashboardProps {
   onNavigateToSettings?: () => void;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications }) => {
+const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings }) => {
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
   // Derived Metrics
   const totalRevenue = payments
     .filter(p => p.status === 'Paid')
