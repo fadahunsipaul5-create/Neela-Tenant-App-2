@@ -360,7 +360,8 @@ export const useApplication = (): UseApplicationReturn => {
       setDraftSaveMessage('Form cleared successfully');
       setTimeout(() => setDraftSaveMessage(null), 3000);
     }
-  };
+  });
+};
 
   // Auto-save effects - these will be set up by the component using the hook
   // The component needs to pass view state to know when to auto-save
