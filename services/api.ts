@@ -1,8 +1,8 @@
 import { Tenant, Payment, MaintenanceRequest, Listing, Property } from '../types';
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
-// const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_URL = `${BASE_URL}/api`;
 
 // Track if we're currently refreshing to avoid multiple simultaneous refresh attempts
@@ -878,5 +878,19 @@ export const api = {
       leaseStatus: data.lease_status,
       signedLeaseUrl: data.signed_lease_url,
     };
+  },
+
+  // Contact Manager (email-only)
+  sendContactManagerMessage: async (payload: { message: string; tenant_id?: string; sender_name?: string; sender_email?: string; }): Promise<{ status: string }> => {
+    const response = await fetchWithAuth(`${API_URL}/contact-manager/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to send message' }));
+      throw new Error(error.error || error.detail || 'Failed to send message');
+    }
+    return await response.json();
   },
 };
