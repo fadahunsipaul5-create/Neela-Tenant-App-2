@@ -98,6 +98,12 @@ export const useApplication = (): UseApplicationReturn => {
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
   const [draftSaveMessage, setDraftSaveMessage] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Convert Property to Listing format
   const propertyToListing = (property: Property): Listing => {
@@ -360,6 +366,7 @@ export const useApplication = (): UseApplicationReturn => {
       setDraftSaveMessage('Form cleared successfully');
       setTimeout(() => setDraftSaveMessage(null), 3000);
     }
+    });
   };
 
   // Auto-save effects - these will be set up by the component using the hook

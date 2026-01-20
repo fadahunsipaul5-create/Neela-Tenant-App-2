@@ -313,6 +313,9 @@ const App: React.FC = () => {
             properties={properties}
             onReviewApplications={handleReviewApplications}
             onNavigateToSettings={() => setActiveTab('settings')}
+            onNavigateToTenants={() => setActiveTab('tenants')}
+            onNavigateToPayments={() => setActiveTab('payments')}
+            onNavigateToMaintenance={() => setActiveTab('maintenance')}
           />
         );
       case 'tenants':
