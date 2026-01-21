@@ -259,13 +259,15 @@
 
 // export default DashboardView;
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize } from 'lucide-react';
 import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property } from '../types';
+import Modal from './Modal';
+import { api } from '../services/api';
 
 interface DashboardProps {
   tenants: Tenant[];
@@ -274,12 +276,12 @@ interface DashboardProps {
   properties: Property[];
   onReviewApplications: () => void;
   onNavigateToSettings?: () => void;
+  onNavigateToTenants?: () => void;
+  onNavigateToPayments?: () => void;
+  onNavigateToMaintenance?: () => void;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings }) => {
-  const [showPropertyModal, setShowPropertyModal] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-
+const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings, onNavigateToTenants, onNavigateToPayments, onNavigateToMaintenance }) => {
   // Derived Metrics
   const totalRevenue = payments
     .filter(p => p.status === 'Paid')
@@ -292,14 +294,122 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   const openTickets = maintenance.filter(m => m.status !== 'Resolved').length;
   const newApplications = tenants.filter(t => t.status === TenantStatus.APPLICANT).length;
 
-  // Chart Data
-  const revenueData = [
-    { name: 'Jan', amount: 4000, trend: 'up' },
-    { name: 'Feb', amount: 3500, trend: 'down' },
-    { name: 'Mar', amount: 4200, trend: 'up' },
-    { name: 'Apr', amount: 3800, trend: 'down' },
-    { name: 'May', amount: totalRevenue, trend: 'up' },
-  ];
+  // Send Reminders Modal State
+  const [showSendRemindersModal, setShowSendRemindersModal] = useState(false);
+  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [selectedNoticeType, setSelectedNoticeType] = useState<string>('Notice of Late Rent');
+  const [isSendingNotice, setIsSendingNotice] = useState(false);
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info' as 'success' | 'error' | 'info' | 'warning',
+  });
+
+  // Responsive state for chart labels and sizing
+  const [screenSize, setScreenSize] = useState({
+    isLarge: typeof window !== 'undefined' && window.innerWidth >= 1024,
+    isMedium: typeof window !== 'undefined' && window.innerWidth >= 640 && window.innerWidth < 1024,
+    isSmall: typeof window !== 'undefined' && window.innerWidth < 640,
+  });
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize({
+        isLarge: window.innerWidth >= 1024,
+        isMedium: window.innerWidth >= 640 && window.innerWidth < 1024,
+        isSmall: window.innerWidth < 640,
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const overdueTenants = tenants.filter(t => t.balance > 0);
+  const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
+
+  // Calculate occupancy for a property
+  const calculatePropertyOccupancy = (property: Property): number => {
+    if (!property.units || property.units === 0) return 0;
+    
+    // Match tenants to this property by checking if propertyUnit contains property name or address
+    const propertyNameLower = property.name.toLowerCase();
+    const propertyAddressLower = property.address.toLowerCase();
+    
+    const activeTenantsForProperty = tenants.filter(t => {
+      if (t.status !== TenantStatus.ACTIVE) return false;
+      
+      const unitLower = t.propertyUnit.toLowerCase();
+      // Check if propertyUnit contains property name or address
+      return unitLower.includes(propertyNameLower) || unitLower.includes(propertyAddressLower);
+    });
+    
+    const occupancy = Math.round((activeTenantsForProperty.length / property.units) * 100);
+    return occupancy;
+  };
+
+  // Handle Send Notice
+  const handleSendNotice = async () => {
+    if (!selectedTenantId || !selectedNoticeType) return;
+    
+    setIsSendingNotice(true);
+    try {
+      const response = await api.generateLegalNotice(selectedTenantId, selectedNoticeType);
+      
+      setModalState({
+        isOpen: true,
+        title: 'Notice Sent',
+        message: `Notice sent successfully to tenant! Document ID: ${response.id}`,
+        type: 'success',
+      });
+      setShowSendRemindersModal(false);
+      setSelectedTenantId('');
+      setSelectedNoticeType('Notice of Late Rent');
+    } catch (error) {
+      console.error('Error sending notice:', error);
+      setModalState({
+        isOpen: true,
+        title: 'Send Notice Error',
+        message: error instanceof Error ? error.message : 'Failed to send notice',
+        type: 'error',
+      });
+    } finally {
+      setIsSendingNotice(false);
+    }
+  };
+
+  // Chart Data - Calculate monthly revenue from actual payment data
+  const getMonthlyRevenue = () => {
+    const now = new Date();
+    const months = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    // Get last 5 months including current month
+    for (let i = 4; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthIndex = date.getMonth();
+      const monthName = monthNames[monthIndex];
+      
+      // Calculate revenue for this month from paid payments
+      const monthRevenue = payments
+        .filter(p => {
+          if (p.status !== 'Paid') return false;
+          const paymentDate = new Date(p.date);
+          return paymentDate.getMonth() === monthIndex && paymentDate.getFullYear() === date.getFullYear();
+        })
+        .reduce((acc, p) => acc + p.amount, 0);
+      
+      months.push({
+        name: monthName,
+        amount: monthRevenue,
+        trend: i === 0 ? 'up' : (monthRevenue > 0 ? 'up' : 'down')
+      });
+    }
+    
+    return months;
+  };
+
+  const revenueData = getMonthlyRevenue();
 
   const ticketData = [
     { name: 'Open', value: maintenance.filter(m => m.status === 'Open').length, color: '#ef4444' },
@@ -370,7 +480,17 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             href={action.href}
             onClick={(e) => {
               e.preventDefault();
-              window.location.hash = action.href.replace('#', '');
+              if (action.label === 'Add Property' && onNavigateToSettings) {
+                onNavigateToSettings();
+              } else if (action.label === 'View Tenants' && onNavigateToTenants) {
+                onNavigateToTenants();
+              } else if (action.label === 'Record Payment' && onNavigateToPayments) {
+                onNavigateToPayments();
+              } else if (action.label === 'Create Ticket' && onNavigateToMaintenance) {
+                onNavigateToMaintenance();
+              } else {
+                window.location.hash = action.href.replace('#', '');
+              }
             }}
             className="group bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border-2 border-slate-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1 sm:hover:-translate-y-1.5 focus:outline-none focus:ring-4 focus:ring-indigo-500/20"
             aria-label={`Quick action: ${action.label}`}
@@ -427,7 +547,10 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">${overdueAmount.toLocaleString()}</h3>
           <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Outstanding Rent</p>
           <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100">
-            <button className="relative text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/30 rounded px-1">
+            <button 
+              onClick={() => setShowSendRemindersModal(true)}
+              className="relative text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/30 rounded px-1"
+            >
               <span className="hidden sm:inline">Send Reminders</span>
               <span className="sm:hidden">Reminders</span>
               <ArrowUpRight className="w-3.5 h-3.5 ml-1 group-hover:animate-pulse" />
@@ -563,12 +686,12 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                   data={ticketData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={70}
-                  outerRadius={90}
+                  innerRadius={screenSize.isSmall ? 50 : screenSize.isMedium ? 60 : 70}
+                  outerRadius={screenSize.isSmall ? 70 : screenSize.isMedium ? 80 : 90}
                   paddingAngle={2}
                   dataKey="value"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
+                  label={screenSize.isLarge ? ({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%` : false}
+                  labelLine={screenSize.isLarge}
                 >
                   {ticketData.map((entry, index) => (
                     <Cell 
@@ -584,13 +707,14 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                     backgroundColor: 'white',
                     border: '1px solid #e2e8f0',
                     borderRadius: '10px',
+                    fontSize: '12px',
                   }}
                 />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-              <div className="text-2xl font-bold text-slate-800">{openTickets}</div>
-              <div className="text-sm text-slate-500">Open</div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-800">{openTickets}</div>
+              <div className="text-xs sm:text-sm text-slate-500">Open</div>
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-3 sm:gap-4 lg:gap-6 mt-3 sm:mt-4">
@@ -681,7 +805,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                     </p>
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                       <div className="text-sm text-slate-500">
-                        Occupancy: <span className="font-semibold text-slate-700">85%</span>
+                        Occupancy: <span className="font-semibold text-slate-700">{calculatePropertyOccupancy(prop)}%</span>
                       </div>
                       <button 
                         onClick={() => {
@@ -760,7 +884,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                       <p className="text-xs sm:text-sm text-slate-600 truncate">{t.propertyUnit} • Due: ${t.balance}</p>
                     </div>
                   </div>
-                  <button className="w-full sm:w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50 hover:border-rose-300 hover:shadow-md text-xs sm:text-sm font-medium transition-all">
+                  <button 
+                    onClick={() => {
+                      setSelectedTenantId(t.id);
+                      setShowSendRemindersModal(true);
+                    }}
+                    className="w-full sm:w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50 hover:border-rose-300 hover:shadow-md text-xs sm:text-sm font-medium transition-all"
+                  >
                     Send Notice
                   </button>
                 </div>
@@ -1015,6 +1145,95 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
         </div>
       )}
+
+      {/* Send Reminders Modal */}
+      {showSendRemindersModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">
+              {selectedTenantId ? 'Send Legal Notice' : 'Send Reminder Notice'}
+            </h3>
+            <p className="text-sm text-slate-600 mb-4">
+              {selectedTenantId 
+                ? `Send a legal notice to ${tenantsMap[selectedTenantId]?.name} regarding their outstanding balance of $${tenantsMap[selectedTenantId]?.balance}.`
+                : 'Select a tenant with outstanding rent to send a reminder notice.'}
+            </p>
+            <div className="space-y-4">
+              {!selectedTenantId && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Select Tenant</label>
+                  <select 
+                    value={selectedTenantId}
+                    onChange={(e) => setSelectedTenantId(e.target.value)}
+                    className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                  >
+                    <option value="">-- Select a tenant --</option>
+                    {overdueTenants.map(tenant => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.name} - ${tenant.balance} ({tenant.propertyUnit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedTenantId && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Notice Type</label>
+                    <select 
+                      value={selectedNoticeType}
+                      onChange={(e) => setSelectedNoticeType(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                    >
+                      <option value="Notice of Late Rent">Late Fee Reminder (Friendly)</option>
+                      <option value="3-Day Notice to Vacate">3-Day Notice to Vacate (Texas)</option>
+                      <option value="30-Day Lease Termination">30-Day Lease Termination</option>
+                      <option value="Lease Violation Notice">Lease Violation Notice</option>
+                    </select>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs text-blue-800">
+                      <strong>Auto-populated details:</strong> The notice will automatically include {tenantsMap[selectedTenantId]?.name}'s property unit, balance amount of <strong className="text-rose-600">${tenantsMap[selectedTenantId]?.balance}</strong>, and other relevant information.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button 
+                onClick={() => { 
+                  setShowSendRemindersModal(false); 
+                  setSelectedTenantId(''); 
+                  setSelectedNoticeType('Notice of Late Rent'); 
+                }}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium"
+                disabled={isSendingNotice}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSendNotice}
+                disabled={isSendingNotice || !selectedTenantId}
+                className="flex-1 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium disabled:bg-slate-400 disabled:cursor-not-allowed"
+              >
+                {isSendingNotice ? 'Sending...' : 'Send Notice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ ...modalState, isOpen: false })}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </div>
   );
 };

@@ -59,9 +59,15 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     .filter(p => p.status === 'Paid' && new Date(p.date).getMonth() === new Date().getMonth())
     .reduce((acc, p) => acc + p.amount, 0);
   
-  const totalOverdue = invoices
-    .filter(i => i.status === 'Overdue')
-    .reduce((acc, i) => acc + i.amount, 0);
+  // Total Overdue: Sum of tenant balances (more accurate than just invoices)
+  const totalOverdue = initialTenants
+    .filter(t => t.balance > 0)
+    .reduce((acc, t) => acc + t.balance, 0);
+  
+  // Projected Revenue: Sum of all active tenants' rent amounts
+  const projectedRevenue = initialTenants
+    .filter(t => t.status === 'Active')
+    .reduce((acc, t) => acc + (t.rentAmount || 0), 0);
 
   const recentActivity = [...initialPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
@@ -119,16 +125,32 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
   };
 
-  const handleAdjustment = (type: 'Charge' | 'Waive') => {
-    // Logic to adjust tenant balance would go here
-    // For demo visual, we'll just close modal
-    setShowAdjustment(false);
-    setModalState({
-      isOpen: true,
-      title: 'Adjustment Applied',
-      message: `${type} applied to account!`,
-      type: 'success',
-    });
+  const handleAdjustment = async (type: 'Charge' | 'Waive') => {
+    if (!selectedTenantId || !amount) return;
+    
+    try {
+      // In a real implementation, this would call an API to adjust the balance
+      // For now, refresh data to get updated balances
+      if (onDataChange) {
+        await onDataChange();
+      }
+      
+      setShowAdjustment(false);
+      setModalState({
+        isOpen: true,
+        title: 'Adjustment Applied',
+        message: `${type} applied to account!`,
+        type: 'success',
+      });
+      resetForms();
+    } catch (error) {
+      setModalState({
+        isOpen: true,
+        title: 'Adjustment Error',
+        message: error instanceof Error ? error.message : 'Failed to apply adjustment',
+        type: 'error',
+      });
+    }
   };
 
   const handleReceipt = (paymentId: string) => {
@@ -137,6 +159,16 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       title: 'Receipt Generated',
       message: `Generating receipt for Payment #${paymentId}... Sent to tenant.`,
       type: 'success',
+    });
+  };
+
+  const handleViewDownloadInvoice = (invoice: Invoice) => {
+    // For now, show a message. In production, this would generate/download the invoice PDF
+    setModalState({
+      isOpen: true,
+      title: 'Invoice Download',
+      message: `Downloading invoice ${invoice.id} for ${tenantsMap[invoice.tenantId]?.name || 'tenant'}...`,
+      type: 'info',
     });
   };
 
@@ -237,7 +269,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
               <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded">Auto-Pay Active</span>
            </div>
            <p className="text-slate-600 text-sm font-medium">Projection</p>
-           <h3 className="text-3xl font-bold text-slate-800">$3,850.00</h3>
+           <h3 className="text-3xl font-bold text-slate-800">${projectedRevenue.toLocaleString()}</h3>
         </div>
       </div>
 
@@ -387,8 +419,12 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                              </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                             <button className="text-slate-400 hover:text-slate-600 p-1">
-                                <MoreVertical className="w-4 h-4" />
+                             <button 
+                               onClick={() => handleViewDownloadInvoice(inv)}
+                               className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-1.5 rounded transition-colors text-xs font-medium"
+                             >
+                                <Download className="w-4 h-4" />
+                                View/Download
                              </button>
                           </td>
                        </tr>

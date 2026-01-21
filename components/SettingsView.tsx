@@ -14,8 +14,23 @@ const SettingsView: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [newPropName, setNewPropName] = useState('');
-  const [newPropPrice, setNewPropPrice] = useState<string>('');
+  
+  // Add Property Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    units: 1,
+    price: undefined as number | undefined,
+    bedrooms: 2,
+    bathrooms: 2,
+    square_footage: 1000,
+    image: '',
+  });
+  const [addImageFile, setAddImageFile] = useState<File | null>(null);
+  const [addImagePreview, setAddImagePreview] = useState<string | null>(null);
   
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -104,26 +119,70 @@ ________________________ Tenant`);
   }, []);
 
   const handleAddProperty = async () => {
-    if(!newPropName.trim()) return;
+    if (!addFormData.name.trim() || !addFormData.address.trim() || !addFormData.city.trim() || !addFormData.state.trim()) {
+      setError('Please fill in all required fields');
+      return;
+    }
     try {
       setIsSaving(true);
       setError(null);
       const newProperty = await api.createProperty({
-        name: newPropName,
-        address: 'TBD',
-        city: 'Austin',
-        state: 'TX',
-        units: 1,
-        price: newPropPrice ? parseFloat(newPropPrice) : undefined,
-      });
+        name: addFormData.name,
+        address: addFormData.address,
+        city: addFormData.city,
+        state: addFormData.state,
+        units: addFormData.units,
+        price: addFormData.price,
+        bedrooms: addFormData.bedrooms,
+        bathrooms: addFormData.bathrooms,
+        square_footage: addFormData.square_footage,
+        image: addFormData.image.trim() || undefined,
+      }, addImageFile);
       setProperties([...properties, newProperty]);
-      setNewPropName('');
-      setNewPropPrice('');
+      setIsAddModalOpen(false);
+      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
+      setAddImageFile(null);
+      setAddImagePreview(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create property');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAddCancel = () => {
+    setIsAddModalOpen(false);
+    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
+    setAddImageFile(null);
+    setAddImagePreview(null);
+    setError(null);
+  };
+
+  const handleAddImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        return;
+      }
+      setAddImageFile(file);
+      setError(null);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAddImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setAddFormData({...addFormData, image: ''});
+    }
+  };
+
+  const handleRemoveAddImage = () => {
+    setAddImageFile(null);
+    setAddImagePreview(null);
   };
 
   const handleDeleteProperty = async (id: string) => {
@@ -335,49 +394,14 @@ ________________________ Tenant`);
                       )}
                     </div>
                     
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex gap-3">
-                        <input 
-                          type="text" 
-                          placeholder="New Property Name" 
-                          className="flex-1 p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 placeholder-slate-500"
-                          value={newPropName}
-                          onChange={(e) => setNewPropName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !isSaving) {
-                              handleAddProperty();
-                            }
-                          }}
-                          disabled={isSaving}
-                        />
-                        <input 
-                          type="number" 
-                          placeholder="Price($) (Optional)" 
-                          className="w-32 p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 placeholder-slate-500"
-                          value={newPropPrice}
-                          onChange={(e) => setNewPropPrice(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !isSaving) {
-                              handleAddProperty();
-                            }
-                          }}
-                          step="0.01"
-                          min="0"
-                          disabled={isSaving}
-                        />
-                        <button 
-                          onClick={handleAddProperty} 
-                          disabled={isSaving || !newPropName.trim()}
-                          className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-medium text-sm hover:bg-indigo-100 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isSaving ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <Plus className="w-4 h-4 mr-2" />
-                          )}
-                          Add Property
-                        </button>
-                      </div>
+                    <div className="pt-4 border-t border-slate-100">
+                      <button 
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium text-sm hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-sm transition-colors"
+                      >
+                        <Plus className="w-5 h-5" />
+                        Add Property
+                      </button>
                     </div>
                   </>
                 )}
@@ -819,6 +843,205 @@ ________________________ Tenant`);
                   </>
                 ) : (
                   'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Property Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[90vh] flex flex-col">
+            {/* Fixed Header */}
+            <div className="flex-shrink-0 flex items-center justify-between p-6 pb-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800">Add New Property</h3>
+              <button 
+                onClick={handleAddCancel}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Property Name *</label>
+                <input
+                  type="text"
+                  value={addFormData.name}
+                  onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                  placeholder="Sunset Apartments"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
+                <input
+                  type="text"
+                  value={addFormData.address}
+                  onChange={(e) => setAddFormData({...addFormData, address: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                  placeholder="101 Sunset Blvd"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City *</label>
+                  <input
+                    type="text"
+                    value={addFormData.city}
+                    onChange={(e) => setAddFormData({...addFormData, city: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    placeholder="Austin"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">State *</label>
+                  <input
+                    type="text"
+                    value={addFormData.state}
+                    onChange={(e) => setAddFormData({...addFormData, state: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    placeholder="TX"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Number of Units</label>
+                  <input
+                    type="number"
+                    value={addFormData.units}
+                    onChange={(e) => setAddFormData({...addFormData, units: parseInt(e.target.value) || 1})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Price($) (Optional)</label>
+                  <input
+                    type="number"
+                    value={addFormData.price || ''}
+                    onChange={(e) => setAddFormData({...addFormData, price: e.target.value ? parseFloat(e.target.value) : undefined})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bedrooms</label>
+                  <input
+                    type="number"
+                    value={addFormData.bedrooms}
+                    onChange={(e) => setAddFormData({...addFormData, bedrooms: parseInt(e.target.value) || 2})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    placeholder="2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bathrooms</label>
+                  <input
+                    type="number"
+                    value={addFormData.bathrooms}
+                    onChange={(e) => setAddFormData({...addFormData, bathrooms: parseFloat(e.target.value) || 2})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    step="0.5"
+                    placeholder="2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Square Footage</label>
+                  <input
+                    type="number"
+                    value={addFormData.square_footage}
+                    onChange={(e) => setAddFormData({...addFormData, square_footage: parseInt(e.target.value) || 1000})}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                    min="0"
+                    placeholder="1000"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Property Image (Optional)</label>
+                
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAddImageFileChange}
+                    className="hidden"
+                    id="add-image-upload-input"
+                  />
+                  <label
+                    htmlFor="add-image-upload-input"
+                    className="block w-full p-4 border-2 border-dashed border-slate-300 rounded-lg text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors"
+                  >
+                    <Upload className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700">
+                      {addImageFile ? addImageFile.name : 'Click to upload image'}
+                    </span>
+                    <span className="block text-xs text-slate-500 mt-1">JPG, PNG, WebP (Max 5MB)</span>
+                  </label>
+                  {addImagePreview && (
+                    <div className="mt-3 relative">
+                      <p className="text-xs text-slate-500 mb-1 font-medium">Selected Image:</p>
+                      <img 
+                        src={addImagePreview} 
+                        alt="Property preview" 
+                        className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveAddImage}
+                        className="absolute top-6 right-2 p-1 bg-rose-500 text-white rounded-full hover:bg-rose-600"
+                        title="Remove Image"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              </div>
+            </div>
+            
+            {/* Fixed Footer */}
+            <div className="flex-shrink-0 flex gap-3 p-6 pt-4 border-t border-slate-200">
+              <button
+                onClick={handleAddCancel}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium"
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddProperty}
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Add Property'
                 )}
               </button>
             </div>
