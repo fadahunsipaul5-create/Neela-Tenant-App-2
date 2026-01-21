@@ -305,6 +305,10 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
     message: '',
     type: 'info' as 'success' | 'error' | 'info' | 'warning',
   });
+  
+  // Property Modal State
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   // Responsive state for chart labels and sizing
   const [screenSize, setScreenSize] = useState({
