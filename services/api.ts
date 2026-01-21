@@ -10,7 +10,7 @@ let isRefreshing = false;
 let refreshPromise: Promise<void> | null = null;
 
 /**
- * Helper function to get headers with authentication.
+ * Helper function to get headers with authentications.
  * @param includeContentType - Whether to include Content-Type headers
  * @param includeAuth - Whether to include Authorization header (default: true)
  */
