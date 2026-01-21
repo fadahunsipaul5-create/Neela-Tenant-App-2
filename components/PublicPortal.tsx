@@ -65,6 +65,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
   const [currentLeaseId, setCurrentLeaseId] = useState<string | null>(null);
 
+  // Contact Manager (email-only)
+  const [contactMessage, setContactMessage] = useState('');
+  const [isSendingContactMessage, setIsSendingContactMessage] = useState(false);
+  const [contactMessageSuccess, setContactMessageSuccess] = useState<string | null>(null);
+  const [contactMessageError, setContactMessageError] = useState<string | null>(null);
+
   const {
     formData,
     setFormData,
@@ -96,6 +102,31 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     setSelectedPaymentMethod,
     downloadReceipt,
   } = usePayments(currentTenant, tenantId);
+
+  const handleSendContactMessage = async () => {
+    const msg = contactMessage.trim();
+    if (!msg) return;
+    try {
+      setIsSendingContactMessage(true);
+      setContactMessageError(null);
+      setContactMessageSuccess(null);
+
+      await api.sendContactManagerMessage({
+        message: msg,
+        tenant_id: currentTenant?.id || tenantId,
+        sender_name: currentTenant?.name || undefined,
+        sender_email: currentTenant?.email || undefined,
+      });
+
+      setContactMessage('');
+      setContactMessageSuccess('Message sent. A manager will get back to you soon.');
+      setTimeout(() => setContactMessageSuccess(null), 4000);
+    } catch (e) {
+      setContactMessageError(e instanceof Error ? e.message : 'Failed to send message');
+    } finally {
+      setIsSendingContactMessage(false);
+    }
+  };
 
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
   const [maintenanceDesc, setMaintenanceDesc] = useState('');
@@ -1491,9 +1522,23 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                                <textarea 
                             className="w-full p-4 border border-gray-300 rounded-xl text-sm h-36 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 transition-all duration-200" 
                                   placeholder="Type your message here..."
+                                  value={contactMessage}
+                                  onChange={(e) => setContactMessage(e.target.value)}
                                ></textarea>
-                          <button className="w-full py-3.5 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 text-sm">
-                                  Send Message
+
+                               {contactMessageError && (
+                                 <div className="text-xs text-rose-600 font-semibold">{contactMessageError}</div>
+                               )}
+                               {contactMessageSuccess && (
+                                 <div className="text-xs text-emerald-600 font-semibold">{contactMessageSuccess}</div>
+                               )}
+
+                          <button
+                            onClick={handleSendContactMessage}
+                            disabled={isSendingContactMessage || !contactMessage.trim()}
+                            className="w-full py-3.5 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                                  {isSendingContactMessage ? 'Sending...' : 'Send Message'}
                                </button>
                             </div>
                         <div className="mt-6 pt-6 border-t border-gray-100 text-sm text-gray-500">

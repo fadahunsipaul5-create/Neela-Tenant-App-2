@@ -4,6 +4,7 @@ from .views import (
     TenantViewSet, PaymentViewSet, MaintenanceRequestViewSet,
     LegalDocumentViewSet, ListingViewSet, PropertyViewSet, LeaseTemplateViewSet,
     EmailTestViewSet, DocuSignViewSet,
+    contact_manager,
 )
 
 router = DefaultRouter()
@@ -20,4 +21,5 @@ router.register(r'docusign', DocuSignViewSet, basename='docusign')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('contact-manager/', contact_manager, name='contact-manager'),
 ]

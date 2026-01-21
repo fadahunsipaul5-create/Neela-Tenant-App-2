@@ -23,6 +23,10 @@ export interface UseApplicationReturn {
   
   // Utility
   propertyToListing: (property: Property) => Listing;
+
+  // Confirmation modal (used by Application form)
+  confirmModal: { isOpen: boolean; title: string; message: string; onConfirm: () => void };
+  setConfirmModal: React.Dispatch<React.SetStateAction<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>>;
 }
 
 export const useApplication = (): UseApplicationReturn => {
@@ -419,6 +423,8 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
   handleSaveDraft,
   handleClearForm,
   setView,
+  confirmModal,
+  setConfirmModal,
 }) => {
   // Save application draft to localStorage whenever formData changes
   useEffect(() => {

@@ -16,6 +16,12 @@ interface TenantsProps {
 }
 
 const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents', onTenantsChange }) => {
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const [activeTab, setActiveTab] = useState<'residents' | 'applicants'>(initialTab);
   const [selectedApplicant, setSelectedApplicant] = useState<Tenant | null>(null);
   const [applicantModalTab, setApplicantModalTab] = useState<'overview' | 'screening' | 'notes' | 'lease'>('overview');

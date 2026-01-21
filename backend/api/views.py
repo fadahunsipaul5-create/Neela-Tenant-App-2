@@ -1,5 +1,5 @@
 from rest_framework import viewsets, parsers, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import *
@@ -25,6 +25,37 @@ from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
 logger = logging.getLogger(__name__)
+
+# ==================== Contact Manager (Email-only) ====================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def contact_manager(request):
+    """
+    Email-only contact form:
+    - Accepts a message (required) and optional tenant_id / sender info
+    - Sends an email to the landlord/manager inbox
+    """
+    message = (request.data.get('message') or '').strip()
+    tenant_id = request.data.get('tenant_id')
+    sender_name = (request.data.get('sender_name') or '').strip() or None
+    sender_email = (request.data.get('sender_email') or '').strip() or None
+
+    if not message:
+        return Response({'error': 'message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Email-only: send immediately (avoid Celery task registration issues in dev)
+    try:
+        send_contact_message_to_manager(
+            tenant_id=tenant_id,
+            sender_name=sender_name,
+            sender_email=sender_email,
+            message=message,
+        )
+        return Response({'status': 'sent'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Failed to send contact manager message: {e}", exc_info=True)
+        return Response({'error': 'Failed to send message'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Note: OAuth callback and token refresh functions removed - using JWT authentication instead
 # JWT authentication is handled automatically by get_docusign_api_client() in docusign_service.py

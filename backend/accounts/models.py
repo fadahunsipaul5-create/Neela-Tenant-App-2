@@ -14,7 +14,7 @@ class User(AbstractUser):
     date_joined = models.DateTimeField(verbose_name='Date Joined', auto_now_add=True)
     last_login = models.DateTimeField(verbose_name='Last Login', auto_now_add=True)
 
-    # JWT token method
+    # JWT token methods
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
 

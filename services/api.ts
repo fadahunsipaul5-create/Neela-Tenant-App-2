@@ -11,7 +11,7 @@ let refreshPromise: Promise<void> | null = null;
 
 /**
  * Helper function to get headers with authentication.
- * @param includeContentType - Whether to include Content-Type header
+ * @param includeContentType - Whether to include Content-Type headers
  * @param includeAuth - Whether to include Authorization header (default: true)
  */
 const getHeaders = (includeContentType: boolean = true, includeAuth: boolean = true): HeadersInit => {
@@ -878,5 +878,19 @@ export const api = {
       leaseStatus: data.lease_status,
       signedLeaseUrl: data.signed_lease_url,
     };
+  },
+
+  // Contact Manager (email-only)
+  sendContactManagerMessage: async (payload: { message: string; tenant_id?: string; sender_name?: string; sender_email?: string; }): Promise<{ status: string }> => {
+    const response = await fetchWithAuth(`${API_URL}/contact-manager/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to send message' }));
+      throw new Error(error.error || error.detail || 'Failed to send message');
+    }
+    return await response.json();
   },
 };

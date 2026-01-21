@@ -163,6 +163,96 @@ def send_email_with_logging(subject, message, from_email, recipient_list, html_m
         return 0
 
 
+# ==================== Contact Manager (Email-only) ====================
+
+def _send_contact_message_to_manager(*, tenant_id=None, sender_name=None, sender_email=None, message: str):
+    """
+    Internal function to send a contact message email to the manager/landlord.
+    Uses DEFAULT_FROM_EMAIL as the sender and sets Reply-To to the tenant's email (if provided).
+    """
+    from .models import Tenant
+
+    # Validate email configuration
+    is_valid, error_msg = validate_email_config()
+    if not is_valid:
+        raise RuntimeError(error_msg)
+
+    tenant = None
+    if tenant_id:
+        try:
+            tenant = Tenant.objects.filter(id=tenant_id).first()
+        except Exception:
+            tenant = None
+
+    # Choose recipient (manager inbox)
+    manager_email = getattr(settings, 'LANDLORD_EMAIL', None) or getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+    if not manager_email:
+        raise RuntimeError("No manager email configured (LANDLORD_EMAIL or DEFAULT_FROM_EMAIL)")
+
+    # Build context
+    subject = "Tenant Portal: New Contact Message"
+    if tenant and getattr(tenant, 'property_unit', None):
+        subject += f" ({tenant.property_unit})"
+
+    sender_label = sender_name or (tenant.name if tenant else "Unknown Sender")
+    reply_to = sender_email or (tenant.email if tenant and getattr(tenant, 'email', None) else None)
+
+    lines = [
+        "You received a new message from the Tenant Portal.",
+        "",
+        f"From: {sender_label}",
+    ]
+    if reply_to:
+        lines.append(f"Reply-To: {reply_to}")
+    if tenant:
+        lines.extend([
+            f"Tenant ID: {tenant.id}",
+            f"Tenant Name: {tenant.name}",
+            f"Property Unit: {getattr(tenant, 'property_unit', 'N/A')}",
+            f"Tenant Email: {getattr(tenant, 'email', 'N/A')}",
+            f"Tenant Phone: {getattr(tenant, 'phone', 'N/A')}",
+        ])
+    lines.extend([
+        "",
+        "Message:",
+        message.strip(),
+        "",
+        "--",
+        "Neela Tenant App",
+    ])
+    plain_message = "\n".join(lines)
+    html_message = "<br/>".join([l.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for l in lines])
+
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Attempting to send contact message to manager using {email_backend}")
+
+    fail_silently = not getattr(settings, 'DEBUG', False)
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[manager_email],
+        reply_to=[reply_to] if reply_to else None,
+    )
+    email.attach_alternative(html_message, "text/html")
+    result = email.send(fail_silently=fail_silently)
+    if result <= 0:
+        raise RuntimeError("Email send failed (send() returned 0)")
+
+
+@shared_task
+def send_contact_message_to_manager(*, tenant_id=None, sender_name=None, sender_email=None, message: str):
+    """
+    Celery task wrapper for sending contact messages.
+    """
+    return _send_contact_message_to_manager(
+        tenant_id=tenant_id,
+        sender_name=sender_name,
+        sender_email=sender_email,
+        message=message,
+    )
+
+
 def send_email_in_thread(email_func, *args, **kwargs):
 
     email_backend = getattr(settings, 'EMAIL_BACKEND', '')
