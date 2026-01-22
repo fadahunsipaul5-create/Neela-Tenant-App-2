@@ -4,7 +4,8 @@ export enum TenantStatus {
   APPROVED = 'Approved',
   ACTIVE = 'Active',
   PAST = 'Past',
-  EVICTION_PENDING = 'Eviction Pending'
+  EVICTION_PENDING = 'Eviction Pending',
+  DECLINED = 'Declined'
 }
 
 export interface ApplicationData {

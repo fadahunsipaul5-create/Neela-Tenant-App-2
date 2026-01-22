@@ -49,6 +49,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   const [isResidentModalOpen, setIsResidentModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Tenant>>({
@@ -67,8 +68,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   });
 
   // Filter Lists
-  const residents = tenants.filter(t => t.status !== TenantStatus.APPLICANT);
-  const applicants = tenants.filter(t => t.status === TenantStatus.APPLICANT);
+  const residents = tenants.filter(t => t.status !== TenantStatus.APPLICANT && t.status !== TenantStatus.DECLINED);
+  const applicants = tenants.filter(t => t.status === TenantStatus.APPLICANT || t.status === TenantStatus.DECLINED);
+  const declined = tenants.filter(t => t.status === TenantStatus.DECLINED);
 
   const getStatusColor = (status: TenantStatus) => {
     switch (status) {
@@ -76,12 +78,14 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       case TenantStatus.EVICTION_PENDING: return 'bg-rose-100 text-rose-700';
       case TenantStatus.APPLICANT: return 'bg-blue-100 text-blue-700';
       case TenantStatus.APPROVED: return 'bg-purple-100 text-purple-700';
+      case TenantStatus.DECLINED: return 'bg-red-100 text-red-700';
       default: return 'bg-slate-100 text-slate-700';
     }
   };
 
   const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
     setIsSaving(true);
+    setProcessingAction(newStatus === TenantStatus.DECLINED ? 'decline' : 'update');
     setErrorMessage(null);
     setSuccessMessage(null);
     
@@ -98,7 +102,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       if (onTenantsChange) onTenantsChange();
       
       // Close modal after brief delay if declined
-      if (String(newStatus) === 'Declined' || newStatus === TenantStatus.PAST) {
+      if (newStatus === TenantStatus.DECLINED || newStatus === TenantStatus.PAST) {
         setTimeout(() => setSelectedApplicant(null), 1500);
       }
       
@@ -107,6 +111,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       setErrorMessage(error instanceof Error ? error.message : 'Failed to update application status');
     } finally {
       setIsSaving(false);
+      setProcessingAction(null);
     }
   };
 
@@ -114,6 +119,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     if (!selectedApplicant) return;
     
     setIsSaving(true);
+    setProcessingAction('approve');
     setErrorMessage(null);
     setSuccessMessage(null);
     
@@ -161,6 +167,7 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       setErrorMessage(error instanceof Error ? error.message : 'Failed to approve application');
     } finally {
       setIsSaving(false);
+      setProcessingAction(null);
     }
   };
 
@@ -698,7 +705,7 @@ Landlord                            Tenant
                           disabled={isSaving}
                           className="w-full py-2 sm:py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-2 disabled:bg-indigo-400 disabled:cursor-not-allowed text-sm"
                         >
-                          {isSaving ? (
+                          {isSaving && processingAction === 'approve' ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin" /> Approving...
                             </>
@@ -715,13 +722,18 @@ Landlord                            Tenant
                               title: 'Decline Application',
                               message: 'Are you sure you want to decline this application?',
                               onConfirm: () => {
-                                handleStatusChange(selectedApplicant.id, 'Declined' as TenantStatus);
+                                handleStatusChange(selectedApplicant.id, TenantStatus.DECLINED);
                               },
                             });
                           }}
-                          className="w-full py-2 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
+                          disabled={isSaving}
+                          className="w-full py-2 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                           Decline
+                           {isSaving && processingAction === 'decline' ? (
+                             <>
+                               <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Declining...
+                             </>
+                           ) : 'Decline'}
                         </button>
                       </>
                     )}
