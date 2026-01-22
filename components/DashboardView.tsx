@@ -332,6 +332,147 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   const overdueTenants = tenants.filter(t => t.balance > 0);
   const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
 
+  // Generate Recent Activity from real system data
+  const getRecentActivity = () => {
+    const activities: Array<{
+      id: string;
+      type: 'payment' | 'application' | 'maintenance' | 'tenant';
+      icon: typeof DollarSign | typeof FileText | typeof AlertCircle | typeof Users;
+      iconColor: string;
+      iconBg: string;
+      title: string;
+      subtitle: string;
+      time: string;
+      date: Date;
+    }> = [];
+
+    // Add recent payments
+    payments
+      .filter(p => p.status === 'Paid')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+      .forEach(p => {
+        const tenant = tenantsMap[p.tenantId];
+        if (tenant) {
+          const paymentDate = new Date(p.date);
+          activities.push({
+            id: `payment-${p.id}`,
+            type: 'payment',
+            icon: DollarSign,
+            iconColor: 'text-emerald-600',
+            iconBg: 'bg-emerald-100',
+            title: `Payment received from ${tenant.name}`,
+            subtitle: `${tenant.propertyUnit} • $${p.amount.toLocaleString()}`,
+            time: formatActivityTime(paymentDate),
+            date: paymentDate,
+          });
+        }
+      });
+
+    // Add recent applications
+    tenants
+      .filter(t => t.status === TenantStatus.APPLICANT)
+      .slice(0, 3)
+      .forEach(t => {
+        const appDate = t.applicationData?.submissionDate 
+          ? new Date(t.applicationData.submissionDate)
+          : new Date(); // Fallback to current date if no submission date
+        activities.push({
+          id: `application-${t.id}`,
+          type: 'application',
+          icon: FileText,
+          iconColor: 'text-blue-600',
+          iconBg: 'bg-blue-100',
+          title: 'New application submitted',
+          subtitle: `${t.propertyUnit} • ${t.name}`,
+          time: formatActivityTime(appDate),
+          date: appDate,
+        });
+      });
+
+    // Add recent maintenance updates
+    maintenance
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .forEach(m => {
+        const tenant = tenantsMap[m.tenantId];
+        if (tenant) {
+          const maintDate = new Date(m.createdAt);
+          activities.push({
+            id: `maintenance-${m.id}`,
+            type: 'maintenance',
+            icon: AlertCircle,
+            iconColor: 'text-amber-600',
+            iconBg: 'bg-amber-100',
+            title: `Maintenance ticket ${m.status.toLowerCase()}`,
+            subtitle: `${tenant.propertyUnit} • ${m.category}`,
+            time: formatActivityTime(maintDate),
+            date: maintDate,
+          });
+        }
+      });
+
+    // Add recent tenant moves (active tenants with recent lease start)
+    tenants
+      .filter(t => t.status === TenantStatus.ACTIVE && t.leaseStart)
+      .map(t => ({
+        tenant: t,
+        date: new Date(t.leaseStart),
+      }))
+      .filter(item => {
+        // Only include if lease started within last 30 days
+        const daysSince = (new Date().getTime() - item.date.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSince <= 30;
+      })
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 3)
+      .forEach(item => {
+        activities.push({
+          id: `tenant-${item.tenant.id}`,
+          type: 'tenant',
+          icon: Users,
+          iconColor: 'text-indigo-600',
+          iconBg: 'bg-indigo-100',
+          title: 'New tenant moved in',
+          subtitle: `${item.tenant.propertyUnit} • ${item.tenant.name}`,
+          time: formatActivityTime(item.date),
+          date: item.date,
+        });
+      });
+
+    // Sort all activities by date (most recent first) and return top 4
+    return activities
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 4);
+  };
+
+  // Format activity time display
+  const formatActivityTime = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 60) {
+      return `${diffMins}m ago`;
+    } else if (diffHours < 24) {
+      const hours = date.getHours();
+      const minutes = date.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
+  const recentActivity = getRecentActivity();
+
   // Calculate occupancy for a property
   const calculatePropertyOccupancy = (property: Property): number => {
     if (!property.units || property.units === 0) return 0;
@@ -604,7 +745,17 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">{openTickets}</h3>
           <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Open Tickets</p>
           <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100">
-            <button className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/30 rounded px-1">
+            <button 
+              onClick={() => {
+                if (onNavigateToMaintenance) {
+                  onNavigateToMaintenance();
+                } else {
+                  window.location.hash = 'maintenance';
+                  window.dispatchEvent(new HashChangeEvent('hashchange'));
+                }
+              }}
+              className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/30 rounded px-1"
+            >
               <span className="hidden sm:inline">View All Tickets</span>
               <span className="sm:hidden">View All</span>
               <ArrowUpRight className="w-3.5 h-3.5 ml-1 group-hover:animate-pulse" />
@@ -931,49 +1082,27 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
           
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
-              <div className="p-1.5 sm:p-2 bg-emerald-100 rounded-lg flex-shrink-0">
-                <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity) => {
+                const IconComponent = activity.icon;
+                return (
+                  <div key={activity.id} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                    <div className={`p-1.5 sm:p-2 ${activity.iconBg} rounded-lg flex-shrink-0`}>
+                      <IconComponent className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activity.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-800 text-sm sm:text-base truncate">{activity.title}</p>
+                      <p className="text-xs sm:text-sm text-slate-500 truncate">{activity.subtitle}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">{activity.time}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-slate-500 text-sm">No recent activity to display</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-800 text-sm sm:text-base truncate">Payment received from John Doe</p>
-                <p className="text-xs sm:text-sm text-slate-500 truncate">Unit 201 • $1,200</p>
-              </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">10:30 AM</span>
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
-              <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg flex-shrink-0">
-                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-800 text-sm sm:text-base truncate">New application submitted</p>
-                <p className="text-xs sm:text-sm text-slate-500 truncate">Unit 305 • Jane Smith</p>
-              </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">9:15 AM</span>
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
-              <div className="p-1.5 sm:p-2 bg-amber-100 rounded-lg flex-shrink-0">
-                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-800 text-sm sm:text-base truncate">Maintenance ticket updated</p>
-                <p className="text-xs sm:text-sm text-slate-500 truncate">Unit 102 • Plumbing issue</p>
-              </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">Yesterday</span>
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
-              <div className="p-1.5 sm:p-2 bg-indigo-100 rounded-lg flex-shrink-0">
-                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-800 text-sm sm:text-base truncate">New tenant moved in</p>
-                <p className="text-xs sm:text-sm text-slate-500 truncate">Unit 405 • Michael Brown</p>
-              </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">Yesterday</span>
-            </div>
+            )}
           </div>
           
           <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-200">
