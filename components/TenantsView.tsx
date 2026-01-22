@@ -474,6 +474,9 @@ Landlord                            Tenant
 
   const openEditResidentModal = (tenant: Tenant) => {
     setEditingTenant(tenant);
+    // Calculate effective deposit to reflect payments made
+    // This ensures balance calculation (rentAmount - deposit) shows current balance
+    const effectiveDeposit = tenant.rentAmount - tenant.balance;
     setFormData({
       name: tenant.name,
       email: tenant.email,
@@ -483,7 +486,7 @@ Landlord                            Tenant
       leaseStart: tenant.leaseStart,
       leaseEnd: tenant.leaseEnd,
       rentAmount: tenant.rentAmount,
-      deposit: tenant.deposit,
+      deposit: effectiveDeposit,
       balance: tenant.balance,
       creditScore: tenant.creditScore,
       backgroundCheckStatus: tenant.backgroundCheckStatus,
