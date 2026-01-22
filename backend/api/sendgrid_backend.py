@@ -74,26 +74,57 @@ class SendGridBackend(BaseEmailBackend):
                 if hasattr(message, 'alternatives'):
                     html_alternatives = [(c, mt) for (c, mt) in message.alternatives if mt == "text/html"]
 
+                # SendGrid Python SDK has different versions with different parameter names
+                # Try both to_email (singular) and to_emails (plural) for compatibility
                 for to_email in to_emails:
-                    sg_mail = Mail(
-                        from_email=Email(from_email),
-                        subject=subject,
-                        to_email=Email(to_email),
-                        content=Content("text/plain", body),
-                    )
-                    for content, _mimetype in html_alternatives:
-                        sg_mail.add_content(Content("text/html", content))
+                    sg_mail = None
+                    try:
+                        # Try with to_email (singular) and content parameter - used in some SendGrid versions
+                        sg_mail = Mail(
+                            from_email=Email(from_email),
+                            to_email=Email(to_email),
+                            subject=subject,
+                            content=Content("text/plain", body),
+                        )
+                    except TypeError:
+                        try:
+                            # Try with to_emails (plural) and content parameter - used in other SendGrid versions
+                            sg_mail = Mail(
+                                from_email=Email(from_email),
+                                to_emails=[Email(to_email)],
+                                subject=subject,
+                                content=Content("text/plain", body),
+                            )
+                        except TypeError as e2:
+                            logger.error(f"SendGrid Mail initialization failed with both to_email and to_emails: {e2}")
+                            if not self.fail_silently:
+                                raise
+                            continue
+                    
+                    if not sg_mail:
+                        logger.error(f"Failed to create Mail object for {to_email}")
+                        continue
+                    
+                    try:
+                        # Add HTML content if available
+                        for content, _mimetype in html_alternatives:
+                            sg_mail.add_content(Content("text/html", content))
 
-                    for att in built_attachments:
-                        sg_mail.add_attachment(att)
+                        # Add attachments
+                        for att in built_attachments:
+                            sg_mail.add_attachment(att)
 
-                    # This SendGrid SDK version sends via sg.client.mail.send.post(...)
-                    response = sg.client.mail.send.post(request_body=sg_mail.get())
-                    if 200 <= response.status_code < 300:
-                        count += 1
-                        logger.info(f"Email sent successfully via SendGrid to {to_email}. Status: {response.status_code}")
-                    else:
-                        logger.error(f"SendGrid API Error: {response.status_code} - {response.body}")
+                        # Send email via SendGrid API
+                        response = sg.client.mail.send.post(request_body=sg_mail.get())
+                        if 200 <= response.status_code < 300:
+                            count += 1
+                            logger.info(f"Email sent successfully via SendGrid to {to_email}. Status: {response.status_code}")
+                        else:
+                            logger.error(f"SendGrid API Error: {response.status_code} - {response.body}")
+                    except Exception as e:
+                        logger.error(f"Failed to send email via SendGrid to {to_email}: {str(e)}", exc_info=True)
+                        if not self.fail_silently:
+                            raise
             
             except Exception as e:
                 logger.error(f"Failed to send email via SendGrid: {str(e)}", exc_info=True)

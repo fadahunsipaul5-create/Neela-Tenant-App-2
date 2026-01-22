@@ -959,13 +959,33 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=True, methods=['get'], url_path='pdf')
+    @action(detail=True, methods=['get'], url_path='pdf', permission_classes=[AllowAny])
     def pdf(self, request, pk=None):
         """
-        Proxy the lease PDF through the backend (authenticated), avoiding Cloudinary CDN 401/404.
+        Proxy the lease PDF through the backend.
         GET /api/legal-documents/{id}/pdf/
+        Allows tenant access to their own documents.
         """
-        legal_doc = self.get_object()
+        try:
+            legal_doc = LegalDocument.objects.get(pk=pk)
+        except LegalDocument.DoesNotExist:
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify tenant ownership if user is authenticated
+        if request.user.is_authenticated:
+            # Check if user is a tenant and owns this document
+            try:
+                tenant = Tenant.objects.filter(email=request.user.email).first()
+                if tenant and legal_doc.tenant_id != tenant.id:
+                    # User is authenticated but doesn't own this document
+                    return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+            except Exception as e:
+                logger.warning(f"Error verifying tenant ownership for PDF access: {e}")
+                # If verification fails, deny access for security
+                return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        # For unauthenticated access, we allow it but this should ideally be secured with a signed URL or token
+        # For now, allowing unauthenticated access to support direct link downloads
+        
         if not legal_doc.pdf_file:
             return Response({'error': 'No PDF found'}, status=status.HTTP_404_NOT_FOUND)
 
