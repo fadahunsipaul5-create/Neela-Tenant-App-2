@@ -34,7 +34,7 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     def calculate_balance(self):
         """
         Calculate current balance based on:
