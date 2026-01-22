@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'cloudinary',
     'cloudinary_storage',
+    'anymail',  # Added django-anymail
 ]
 
 # Cloudinary Configuration
@@ -219,7 +220,10 @@ AUTH_USER_MODEL = 'accounts.User'
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
 
 if SENDGRID_API_KEY:
-    EMAIL_BACKEND = "api.sendgrid_backend.SendGridBackend"
+    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"  # Use Anymail instead of custom backend
+    ANYMAIL = {
+        "SENDGRID_API_KEY": SENDGRID_API_KEY,
+    }
 
     DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'neelacapital@outlook.com')
 else:
