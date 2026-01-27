@@ -192,7 +192,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     { id: 'n1', type: 'Rent', title: 'Rent Due Soon', message: `Your rent of $${residentBalance} is due in ${daysUntilDue} days.`, date: '2 hours ago', read: false },
     { id: 'n2', type: 'Maintenance', title: 'Ticket Updated', message: 'Ticket #M1 (Leaking Faucet) status changed to In Progress.', date: 'Yesterday', read: true },
     { id: 'n3', type: 'System', title: 'Lease Document Available', message: 'Your countersigned lease is now available in documents.', date: '3 days ago', read: true },
-  ];
+  ].filter(n => residentBalance > 0 || n.type !== 'Rent');
 
   const invoices: Invoice[] = [
     { id: 'inv-101', tenantId: currentTenant?.id || 'resident-1', date: '2024-11-01', dueDate: '2024-11-01', amount: residentBalance, period: 'November 2024', status: 'Pending' },
@@ -853,7 +853,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
                 {activeTab === 'overview' && (
                   <div className="space-y-8 animate-fadeIn">
-                    {daysUntilDue <= 3 && (
+                    {daysUntilDue <= 3 && residentBalance > 0 && (
                         <div className={`
                         p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border-l-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 backdrop-blur-sm
                         ${daysUntilDue < 0 ? 'bg-red-50/80 border-red-500 text-red-900' : 
@@ -894,7 +894,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         <p className="text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6">Includes rent & utilities</p>
                         <button 
                           onClick={() => setShowPaymentModal(true)} 
-                          className="w-full py-2.5 sm:py-3 lg:py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg sm:rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-200 transition-all duration-300 text-sm sm:text-base"
+                          disabled={residentBalance === 0}
+                          className={`w-full py-2.5 sm:py-3 lg:py-3.5 rounded-lg sm:rounded-xl font-semibold transition-all duration-300 text-sm sm:text-base ${
+                            residentBalance === 0 
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50' 
+                              : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white hover:shadow-lg hover:shadow-blue-200'
+                          }`}
                         >
                             Make Payment
                          </button>

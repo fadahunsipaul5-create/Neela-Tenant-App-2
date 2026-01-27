@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, CreditCard, Plus, Download, Mail, Filter, 
   AlertCircle, CheckCircle, Clock, FileText, Search, 
-  MoreVertical, ArrowUpRight, ArrowDownLeft, Wallet, Trash2
+  MoreVertical, ArrowUpRight, ArrowDownLeft, Wallet, Trash2, X
 } from 'lucide-react';
 import { Tenant, Payment, Invoice } from '../types';
 import { api } from '../services/api';
@@ -578,9 +578,24 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       {/* Adjustment Modal */}
       {showAdjustment && (
-         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95">
-               <h3 className="text-lg font-bold text-slate-800 mb-4">Balance Adjustment</h3>
+         <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
+            onClick={() => setShowAdjustment(false)}
+         >
+            <div 
+               className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95"
+               onClick={(e) => e.stopPropagation()}
+            >
+               <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-800">Balance Adjustment</h3>
+                  <button 
+                     onClick={() => setShowAdjustment(false)}
+                     className="text-slate-400 hover:text-slate-600 transition-colors"
+                     aria-label="Close modal"
+                  >
+                     <X className="w-5 h-5" />
+                  </button>
+               </div>
                <p className="text-sm text-slate-500 mb-4">
                   Adjust balance for <strong>{tenantsMap[selectedTenantId]?.name}</strong>.
                </p>
