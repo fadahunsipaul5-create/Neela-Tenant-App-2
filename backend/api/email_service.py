@@ -1526,6 +1526,9 @@ def _send_notice_to_tenant(legal_document_id, pdf_path=None, pdf_bytes_b64=None)
         logger.error(f"Legal document with ID {legal_document_id} not found for notice email.")
         return
     
+    # Refresh tenant from database to get the latest email address
+    legal_doc.tenant.refresh_from_db()
+    
     if not legal_doc.tenant.email:
         logger.warning(f"Tenant {legal_doc.tenant.id} has no email address for notice email.")
         return
