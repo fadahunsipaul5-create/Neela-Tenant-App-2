@@ -875,7 +875,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                           </div>
                         <button 
                           onClick={() => { setActiveTab('payments'); setShowPaymentModal(true); }} 
-                          className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white hover:bg-white/90 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold border border-transparent hover:border-black/10 transition-all duration-200 shadow-sm w-full sm:w-auto"
+                          disabled={residentBalance === 0}
+                          className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold border transition-all duration-200 shadow-sm w-full sm:w-auto ${
+                            residentBalance === 0 
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50 border-transparent' 
+                              : 'bg-white hover:bg-white/90 border-transparent hover:border-black/10'
+                          }`}
                         >
                             Pay Now
                           </button>
@@ -1114,7 +1119,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                             </div>
                             <button 
                               onClick={() => setShowPaymentModal(true)} 
-                              className="w-full mt-6 sm:mt-8 py-2.5 sm:py-3 lg:py-3.5 bg-white text-blue-900 font-bold rounded-lg sm:rounded-xl hover:bg-blue-50 transition-all duration-300 shadow-lg text-sm sm:text-base"
+                              disabled={residentBalance === 0}
+                              className={`w-full mt-6 sm:mt-8 py-2.5 sm:py-3 lg:py-3.5 font-bold rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg text-sm sm:text-base ${
+                                residentBalance === 0 
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50' 
+                                  : 'bg-white text-blue-900 hover:bg-blue-50'
+                              }`}
                             >
                               Pay Now
                             </button>
