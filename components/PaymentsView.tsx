@@ -40,6 +40,10 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   
+  // Adjustment State
+  const [adjustmentType, setAdjustmentType] = useState<string>('Late Fee (Charge)');
+  const [adjustmentAmount, setAdjustmentAmount] = useState('');
+  
   // Send Notice State
   const [selectedNoticeType, setSelectedNoticeType] = useState<string>('Notice of Late Rent');
   const [isSendingNotice, setIsSendingNotice] = useState(false);
@@ -74,21 +78,78 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   const overdueTenants = initialTenants.filter(t => t.balance > 0);
 
   // Handlers
-  const handleCreateInvoice = () => {
-    if (!selectedTenantId || !amount) return;
-    const newInvoice: Invoice = {
-      id: `inv-${Date.now()}`,
-      tenantId: selectedTenantId,
-      date: new Date().toISOString().split('T')[0],
-      dueDate: new Date().toISOString().split('T')[0],
-      amount: Number(amount),
-      period: description || 'Manual Charge',
-      status: 'Pending',
-      items: [{ description: description || 'Miscellaneous Charge', amount: Number(amount) }]
-    };
-    setInvoices([newInvoice, ...invoices]);
-    setShowCreateInvoice(false);
-    resetForms();
+  const handleCreateInvoice = async () => {
+    if (!selectedTenantId || !amount) {
+      setModalState({
+        isOpen: true,
+        title: 'Validation Error',
+        message: 'Please select a tenant and enter an amount.',
+        type: 'error',
+      });
+      return;
+    }
+    
+    const invoiceAmount = parseFloat(amount);
+    if (isNaN(invoiceAmount) || invoiceAmount <= 0) {
+      setModalState({
+        isOpen: true,
+        title: 'Validation Error',
+        message: 'Please enter a valid positive amount.',
+        type: 'error',
+      });
+      return;
+    }
+    
+    try {
+      // Create a Payment object which will trigger the invoice email automatically
+      const newPayment: Partial<Payment> = {
+        tenantId: selectedTenantId,
+        amount: invoiceAmount,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        type: 'Rent', // Default type, can be customized based on description
+        method: 'Invoice', // Indicates this is an invoice
+        reference: description || 'Manual Invoice',
+      };
+      
+      // Save payment to backend - this will automatically send invoice email
+      await api.createPayment(newPayment);
+      
+      // Create local invoice object for display
+      const newInvoice: Invoice = {
+        id: `inv-${Date.now()}`,
+        tenantId: selectedTenantId,
+        date: new Date().toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0],
+        amount: invoiceAmount,
+        period: description || 'Manual Charge',
+        status: 'Pending',
+        items: [{ description: description || 'Miscellaneous Charge', amount: invoiceAmount }]
+      };
+      setInvoices([newInvoice, ...invoices]);
+      
+      // Refresh data to get updated balances
+      if (onDataChange) {
+        await onDataChange();
+      }
+      
+      setShowCreateInvoice(false);
+      setModalState({
+        isOpen: true,
+        title: 'Invoice Created',
+        message: `Invoice created successfully and email sent to ${tenantsMap[selectedTenantId]?.name}!`,
+        type: 'success',
+      });
+      resetForms();
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      setModalState({
+        isOpen: true,
+        title: 'Invoice Error',
+        message: error instanceof Error ? error.message : 'Failed to create invoice',
+        type: 'error',
+      });
+    }
   };
 
   const handleRecordPayment = async () => {
@@ -126,11 +187,52 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   const handleAdjustment = async (type: 'Charge' | 'Waive') => {
-    if (!selectedTenantId || !amount) return;
+    if (!selectedTenantId || !adjustmentAmount) {
+      setModalState({
+        isOpen: true,
+        title: 'Validation Error',
+        message: 'Please enter an amount for the adjustment.',
+        type: 'error',
+      });
+      return;
+    }
+    
+    const adjustmentValue = parseFloat(adjustmentAmount);
+    if (isNaN(adjustmentValue) || adjustmentValue <= 0) {
+      setModalState({
+        isOpen: true,
+        title: 'Validation Error',
+        message: 'Please enter a valid positive amount.',
+        type: 'error',
+      });
+      return;
+    }
     
     try {
-      // In a real implementation, this would call an API to adjust the balance
-      // For now, refresh data to get updated balances
+      // Get current tenant to access current balance
+      const currentTenant = initialTenants.find(t => t.id === selectedTenantId);
+      if (!currentTenant) {
+        throw new Error('Tenant not found');
+      }
+      
+      // Calculate new balance based on adjustment type
+      const currentBalance = currentTenant.balance || 0;
+      let newBalance: number;
+      
+      if (type === 'Charge') {
+        // Add charge: increase balance
+        newBalance = currentBalance + adjustmentValue;
+      } else {
+        // Apply credit (Waive): decrease balance
+        newBalance = currentBalance - adjustmentValue;
+      }
+      
+      // Update tenant balance via API
+      await api.updateTenant(selectedTenantId, {
+        balance: newBalance
+      });
+      
+      // Refresh data to show updated balance
       if (onDataChange) {
         await onDataChange();
       }
@@ -139,11 +241,12 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       setModalState({
         isOpen: true,
         title: 'Adjustment Applied',
-        message: `${type} applied to account!`,
+        message: `${type === 'Charge' ? 'Charge' : 'Credit'} of $${adjustmentValue.toFixed(2)} applied successfully!`,
         type: 'success',
       });
       resetForms();
     } catch (error) {
+      console.error('Error applying adjustment:', error);
       setModalState({
         isOpen: true,
         title: 'Adjustment Error',
@@ -153,13 +256,24 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
   };
 
-  const handleReceipt = (paymentId: string) => {
-    setModalState({
-      isOpen: true,
-      title: 'Receipt Generated',
-      message: `Generating receipt for Payment #${paymentId}... Sent to tenant.`,
-      type: 'success',
-    });
+  const handleReceipt = async (paymentId: string) => {
+    try {
+      await api.sendPaymentReceipt(paymentId);
+      setModalState({
+        isOpen: true,
+        title: 'Receipt Sent',
+        message: `Receipt email sent successfully to tenant!`,
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Error sending receipt:', error);
+      setModalState({
+        isOpen: true,
+        title: 'Send Receipt Error',
+        message: error instanceof Error ? error.message : 'Failed to send receipt email',
+        type: 'error',
+      });
+    }
   };
 
   const handleViewDownloadInvoice = (invoice: Invoice) => {
@@ -205,6 +319,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     setSelectedTenantId('');
     setAmount('');
     setDescription('');
+    setAdjustmentType('Late Fee (Charge)');
+    setAdjustmentAmount('');
   };
 
   // Debug: Log when tenants prop changes
@@ -602,7 +718,11 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                <div className="space-y-4">
                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Adjustment Type</label>
-                      <select className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900">
+                      <select 
+                        value={adjustmentType}
+                        onChange={(e) => setAdjustmentType(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900"
+                      >
                          <option>Late Fee (Charge)</option>
                          <option>Maintenance Charge</option>
                          <option>Waive Fee (Credit)</option>
@@ -611,18 +731,28 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                    </div>
                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Amount ($)</label>
-                      <input type="number" className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" placeholder="0.00" />
+                      <input 
+                        type="number" 
+                        value={adjustmentAmount}
+                        onChange={(e) => setAdjustmentAmount(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" 
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                      />
                    </div>
                    <div className="grid grid-cols-2 gap-3 mt-6">
                       <button 
                         onClick={() => handleAdjustment('Waive')}
-                        className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium"
+                        disabled={!adjustmentAmount || parseFloat(adjustmentAmount) <= 0}
+                        className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                          Apply Credit
                       </button>
                       <button 
                         onClick={() => handleAdjustment('Charge')}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                        disabled={!adjustmentAmount || parseFloat(adjustmentAmount) <= 0}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                          Add Charge
                       </button>

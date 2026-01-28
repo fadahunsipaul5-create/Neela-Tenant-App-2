@@ -271,6 +271,23 @@ class PaymentViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f"Celery connection failed, using threading fallback for payment receipt: {e}")
                 send_payment_receipt_to_tenant(payment.id)
+    
+    @action(detail=True, methods=['post'], url_path='send-receipt')
+    def send_receipt(self, request, pk=None):
+        """Send receipt email to tenant for a payment."""
+        payment = self.get_object()
+        
+        try:
+            task = send_payment_receipt_to_tenant.delay(payment.id)
+            logger.info(f"Payment receipt email task submitted to Celery: {task.id}")
+        except Exception as e:
+            logger.warning(f"Celery connection failed, using threading fallback for payment receipt: {e}")
+            send_payment_receipt_to_tenant(payment.id)
+        
+        return Response({
+            'status': 'success',
+            'message': f'Receipt email sent to {payment.tenant.name}'
+        }, status=status.HTTP_200_OK)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()

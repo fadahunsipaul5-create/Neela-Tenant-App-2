@@ -209,6 +209,18 @@ export const api = {
     }
   },
 
+  sendPaymentReceipt: async (paymentId: string): Promise<{ status: string; message: string }> => {
+    const response = await fetchWithAuth(`${API_URL}/payments/${paymentId}/send-receipt/`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to send receipt email' }));
+      throw new Error(error.detail || error.message || 'Failed to send receipt email');
+    }
+    return await response.json();
+  },
+
   getMaintenanceRequests: async (): Promise<MaintenanceRequest[]> => {
     try {
       const response = await fetchWithAuth(`${API_URL}/maintenance/`, {
