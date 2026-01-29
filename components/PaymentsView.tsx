@@ -209,28 +209,33 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
     
     try {
-      // Get current tenant to access current balance
+      // Get current tenant to verify it exists
       const currentTenant = initialTenants.find(t => t.id === selectedTenantId);
       if (!currentTenant) {
         throw new Error('Tenant not found');
       }
       
-      // Calculate new balance based on adjustment type
-      const currentBalance = currentTenant.balance || 0;
-      let newBalance: number;
+      // Create a Payment record instead of updating balance directly
+      // For charges: create Payment with status "Pending"
+      // For credits: create Payment with status "Paid" (applied immediately)
+      const paymentType = type === 'Charge' 
+        ? adjustmentType 
+        : (adjustmentType.includes('Credit') || adjustmentType.includes('Waive') || adjustmentType.includes('Return') 
+           ? adjustmentType 
+           : 'Credit');
       
-      if (type === 'Charge') {
-        // Add charge: increase balance
-        newBalance = currentBalance + adjustmentValue;
-      } else {
-        // Apply credit (Waive): decrease balance
-        newBalance = currentBalance - adjustmentValue;
-      }
+      const newPayment: Partial<Payment> = {
+        tenantId: selectedTenantId,
+        amount: adjustmentValue,
+        date: new Date().toISOString().split('T')[0],
+        status: type === 'Charge' ? 'Pending' : 'Paid',
+        type: paymentType,
+        method: 'Adjustment',
+        reference: `Adjustment: ${adjustmentType}`,
+      };
       
-      // Update tenant balance via API
-      await api.updateTenant(selectedTenantId, {
-        balance: newBalance
-      });
+      // Create the payment record
+      await api.createPayment(newPayment);
       
       // Refresh data to show updated balance
       if (onDataChange) {

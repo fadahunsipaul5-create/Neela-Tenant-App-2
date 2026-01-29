@@ -234,26 +234,41 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]  # Require authentication for payments
     
-    def perform_create(self, serializer):
-        """Override to send invoice email when payment is created."""
+    def create(self, request, *args, **kwargs):
+        """Override create to send invoice email after payment is created."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         payment = serializer.save()
         
-        # Send invoice email to tenant
+        # Send invoice email to tenant (same pattern as Legal & Compliance)
         try:
-            task = send_payment_invoice_to_tenant.delay(payment.id)
-            logger.info(f"Payment invoice task submitted to Celery: {task.id}")
+            try:
+                send_payment_invoice_to_tenant.delay(payment.id)
+                logger.info(f"Queued invoice email to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+            except Exception:
+                # Celery not available or misconfigured; run inline
+                send_payment_invoice_to_tenant(payment.id)
+                logger.info(f"Sent invoice email inline to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
         except Exception as e:
-            logger.warning(f"Celery connection failed, using threading fallback for payment invoice: {e}")
-            send_payment_invoice_to_tenant(payment.id)
+            logger.error(f"Failed to send invoice email: {e}")
+            # Don't fail the whole request if email fails
         
         # Send confirmation email if payment method is provided
         if payment.method:
             try:
-                task = send_payment_confirmation_to_tenant.delay(payment.id)
-                logger.info(f"Payment confirmation task submitted to Celery: {task.id}")
+                try:
+                    send_payment_confirmation_to_tenant.delay(payment.id)
+                    logger.info(f"Queued confirmation email to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+                except Exception:
+                    # Celery not available or misconfigured; run inline
+                    send_payment_confirmation_to_tenant(payment.id)
+                    logger.info(f"Sent confirmation email inline to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
             except Exception as e:
-                logger.warning(f"Celery connection failed, using threading fallback for payment confirmation: {e}")
-                send_payment_confirmation_to_tenant(payment.id)
+                logger.error(f"Failed to send confirmation email: {e}")
+                # Don't fail the whole request if email fails
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def perform_update(self, serializer):
         """Override to send receipt email when payment status changes to 'Paid'."""
@@ -274,15 +289,21 @@ class PaymentViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='send-receipt')
     def send_receipt(self, request, pk=None):
-        """Send receipt email to tenant for a payment."""
+        """Send receipt email to tenant for a payment (same pattern as Legal & Compliance)."""
         payment = self.get_object()
         
+        # Send receipt email to tenant (same pattern as Legal & Compliance)
         try:
-            task = send_payment_receipt_to_tenant.delay(payment.id)
-            logger.info(f"Payment receipt email task submitted to Celery: {task.id}")
+            try:
+                send_payment_receipt_to_tenant.delay(payment.id)
+                logger.info(f"Queued receipt email to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+            except Exception:
+                # Celery not available or misconfigured; run inline
+                send_payment_receipt_to_tenant(payment.id)
+                logger.info(f"Sent receipt email inline to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
         except Exception as e:
-            logger.warning(f"Celery connection failed, using threading fallback for payment receipt: {e}")
-            send_payment_receipt_to_tenant(payment.id)
+            logger.error(f"Failed to send receipt email: {e}")
+            # Don't fail the whole request if email fails
         
         return Response({
             'status': 'success',
