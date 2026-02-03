@@ -147,6 +147,14 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const [leaseDocument, setLeaseDocument] = useState<any | null>(null);
   const [loadingLease, setLoadingLease] = useState(false);
   const [leaseError, setLeaseError] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loadingPdfBlob, setLoadingPdfBlob] = useState(false);
+  const [documentPdfLoadingId, setDocumentPdfLoadingId] = useState<string | null>(null);
+  const [documentOpenError, setDocumentOpenError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'documents') setDocumentOpenError(null);
+  }, [activeTab]);
   
   useEffect(() => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -285,6 +293,43 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       isMounted = false;
     };
   }, [currentTenant?.id, tenantId, view]);
+
+  // Fetch PDF with auth and show via blob URL so iframe gets the same auth
+  const pdfBlobUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (view !== 'lease_signing' || !leaseDocument?.id) {
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+        pdfBlobUrlRef.current = null;
+      }
+      setPdfBlobUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPdfBlob(true);
+    api.getLegalDocumentPdfAsBlob(leaseDocument.id)
+      .then((blob) => {
+        if (cancelled) return;
+        if (pdfBlobUrlRef.current) URL.revokeObjectURL(pdfBlobUrlRef.current);
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlRef.current = url;
+        setPdfBlobUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLeaseError('Could not load lease PDF.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPdfBlob(false);
+      });
+    return () => {
+      cancelled = true;
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+        pdfBlobUrlRef.current = null;
+      }
+      setPdfBlobUrl(null);
+    };
+  }, [view, leaseDocument?.id]);
 
   useEffect(() => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -606,20 +651,19 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       <p className="text-red-600 text-sm">{leaseError}</p>
                       </div>
                     </div>
-                  ) : leaseDocument?.pdfUrl ? (
+                  ) : loadingPdfBlob && leaseDocument?.id ? (
+                    <div className="flex items-center justify-center min-h-[800px]">
+                      <div className="text-center">
+                        <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
+                        <p className="text-gray-600">Loading PDF...</p>
+                      </div>
+                    </div>
+                  ) : pdfBlobUrl && leaseDocument?.id ? (
                   <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px]">
                       <iframe
-                        src={leaseDocument.pdfUrl}
+                        src={pdfBlobUrl}
                         className="w-full h-[800px] border-0"
                         title="Lease Agreement PDF"
-                      />
-                    </div>
-                  ) : leaseDocument?.signedPdfUrl ? (
-                  <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px]">
-                      <iframe
-                        src={leaseDocument.signedPdfUrl}
-                        className="w-full h-[800px] border-0"
-                        title="Signed Lease Agreement PDF"
                       />
                     </div>
                   ) : (
@@ -1456,6 +1500,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
                     <div className="lg:col-span-2 space-y-8">
                       <h3 className="font-bold text-gray-900 text-xl">Official Documents & Notices</h3>
+                      {documentOpenError && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          {documentOpenError}
+                        </div>
+                      )}
                          {loadingDocuments ? (
                         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12 text-center">
                           <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
@@ -1503,17 +1553,32 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                                            </p>
                                         </div>
                                      </div>
-                                     {pdfUrl && (
-                                       <a 
-                                         href={pdfUrl} 
-                                         target="_blank" 
-                                         rel="noopener noreferrer"
-                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-xl transition-all duration-200"
-                                         download
+                                     {(doc.id) && (
+                                       <button
+                                         type="button"
+                                         onClick={async () => {
+                                           setDocumentOpenError(null);
+                                           setDocumentPdfLoadingId(doc.id);
+                                           try {
+                                             const blob = await api.getLegalDocumentPdfAsBlob(doc.id);
+                                             const url = URL.createObjectURL(blob);
+                                             window.open(url, '_blank', 'noopener,noreferrer');
+                                             setTimeout(() => URL.revokeObjectURL(url), 30000);
+                                           } catch {
+                                             setDocumentOpenError('Could not load document.');
+                                           } finally {
+                                             setDocumentPdfLoadingId(null);
+                                           }
+                                         }}
+                                         className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-xl transition-all duration-200 disabled:opacity-50"
                                          title={isSigned ? 'Download Signed PDF' : 'Download PDF'}
                                        >
-                                         <Download className="w-5 h-5"/>
-                                       </a>
+                                         {documentPdfLoadingId === doc.id ? (
+                                           <Loader2 className="w-5 h-5 animate-spin" />
+                                         ) : (
+                                           <Download className="w-5 h-5" />
+                                         )}
+                                       </button>
                                      )}
                                   </div>
                                 );

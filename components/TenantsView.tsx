@@ -480,26 +480,24 @@ Landlord                            Tenant
   };
 
   const openEditResidentModal = (tenant: Tenant) => {
-    setEditingTenant(tenant);
-    // Calculate effective deposit to reflect payments made
-    // This ensures balance calculation (rentAmount - deposit) shows current balance
-    const effectiveDeposit = tenant.rentAmount - tenant.balance;
+    const current = tenants.find(t => t.id === tenant.id) ?? tenant;
+    setEditingTenant(current);
     setFormData({
-      name: tenant.name,
-      email: tenant.email,
-      phone: tenant.phone,
-      status: tenant.status,
-      propertyUnit: tenant.propertyUnit,
-      leaseStart: tenant.leaseStart,
-      leaseEnd: tenant.leaseEnd,
-      rentAmount: tenant.rentAmount,
-      deposit: effectiveDeposit,
-      balance: tenant.balance,
-      creditScore: tenant.creditScore,
-      backgroundCheckStatus: tenant.backgroundCheckStatus,
-      applicationData: tenant.applicationData,
-      leaseStatus: tenant.leaseStatus,
-      signedLeaseUrl: tenant.signedLeaseUrl,
+      name: current.name,
+      email: current.email,
+      phone: current.phone,
+      status: current.status,
+      propertyUnit: current.propertyUnit,
+      leaseStart: current.leaseStart,
+      leaseEnd: current.leaseEnd,
+      rentAmount: current.rentAmount,
+      deposit: current.deposit,
+      balance: current.balance,
+      creditScore: current.creditScore,
+      backgroundCheckStatus: current.backgroundCheckStatus,
+      applicationData: current.applicationData,
+      leaseStatus: current.leaseStatus,
+      signedLeaseUrl: current.signedLeaseUrl,
     });
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -1659,27 +1657,29 @@ Landlord                            Tenant
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Current Balance <span className="text-xs font-normal text-slate-500">(Preview)</span>
+                        {editingTenant ? 'Current balance (from payments)' : 'Current Balance (Preview)'}
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
                         <input
                           type="text"
-                          value={((formData.rentAmount || 0) - (formData.deposit || 0)).toFixed(2)}
+                          value={editingTenant
+                            ? (formData.balance ?? 0).toFixed(2)
+                            : ((formData.rentAmount || 0) - (formData.deposit || 0)).toFixed(2)}
                           disabled
                           className={`w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed ${
-                            ((formData.rentAmount || 0) - (formData.deposit || 0)) < 0 
-                              ? 'text-green-600 font-medium' 
-                              : ((formData.rentAmount || 0) - (formData.deposit || 0)) > 0
+                            (editingTenant ? (formData.balance ?? 0) : ((formData.rentAmount || 0) - (formData.deposit || 0))) < 0
+                              ? 'text-green-600 font-medium'
+                              : (editingTenant ? (formData.balance ?? 0) : ((formData.rentAmount || 0) - (formData.deposit || 0))) > 0
                               ? 'text-rose-600 font-medium'
                               : 'text-slate-600'
                           }`}
-                          title="Automatically calculated from rent amount and deposit"
+                          title={editingTenant ? 'Calculated from rent, deposit, and payments' : 'Automatically calculated from rent amount and deposit'}
                         />
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        {editingTenant 
-                          ? 'Preview based on rent and deposit. Actual balance will be recalculated from all payments after save.' 
+                        {editingTenant
+                          ? 'Calculated from rent, deposit, and payments. Recalculated after save.'
                           : 'Initial balance (Rent - Deposit). Will be recalculated when payments are recorded.'}
                       </p>
                     </div>
