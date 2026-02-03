@@ -112,8 +112,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
         reference: description || 'Manual Invoice',
       };
       
-      // Save payment to backend - this will automatically send invoice email
-      await api.createPayment(newPayment);
+      // Save payment to backend - this will attempt to send invoice email
+      const created = await api.createPayment(newPayment);
       
       // Create local invoice object for display
       const newInvoice: Invoice = {
@@ -134,11 +134,14 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       }
       
       setShowCreateInvoice(false);
+      const tenantName = tenantsMap[selectedTenantId]?.name ?? 'tenant';
       setModalState({
         isOpen: true,
         title: 'Invoice Created',
-        message: `Invoice created successfully and email sent to ${tenantsMap[selectedTenantId]?.name}!`,
-        type: 'success',
+        message: created.invoice_email_sent === false
+          ? `Invoice created successfully, but the email could not be sent to ${tenantName}. Please check email configuration (e.g. SendGrid API key and from-address).`
+          : `Invoice created successfully and email sent to ${tenantName}!`,
+        type: created.invoice_email_sent === false ? 'info' : 'success',
       });
       resetForms();
     } catch (error) {
@@ -215,21 +218,21 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
         throw new Error('Tenant not found');
       }
       
-      // Create a Payment record instead of updating balance directly
-      // For charges: create Payment with status "Pending"
-      // For credits: create Payment with status "Paid" (applied immediately)
-      const paymentType = type === 'Charge' 
-        ? adjustmentType 
-        : (adjustmentType.includes('Credit') || adjustmentType.includes('Waive') || adjustmentType.includes('Return') 
-           ? adjustmentType 
-           : 'Credit');
-      
+      // Map dropdown label to backend-allowed type (Rent, Late Fee, Deposit, Application Fee)
+      const backendTypeMap: Record<string, string> = {
+        'Late Fee (Charge)': 'Late Fee',
+        'Maintenance Charge': 'Late Fee',
+        'Waive Fee (Credit)': 'Rent',
+        'Security Deposit Return': 'Deposit',
+      };
+      const backendType = backendTypeMap[adjustmentType] ?? 'Rent';
+
       const newPayment: Partial<Payment> = {
         tenantId: selectedTenantId,
         amount: adjustmentValue,
         date: new Date().toISOString().split('T')[0],
         status: type === 'Charge' ? 'Pending' : 'Paid',
-        type: paymentType,
+        type: backendType,
         method: 'Adjustment',
         reference: `Adjustment: ${adjustmentType}`,
       };
@@ -263,12 +266,14 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   const handleReceipt = async (paymentId: string) => {
     try {
-      await api.sendPaymentReceipt(paymentId);
+      const result = await api.sendPaymentReceipt(paymentId);
       setModalState({
         isOpen: true,
-        title: 'Receipt Sent',
-        message: `Receipt email sent successfully to tenant!`,
-        type: 'success',
+        title: result.receipt_email_sent === false ? 'Receipt Email Not Sent' : 'Receipt Sent',
+        message: result.receipt_email_sent === false
+          ? 'Receipt email could not be sent to the resident. Please check email configuration (e.g. SendGrid API key and from-address).'
+          : 'Receipt email sent successfully to tenant!',
+        type: result.receipt_email_sent === false ? 'info' : 'success',
       });
     } catch (error) {
       console.error('Error sending receipt:', error);
@@ -296,14 +301,14 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     
     setIsSendingNotice(true);
     try {
-      // Generate and send the legal notice with tenant details automatically filled in
       const response = await api.generateLegalNotice(selectedTenantId, selectedNoticeType);
-      
       setModalState({
         isOpen: true,
-        title: 'Notice Sent',
-        message: `Notice sent successfully to tenant! Document ID: ${response.id}`,
-        type: 'success',
+        title: response.notice_email_sent === false ? 'Notice Created, Email Not Sent' : 'Notice Sent',
+        message: response.notice_email_sent === false
+          ? `Notice was created (Document ID: ${response.id}) but the email could not be delivered to the resident. Please check email configuration (e.g. SendGrid API key and from-address).`
+          : `Notice sent successfully to tenant! Document ID: ${response.id}`,
+        type: response.notice_email_sent === false ? 'info' : 'success',
       });
       setShowSendNotice(false);
       resetForms();

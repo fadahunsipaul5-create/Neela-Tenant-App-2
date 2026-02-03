@@ -137,7 +137,7 @@ export const api = {
     }));
   },
 
-  createPayment: async (paymentData: Partial<Payment>): Promise<Payment> => {
+  createPayment: async (paymentData: Partial<Payment>): Promise<Payment & { invoice_email_sent?: boolean }> => {
     const backendData = {
       tenant: paymentData.tenantId,
       amount: paymentData.amount?.toString(),
@@ -165,6 +165,7 @@ export const api = {
       id: String(data.id),
       tenantId: String(data.tenant),
       amount: parseFloat(data.amount),
+      invoice_email_sent: data.invoice_email_sent,
     };
   },
 
@@ -209,7 +210,7 @@ export const api = {
     }
   },
 
-  sendPaymentReceipt: async (paymentId: string): Promise<{ status: string; message: string }> => {
+  sendPaymentReceipt: async (paymentId: string): Promise<{ status: string; message: string; receipt_email_sent?: boolean }> => {
     const response = await fetchWithAuth(`${API_URL}/payments/${paymentId}/send-receipt/`, {
       method: 'POST',
       headers: getHeaders(),
@@ -788,13 +789,13 @@ export const api = {
     };
   },
 
-  // Get legal documents for a tenant
+  // Get legal documents for a tenant (uses auth and same API base URL)
   getLegalDocuments: async (tenantId?: string): Promise<any[]> => {
     let url = `${API_URL}/legal-documents/`;
     if (tenantId) {
       url += `?tenant=${tenantId}`;
     }
-    const response = await fetch(url, {
+    const response = await fetchWithAuth(url, {
       headers: getHeaders(false),
     });
     if (!response.ok) throw new Error('Failed to fetch legal documents');
@@ -809,6 +810,15 @@ export const api = {
       signedPdfUrl: item.signed_pdf_url,
       signedAt: item.signed_at,
     }));
+  },
+
+  // Fetch lease/legal document PDF with auth (for viewing in portal without 401)
+  getLegalDocumentPdfAsBlob: async (documentId: string): Promise<Blob> => {
+    const response = await fetchWithAuth(`${API_URL}/legal-documents/${documentId}/pdf/`, {
+      headers: getHeaders(false),
+    });
+    if (!response.ok) throw new Error('Failed to load PDF');
+    return response.blob();
   },
 
   // Generate and send legal notice to tenant
@@ -833,6 +843,7 @@ export const api = {
       id: String(data.id),
       tenantId: String(data.tenant),
       pdfUrl: data.pdf_url,
+      notice_email_sent: data.notice_email_sent,
     };
   },
 
