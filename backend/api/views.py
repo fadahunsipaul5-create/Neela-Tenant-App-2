@@ -239,20 +239,23 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payment = serializer.save()
-        
+        invoice_email_sent = False
+
         # Send invoice email to tenant (same pattern as Legal & Compliance)
         try:
             try:
                 send_payment_invoice_to_tenant.delay(payment.id)
                 logger.info(f"Queued invoice email to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+                invoice_email_sent = True
             except Exception:
                 # Celery not available or misconfigured; run inline
                 send_payment_invoice_to_tenant(payment.id)
                 logger.info(f"Sent invoice email inline to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+                invoice_email_sent = True
         except Exception as e:
             logger.error(f"Failed to send invoice email: {e}")
             # Don't fail the whole request if email fails
-        
+
         # Send confirmation email if payment method is provided
         if payment.method:
             try:
@@ -266,9 +269,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f"Failed to send confirmation email: {e}")
                 # Don't fail the whole request if email fails
-        
+
+        response_data = dict(serializer.data)
+        response_data['invoice_email_sent'] = invoice_email_sent
         headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
     
     def perform_update(self, serializer):
         """Override to send receipt email when payment status changes to 'Paid'."""
@@ -291,23 +296,23 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def send_receipt(self, request, pk=None):
         """Send receipt email to tenant for a payment (same pattern as Legal & Compliance)."""
         payment = self.get_object()
-        
-        # Send receipt email to tenant (same pattern as Legal & Compliance)
+        receipt_email_sent = False
         try:
             try:
                 send_payment_receipt_to_tenant.delay(payment.id)
                 logger.info(f"Queued receipt email to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+                receipt_email_sent = True
             except Exception:
                 # Celery not available or misconfigured; run inline
                 send_payment_receipt_to_tenant(payment.id)
                 logger.info(f"Sent receipt email inline to tenant {payment.tenant.email if payment.tenant else 'unknown'} for payment {payment.id}")
+                receipt_email_sent = True
         except Exception as e:
             logger.error(f"Failed to send receipt email: {e}")
-            # Don't fail the whole request if email fails
-        
         return Response({
             'status': 'success',
-            'message': f'Receipt email sent to {payment.tenant.name}'
+            'message': f'Receipt email sent to {payment.tenant.name}' if receipt_email_sent else 'Receipt email could not be sent.',
+            'receipt_email_sent': receipt_email_sent,
         }, status=status.HTTP_200_OK)
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
@@ -681,23 +686,28 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             legal_doc.pdf_file.save(filename, ContentFile(buffer.getvalue()))
             legal_doc.save()
             
+            notice_email_sent = False
             # Send email notification to tenant
             try:
                 # Pass PDF bytes directly to avoid fetching from remote storage (Cloudinary may require auth)
                 pdf_bytes_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
                 try:
                     send_notice_to_tenant.delay(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
+                    logger.info(f"Queued notice email to tenant {tenant.email} for document {legal_doc.id}")
+                    notice_email_sent = True
                 except Exception:
                     # Celery not available or misconfigured; run inline
                     send_notice_to_tenant(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
-                logger.info(f"Queued notice email to tenant {tenant.email} for document {legal_doc.id}")
+                    logger.info(f"Sent notice email inline to tenant {tenant.email} for document {legal_doc.id}")
+                    notice_email_sent = True
             except Exception as e:
                 logger.error(f"Failed to send notice email: {e}")
-                # Don't fail the whole request if email fails
             
             # Serialize and return
             serializer = self.get_serializer(legal_doc)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            response_data = dict(serializer.data)
+            response_data['notice_email_sent'] = notice_email_sent
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             logger.error(f"Error generating notice: {e}")

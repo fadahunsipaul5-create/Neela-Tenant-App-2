@@ -500,12 +500,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
     setIsSendingNotice(true);
     try {
       const response = await api.generateLegalNotice(selectedTenantId, selectedNoticeType);
-      
       setModalState({
         isOpen: true,
-        title: 'Notice Sent',
-        message: `Notice sent successfully to tenant! Document ID: ${response.id}`,
-        type: 'success',
+        title: response.notice_email_sent === false ? 'Notice Created, Email Not Sent' : 'Notice Sent',
+        message: response.notice_email_sent === false
+          ? `Notice was created (Document ID: ${response.id}) but the email could not be delivered to the resident. Please check email configuration (e.g. SendGrid API key and from-address).`
+          : `Notice sent successfully to tenant! Document ID: ${response.id}`,
+        type: response.notice_email_sent === false ? 'info' : 'success',
       });
       setShowSendRemindersModal(false);
       setSelectedTenantId('');
