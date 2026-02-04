@@ -336,7 +336,13 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             #     public_id = public_id[:-4]
 
             logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
-            logger.info(f"Buffer size: {pdf_buffer.tell()} bytes")
+            
+            # Check actual buffer size
+            pdf_buffer.seek(0, 2)  # Seek to end
+            actual_size = pdf_buffer.tell()  # Get size
+            pdf_buffer.seek(0)  # CRITICAL: Reset to beginning for upload!
+            
+            logger.info(f"Buffer size: {actual_size} bytes")
             
             # OPTION A: Upload PDF as raw + public.
             # This does not guarantee CDN access (Cloudinary access control can still return 401),

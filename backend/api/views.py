@@ -44,11 +44,9 @@ def download_cloudinary_file(resource_path):
         # Remove leading slash and get clean path
         clean_path = resource_path.lstrip('/').replace('\\', '/')
         
-        # Remove extension if present (Cloudinary public_ids usually don't include extension)
-        if clean_path.lower().endswith('.pdf'):
-            public_id = clean_path[:-4]
-        else:
-            public_id = clean_path
+        # Keep the full path including extension
+        # (Our uploads include .pdf in the public_id)
+        public_id = clean_path
         
         logger.info(f"Attempting to download Cloudinary file: {public_id}")
         
