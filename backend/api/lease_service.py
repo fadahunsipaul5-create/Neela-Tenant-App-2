@@ -290,19 +290,14 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
     Returns:
         LegalDocument instance
     """
-    # Create or update legal document
-    legal_doc, created = LegalDocument.objects.get_or_create(
+    # Always create a NEW legal document (each generation is a new version)
+    # Don't reuse old leases - they serve as history
+    legal_doc = LegalDocument.objects.create(
         tenant=tenant,
         type='Lease Agreement',
-        defaults={
-            'generated_content': filled_content,
-            'status': 'Draft',
-        }
+        generated_content=filled_content,
+        status='Draft',
     )
-    
-    if not created:
-        legal_doc.generated_content = filled_content
-        legal_doc.status = 'Draft'
     
     # Save PDF file
     filename = f"lease_{tenant.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
