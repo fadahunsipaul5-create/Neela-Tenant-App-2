@@ -336,6 +336,7 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             #     public_id = public_id[:-4]
 
             logger.info(f"Uploading lease PDF to Cloudinary with public_id: {public_id}")
+            logger.info(f"Buffer size: {pdf_buffer.tell()} bytes")
             
             # OPTION A: Upload PDF as raw + public.
             # This does not guarantee CDN access (Cloudinary access control can still return 401),
@@ -349,7 +350,10 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
                 format="pdf",
             )
             
-            logger.info(f"Cloudinary upload successful. Result public_id: {upload_result.get('public_id')}")
+            logger.info(f"Cloudinary upload successful!")
+            logger.info(f"Result public_id: {upload_result.get('public_id')}")
+            logger.info(f"Result secure_url: {upload_result.get('secure_url')}")
+            logger.info(f"Result format: {upload_result.get('format')}")
             
             # IMPORTANT: django-cloudinary-storage expects `name` to be the Cloudinary public_id
             # (WITHOUT the extension). If we store "foo.pdf" here, Cloudinary URLs can become "foo.pdf.pdf".
@@ -357,11 +361,22 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
             legal_doc.pdf_file.name = uploaded_public_id
             legal_doc.save()
             
+            logger.info(f"Saved legal_doc.pdf_file.name: {legal_doc.pdf_file.name}")
+            
         except Exception as e:
+            # Log the error properly
+            logger.error(f"Cloudinary raw upload failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
             # Fallback to standard save if Cloudinary manual upload fails
-            print(f"Cloudinary raw upload failed, falling back to standard storage: {e}")
-            pdf_buffer.seek(0)
-            legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
+            try:
+                pdf_buffer.seek(0)
+                legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
+                logger.info(f"Fallback save completed: {legal_doc.pdf_file.name}")
+            except Exception as fallback_error:
+                logger.error(f"Fallback save also failed: {fallback_error}")
+                raise
     else:
         # Standard local storage
         legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
