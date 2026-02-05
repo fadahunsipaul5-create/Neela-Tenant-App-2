@@ -3,7 +3,7 @@ import { Tenant, TenantStatus } from '../types';
 import { api } from '../services/api';
 import { login, getCurrentUser, isAuthenticated, User as AuthUser, refreshTokenIfNeeded } from '../services/auth';
 import { 
-  Loader2, X, AlertCircle, Mail, Phone, Lock, Key, Building2, UserCheck, Eye, EyeOff
+  Loader2, X, AlertCircle, Mail, Phone, Lock, Key, Building2, UserCheck, Eye, EyeOff, ArrowLeft
 } from 'lucide-react';
 
 type LoginType = 'admin' | 'tenant' | null;
@@ -341,11 +341,13 @@ export const CheckStatusView: React.FC<CheckStatusViewProps> = ({ onBack, onStat
 
             <div className="mt-8">
               <button
+                type="button"
                 onClick={onBack}
-                className="w-full flex justify-center items-center gap-2 py-4 px-4 border-2 border-slate-200 rounded-xl shadow-sm text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 transition-all duration-200 group transform hover:-translate-y-0.5"
+                aria-label="Back to Home"
+                className="w-full flex justify-center items-center gap-2 py-3.5 sm:py-4 px-4 sm:px-6 border-2 border-slate-200 rounded-xl shadow-sm text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 focus-visible:ring-4 transition-all duration-200 group transform hover:-translate-y-0.5"
               >
-                <span className="group-hover:-translate-x-1 transition-transform duration-200 text-lg">←</span>
-                <span>Back to Login</span>
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-x-0.5 transition-transform duration-200 flex-shrink-0" aria-hidden />
+                <span>Back to Home</span>
               </button>
             </div>
           </div>

@@ -41,21 +41,23 @@ class Tenant(models.Model):
         - Rent amount (what tenant owes)
         - Deposit paid (reduces balance)
         - Payments received (reduce balance)
+        - Pending charges (e.g. late fees) increase balance
         
-        Balance = Rent Amount - Deposit - Total Payments
+        Balance = Rent Amount - Deposit - Total Paid + Total Pending Charges
         Positive balance = Tenant owes money
         Negative balance = Tenant has overpaid/credit
         """
         from decimal import Decimal
         from django.db.models import Sum
         
-        # Get sum of all paid payments for this tenant using aggregation
-        total_payments = self.payments.filter(status='Paid').aggregate(
+        total_paid = self.payments.filter(status='Paid').aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        total_pending_charges = self.payments.filter(status='Pending').aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0')
         
-        # Calculate balance: Rent - Deposit - Payments
-        balance = self.rent_amount - self.deposit - total_payments
+        balance = self.rent_amount - self.deposit - total_paid + total_pending_charges
         
         return balance
     

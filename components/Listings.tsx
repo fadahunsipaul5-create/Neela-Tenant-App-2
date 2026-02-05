@@ -88,14 +88,11 @@ export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handl
               <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight tracking-tight">Find your next home in Texas</h1>
               <p className="text-indigo-100 text-xl mb-10 leading-relaxed font-medium">Browse our curated selection of premium rentals with transparent pricing and instant applications.</p>
               
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                  <button onClick={() => setView('check_status')} className="px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-2xl shadow-emerald-500/30 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
                     <Clock className="w-5 h-5" /> Check Application Status
                  </button>
-                 <button onClick={() => setLoginType('tenant')} className="px-8 py-4 bg-white/95 text-indigo-900 font-bold rounded-xl hover:bg-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-white/30">
-                   Resident Login
-                 </button>
-                 <button onClick={() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth' })} className="px-8 py-4 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold rounded-xl border-2 border-white/30 transition-all duration-300 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-white/30">
+                 <button onClick={() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth' })} className="px-8 py-4 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold rounded-xl border-2 border-white/30 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-white/30">
                    Browse Listings
                  </button>
               </div>
