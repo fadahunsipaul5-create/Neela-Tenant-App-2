@@ -185,28 +185,19 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   }, [currentTenant?.id, tenantId, view]);
   
   const residentBalance = currentTenant ? parseFloat(currentTenant.balance.toString()) : 0;
-  
-  const daysUntilDue = (() => {
-    if (!currentTenant?.leaseStart) return 3;
-    const today = new Date();
-    const leaseStart = new Date(currentTenant.leaseStart);
-    const nextDueDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-    const diffTime = nextDueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  })();
 
-  const notifications: PortalNotification[] = [
-    { id: 'n1', type: 'Rent', title: 'Rent Due Soon', message: `Your rent of $${residentBalance} is due in ${daysUntilDue} days.`, date: '2 hours ago', read: false },
-    { id: 'n2', type: 'Maintenance', title: 'Ticket Updated', message: 'Ticket #M1 (Leaking Faucet) status changed to In Progress.', date: 'Yesterday', read: true },
-    { id: 'n3', type: 'System', title: 'Lease Document Available', message: 'Your countersigned lease is now available in documents.', date: '3 days ago', read: true },
-  ].filter(n => residentBalance > 0 || n.type !== 'Rent');
+  const today = new Date();
+  const nextDueDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const diffTime = nextDueDate.getTime() - today.getTime();
+  const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const dueDateLabel = nextDueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  const invoices: Invoice[] = [
-    { id: 'inv-101', tenantId: currentTenant?.id || 'resident-1', date: '2024-11-01', dueDate: '2024-11-01', amount: residentBalance, period: 'November 2024', status: 'Pending' },
-    { id: 'inv-100', tenantId: currentTenant?.id || 'resident-1', date: '2024-10-01', dueDate: '2024-10-01', amount: residentBalance, period: 'October 2024', status: 'Paid' },
-    { id: 'inv-099', tenantId: currentTenant?.id || 'resident-1', date: '2024-09-01', dueDate: '2024-09-01', amount: residentBalance, period: 'September 2024', status: 'Paid' },
-  ];
+  const notifications: PortalNotification[] =
+    residentBalance > 0
+      ? [{ id: 'n1', type: 'Rent', title: 'Rent Due Soon', message: `Your rent of $${residentBalance} is due on ${dueDateLabel}.`, date: '', read: false }]
+      : [];
+
+  const invoices: Invoice[] = [];
 
   useEffect(() => {
     checkAuthOnMount(
@@ -527,27 +518,6 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
            </div>
         </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            {userStatus === 'guest' && (
-              <>
-                <button 
-                  onClick={() => setLoginType('tenant')} 
-                  className="flex items-center px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-gray-600 hover:text-gray-900 bg-gradient-to-r from-gray-100 to-gray-50 hover:from-gray-200 hover:to-gray-100 rounded-lg sm:rounded-xl hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 border border-gray-300/30 group"
-                >
-                  <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 group-hover:scale-110 transition-transform" /> 
-                  <span className="hidden sm:inline lg:inline">Tenant Sign In</span>
-                  <span className="sm:hidden">Sign In</span>
-                </button>
-               <button 
-                 onClick={() => setLoginType('admin')}
-                  className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 shadow-md group relative overflow-hidden"
-               >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                  <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 inline" /> 
-                  <span className="hidden sm:inline">Admin Login</span>
-                  <span className="sm:hidden">Admin</span>
-               </button>
-             </>
-          )}
           {userStatus !== 'guest' && currentUser && (
               <div className="flex items-center gap-3 sm:gap-6">
                 <div className="hidden md:block text-right">
@@ -816,12 +786,36 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                   </button>
                 )}
                 {userStatus === 'resident' && (
+                  <>
                     <div className="relative">
-                    <button className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors duration-200" aria-label="Notifications">
-                      <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full border-2 border-white"></span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('overview');
+                          setTimeout(() => document.getElementById('notifications-section')?.scrollIntoView({ behavior: 'smooth' }), 150);
+                        }}
+                        className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                        aria-label="Notifications"
+                      >
+                        <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                        <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full border-2 border-white"></span>
+                      </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        setUserStatus('guest');
+                        setView('listings');
+                        setCurrentUser(null);
+                        setCurrentTenant(null);
+                      }}
+                      className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200"
+                    >
+                      <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-180" />
+                      Log out
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -913,7 +907,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                             <p className="text-xs sm:text-sm opacity-90 mt-1">
                                  {daysUntilDue < 0 
                                    ? `Your payment was due ${Math.abs(daysUntilDue)} days ago. Late fees have been applied.` 
-                                   : `Upcoming charge of $${residentBalance} due on Nov 1st.`}
+                                   : `Upcoming charge of $${residentBalance} due on ${dueDateLabel}.`}
                               </p>
                             </div>
                           </div>
@@ -1023,7 +1017,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </div>
                       </div>
 
-                      <div className="sm:col-span-2 lg:col-span-3 bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100">
+                      <div id="notifications-section" className="sm:col-span-2 lg:col-span-3 bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100">
                         <h3 className="font-semibold text-gray-500 mb-4 sm:mb-6 text-sm sm:text-base">Notifications</h3>
                         <div className="space-y-3 sm:space-y-4 lg:space-y-5">
                             {notifications.map(n => (
@@ -1153,7 +1147,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                             <p className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 sm:mb-8">${residentBalance}.00</p>
                             <div className="space-y-3 sm:space-y-4">
                               <div className="flex justify-between text-xs sm:text-sm border-b border-blue-500/30 pb-2 sm:pb-3">
-                                <span>Rent (Nov)</span>
+                                <span>Rent ({nextDueDate.toLocaleDateString('en-US', { month: 'short' })})</span>
                                 <span>$1,800.00</span>
                               </div>
                               <div className="flex justify-between text-xs sm:text-sm border-b border-blue-500/30 pb-2 sm:pb-3">
@@ -1171,13 +1165,6 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                               }`}
                             >
                               Pay Now
-                            </button>
-                          </div>
-                          <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-gray-200 text-xs sm:text-sm text-gray-600">
-                            <p className="font-semibold text-gray-900 mb-2 sm:mb-3">Auto-Pay</p>
-                            <p className="mb-3 sm:mb-4">Set up automatic payments to avoid late fees.</p>
-                            <button className="text-blue-600 font-semibold hover:underline hover:text-blue-800 transition-colors text-xs sm:text-sm">
-                              Configure Auto-Pay →
                             </button>
                           </div>
                         </div>

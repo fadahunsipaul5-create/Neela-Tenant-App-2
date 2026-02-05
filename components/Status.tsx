@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tenant, UserStatus } from '../types';
 import {
-  FileText, User, Check, FileSignature, ArrowLeft, Clock, AlertCircle, CheckCircle, Building2, Mail
+  FileText, User, Check, FileSignature, ArrowLeft, Clock, AlertCircle, CheckCircle, Building2, Mail, Home
 } from 'lucide-react';
 
 export interface StatusTrackerProps {
@@ -91,14 +91,27 @@ export const StatusTrackerView: React.FC<StatusTrackerViewProps> = ({ tempTenant
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-12">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center gap-4">
-            <button 
-              onClick={() => setView('check_status')} 
-              className="text-slate-400 hover:text-slate-600"
+          <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <button
+                type="button"
+                onClick={() => setView('check_status')}
+                aria-label="Back to check status"
+                className="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:py-2 sm:px-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus-visible:ring-2 transition-colors duration-200 flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" aria-hidden />
+              </button>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-800 truncate">Application Status</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setView('listings')}
+              aria-label="Back to Home"
+              className="flex items-center gap-2 py-2.5 sm:py-3 px-4 sm:px-5 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 focus-visible:ring-4 transition-all duration-200 group transform hover:-translate-y-0.5"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <Home className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" aria-hidden />
+              <span>Back to Home</span>
             </button>
-            <h2 className="text-xl font-bold text-slate-800">Application Status</h2>
           </div>
           
           <div className="p-8 space-y-8">
@@ -196,11 +209,22 @@ export const StatusTrackerView: React.FC<StatusTrackerViewProps> = ({ tempTenant
               </div>
             )}
 
-            {/* Back button */}
-            <div className="flex justify-center pt-4">
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 pt-6">
               <button
+                type="button"
+                onClick={() => setView('listings')}
+                aria-label="Back to Home"
+                className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-5 sm:px-6 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 focus-visible:ring-4 transition-all duration-200 group transform hover:-translate-y-0.5"
+              >
+                <Home className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" aria-hidden />
+                <span>Back to Home</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setView('check_status')}
-                className="px-6 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none"
+                aria-label="Check another application"
+                className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-5 sm:px-6 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 focus-visible:ring-4 transition-all duration-200"
               >
                 Check Another Application
               </button>

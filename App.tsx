@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
 import TenantsView from './components/TenantsView';
@@ -9,12 +10,13 @@ import SettingsView from './components/SettingsView';
 import PaymentsView from './components/PaymentsView';
 import PasswordReset from './components/PasswordReset';
 import { Menu } from 'lucide-react';
-import { MOCK_INVOICES } from './constants'; // Keep invoices mock for now as we didn't backend it yet
 import { api } from './services/api';
 import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   // Check if we're on a password reset page - Vercel deployment trigger
   const pathname = window.location.pathname;
   const resetPasswordMatch = pathname.match(/^\/reset-password\/([^/]+)\/([^/]+)\/?$/);
@@ -63,6 +65,16 @@ const App: React.FC = () => {
 
     initializeApp();
   }, []); // Only run once on mount
+
+  // When returning from /admin login, switch to admin dashboard
+  useEffect(() => {
+    const state = location.state as { adminLogin?: boolean } | null;
+    if (state?.adminLogin) {
+      setActiveTab('dashboard');
+      setIsInitialLoad(false);
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
 
   // Fetch data when tab changes (but not on initial load)
   useEffect(() => {
@@ -339,7 +351,7 @@ const App: React.FC = () => {
             key={`payments-${tenants.length}-${payments.length}`}
             tenants={tenants} 
             payments={payments} 
-            invoices={MOCK_INVOICES} 
+            invoices={[]} 
             onDataChange={refreshPaymentsAndTenants} 
           />
         );

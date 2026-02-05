@@ -230,6 +230,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Important:</strong> Payments may take 1-3 business days to process. Please send payments at least 3 days before your due date to avoid late fees.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -268,6 +269,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Note:</strong> CashApp payments are typically instant. Make sure you have sufficient funds in your CashApp balance or linked account.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -306,6 +308,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Important:</strong> Ensure you're sending to the correct verified account. Payments to bank accounts may take 1-3 business days.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -338,6 +341,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Tip:</strong> Apple Pay is the fastest and most secure way to pay. Your payment is processed immediately.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -385,6 +389,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Processing Time:</strong> ACH transfers typically take 3-5 business days. Please schedule payments well in advance of your due date.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -423,6 +428,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Security:</strong> All card payments are processed through a secure, encrypted payment gateway. Your card information is never stored on our servers.
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
 
@@ -466,6 +472,7 @@ export const renderPaymentInstructions = ({ method, residentBalance }: RenderPay
                    <strong>Office Location:</strong> 123 Property Management St, Suite 100, [Your City, State 12345]
                 </p>
              </div>
+             <p className="text-sm text-slate-600">After making your payment, please use the <strong>Contact Manager</strong> section to send a message and confirm your payment.</p>
           </div>
        )}
     </div>
