@@ -395,7 +395,7 @@ const App: React.FC = () => {
         uidb64={uidb64} 
         token={token}
         onSuccess={() => {
-          window.location.href = '/';
+          window.location.href = '/tenant';
         }}
       />
     );
