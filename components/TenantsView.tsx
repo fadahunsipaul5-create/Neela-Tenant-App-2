@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tenant, TenantStatus } from '../types';
 import { api } from '../services/api';
 import { 
@@ -44,6 +44,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   const [isEditingLease, setIsEditingLease] = useState(false);
   const [editedLeaseContent, setEditedLeaseContent] = useState('');
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [leasePdfBlobUrl, setLeasePdfBlobUrl] = useState<string | null>(null);
+  const [leasePdfBlobLoading, setLeasePdfBlobLoading] = useState(false);
+  const leasePdfBlobUrlRef = useRef<string | null>(null);
 
   // Add/Edit Resident Modal State
   const [isResidentModalOpen, setIsResidentModalOpen] = useState(false);
@@ -353,6 +356,43 @@ Landlord                            Tenant
       setIsCheckingStatus(false);
     }
   };
+
+  // Fetch PDF as blob for iframe preview (avoids "refused to connect" when backend blocks embedding)
+  useEffect(() => {
+    const docId = generatedLeaseDoc?.id;
+    if (!docId || !generatedLeaseDoc?.pdfUrl) {
+      if (leasePdfBlobUrlRef.current) {
+        URL.revokeObjectURL(leasePdfBlobUrlRef.current);
+        leasePdfBlobUrlRef.current = null;
+      }
+      setLeasePdfBlobUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setLeasePdfBlobLoading(true);
+    api.getLegalDocumentPdfAsBlob(docId)
+      .then((blob) => {
+        if (cancelled) return;
+        if (leasePdfBlobUrlRef.current) URL.revokeObjectURL(leasePdfBlobUrlRef.current);
+        const url = URL.createObjectURL(blob);
+        leasePdfBlobUrlRef.current = url;
+        setLeasePdfBlobUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLeasePdfBlobUrl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLeasePdfBlobLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      if (leasePdfBlobUrlRef.current) {
+        URL.revokeObjectURL(leasePdfBlobUrlRef.current);
+        leasePdfBlobUrlRef.current = null;
+      }
+      setLeasePdfBlobUrl(null);
+    };
+  }, [generatedLeaseDoc?.id, generatedLeaseDoc?.pdfUrl]);
 
   const openApplicationReview = (applicant: Tenant) => {
     setSelectedApplicant(applicant);
@@ -1430,11 +1470,33 @@ Landlord                            Tenant
                                  placeholder="Edit lease content here..."
                                />
                              ) : generatedLeaseDoc?.pdfUrl ? (
-                               <iframe 
-                                 src={generatedLeaseDoc.pdfUrl}
-                                 className="flex-1 w-full"
-                                 title="Lease PDF Preview"
-                               />
+                               <>
+                                 {leasePdfBlobLoading && (
+                                   <div className="flex-1 flex items-center justify-center bg-slate-50">
+                                     <p className="text-slate-500">Loading PDF preview...</p>
+                                   </div>
+                                 )}
+                                 {!leasePdfBlobLoading && leasePdfBlobUrl && (
+                                   <iframe 
+                                     src={leasePdfBlobUrl}
+                                     className="flex-1 w-full"
+                                     title="Lease PDF Preview"
+                                   />
+                                 )}
+                                 {!leasePdfBlobLoading && !leasePdfBlobUrl && (
+                                   <div className="flex-1 flex flex-col items-center justify-center gap-2 bg-slate-50 p-6">
+                                     <p className="text-slate-600 text-sm">Preview could not load. You can still download the PDF.</p>
+                                     <a 
+                                       href={generatedLeaseDoc.pdfUrl}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="text-indigo-600 hover:underline text-sm"
+                                     >
+                                       Open PDF in new tab
+                                     </a>
+                                   </div>
+                                 )}
+                               </>
                              ) : (
                                <textarea 
                                  value={generatedLease}
