@@ -102,7 +102,7 @@ export const generateLeaseAgreement = async (tenant: Tenant, templateType: strin
     Role: Property Manager & Legal Assistant
     Template Type: ${templateType}
     
-    Landlord: PropGuard Management
+    Landlord: Neela Capital Investment
     Tenant: ${tenant.name}
     Property: ${tenant.propertyUnit}
     Rent: $${tenant.rentAmount}/month

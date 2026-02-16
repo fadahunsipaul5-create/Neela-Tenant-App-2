@@ -641,7 +641,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       <h1 className="text-2xl font-bold serif mb-2 text-center">RESIDENTIAL LEASE AGREEMENT</h1>
                     <p className="text-center text-gray-500 mb-8">Texas Property Code</p>
                     <div className="space-y-6 font-serif text-sm leading-relaxed text-gray-800">
-                         <p>This agreement is made between PropGuard Management and {currentTenant?.name || formData.firstName + ' ' + formData.lastName}.</p>
+                         <p>This agreement is made between Neela Capital Investment and {currentTenant?.name || formData.firstName + ' ' + formData.lastName}.</p>
                          <p>Rent: ${currentTenant?.rentAmount || selectedListing?.price || 1850}.00 per month.</p>
                       <div className="my-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-xs">
                            <p className="font-bold mb-1">Sign Here:</p>
