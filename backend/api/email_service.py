@@ -1856,3 +1856,81 @@ def send_payment_received_notification_to_admin(payment_id):
     _send_payment_received_notification_to_admin(payment_id)
 
 
+# ==================== Proof of Payment Admin Notification ====================
+
+def _send_proof_of_payment_notification_to_admin(payment_id):
+    """
+    Internal function to send email notification to admin when tenant uploads proof of payment.
+    """
+    from .models import Payment
+
+    try:
+        payment = Payment.objects.select_related('tenant').get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with ID {payment_id} not found for proof-of-payment admin notification.")
+        return
+
+    admin_emails = get_admin_emails()
+    if not admin_emails:
+        logger.warning("No admin emails configured for proof-of-payment notification.")
+        return
+
+    proof_count = len(payment.proof_of_payment_files) if payment.proof_of_payment_files else 0
+    if proof_count == 0:
+        return
+
+    subject = f'Proof of Payment Uploaded: {payment.tenant.name} - ${payment.amount}'
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
+    admin_login_url = f"{frontend_url.rstrip('/')}/admin-login"
+
+    context = {
+        'tenant_name': payment.tenant.name,
+        'property_unit': payment.tenant.property_unit,
+        'amount': payment.amount,
+        'method': payment.method,
+        'date': payment.date,
+        'reference': payment.reference or '',
+        'proof_count': proof_count,
+        'admin_login_url': admin_login_url,
+    }
+
+    html_message = render_to_string('emails/proof_of_payment_notification.html', context)
+    plain_message = f"""
+Tenant Uploaded Proof of Payment
+
+A tenant has submitted proof of payment for your review.
+
+Tenant: {payment.tenant.name}
+Property Unit: {payment.tenant.property_unit}
+Amount: ${payment.amount}
+Payment Method: {payment.method}
+Date: {payment.date}
+Proof Files: {proof_count} file(s) attached
+"""
+
+    if payment.reference:
+        plain_message += f"Reference: {payment.reference}\n"
+
+    plain_message += f"\nLog in to review and confirm: {admin_login_url}\n"
+
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=admin_emails,
+        html_message=html_message,
+        email_type=f"proof of payment admin notification (payment {payment.id})"
+    )
+
+
+@shared_task
+def send_proof_of_payment_notification_to_admin(payment_id):
+    """
+    Celery task to send email notification to admin when tenant uploads proof of payment.
+    """
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Celery task executing: send_proof_of_payment_notification_to_admin for payment {payment_id}, using email backend: {email_backend}")
+    _send_proof_of_payment_notification_to_admin(payment_id)
+
+

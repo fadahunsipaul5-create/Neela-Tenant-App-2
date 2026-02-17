@@ -132,26 +132,50 @@ export const api = {
     const data = await response.json();
     return data.map((item: any) => ({
       ...item,
-      tenantId: item.tenant, // DRF returns ID by default for ForeignKey
-      amount: parseFloat(item.amount)
+      tenantId: String(item.tenant),
+      amount: parseFloat(item.amount),
+      proofOfPaymentFiles: item.proof_of_payment_files || []
     }));
   },
 
-  createPayment: async (paymentData: Partial<Payment>): Promise<Payment & { invoice_email_sent?: boolean }> => {
-    const backendData = {
-      tenant: paymentData.tenantId,
-      amount: paymentData.amount?.toString(),
-      date: paymentData.date,
-      status: paymentData.status,
-      type: paymentData.type,
-      method: paymentData.method,
-      reference: paymentData.reference || null,
-    };
+  createPayment: async (paymentData: Partial<Payment> & { proofFiles?: File[] }): Promise<Payment & { invoice_email_sent?: boolean }> => {
+    const hasProofFiles = paymentData.proofFiles && paymentData.proofFiles.length > 0;
+    
+    let body: FormData | string;
+    let headers: HeadersInit;
+    
+    if (hasProofFiles) {
+      const formData = new FormData();
+      formData.append('tenant', paymentData.tenantId!);
+      formData.append('amount', String(paymentData.amount ?? 0));
+      formData.append('date', paymentData.date!);
+      formData.append('status', paymentData.status ?? 'Pending');
+      formData.append('type', paymentData.type ?? 'Rent');
+      formData.append('method', paymentData.method!);
+      if (paymentData.reference) formData.append('reference', paymentData.reference);
+      paymentData.proofFiles!.forEach((file: File) => {
+        formData.append('proof_of_payment_files_upload', file);
+      });
+      body = formData;
+      headers = getHeaders(false);
+    } else {
+      const backendData = {
+        tenant: paymentData.tenantId,
+        amount: paymentData.amount?.toString(),
+        date: paymentData.date,
+        status: paymentData.status,
+        type: paymentData.type,
+        method: paymentData.method,
+        reference: paymentData.reference || null,
+      };
+      body = JSON.stringify(backendData);
+      headers = getHeaders();
+    }
     
     const response = await fetchWithAuth(`${API_URL}/payments/`, {
       method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(backendData),
+      headers,
+      body,
     });
     
     if (!response.ok) {
@@ -528,6 +552,8 @@ export const api = {
         id: String(item.id), // Ensure ID is always a string
         price: item.price ? parseFloat(item.price) : undefined,
         image: imageUrl,
+        furnishingType: item.furnishing_type || undefined,
+        furnishingsBreakdown: item.furnishings_breakdown || [],
         createdAt: item.created_at,
         updatedAt: item.updated_at,
       };
@@ -550,6 +576,8 @@ export const api = {
       formData.append('bedrooms', String(propertyData.bedrooms || 2));
       formData.append('bathrooms', String(propertyData.bathrooms || 2));
       formData.append('square_footage', String(propertyData.square_footage || 1000));
+      if (propertyData.furnishingType) formData.append('furnishing_type', propertyData.furnishingType);
+      if (propertyData.furnishingsBreakdown?.length) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -566,6 +594,8 @@ export const api = {
         bedrooms: propertyData.bedrooms || 2,
         bathrooms: propertyData.bathrooms || 2,
         square_footage: propertyData.square_footage || 1000,
+        furnishing_type: propertyData.furnishingType || null,
+        furnishings_breakdown: propertyData.furnishingsBreakdown || [],
         image_url: propertyData.image || null, // Use image_url for URL input
       });
       headers = {
@@ -595,6 +625,8 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
+      furnishingType: data.furnishing_type || undefined,
+      furnishingsBreakdown: data.furnishings_breakdown || [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -616,6 +648,8 @@ export const api = {
       if (propertyData.bedrooms !== undefined) formData.append('bedrooms', String(propertyData.bedrooms));
       if (propertyData.bathrooms !== undefined) formData.append('bathrooms', String(propertyData.bathrooms));
       if (propertyData.square_footage !== undefined) formData.append('square_footage', String(propertyData.square_footage));
+      if (propertyData.furnishingType !== undefined) formData.append('furnishing_type', propertyData.furnishingType);
+      if (propertyData.furnishingsBreakdown !== undefined) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -635,6 +669,8 @@ export const api = {
       if (propertyData.image !== undefined) {
         jsonData.image_url = propertyData.image || null; // Use image_url for URL input
       }
+      if (propertyData.furnishingType !== undefined) jsonData.furnishing_type = propertyData.furnishingType;
+      if (propertyData.furnishingsBreakdown !== undefined) jsonData.furnishings_breakdown = propertyData.furnishingsBreakdown;
       body = JSON.stringify(jsonData);
       headers = {
         'Content-Type': 'application/json',
@@ -663,6 +699,8 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
+      furnishingType: data.furnishing_type || undefined,
+      furnishingsBreakdown: data.furnishings_breakdown || [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };

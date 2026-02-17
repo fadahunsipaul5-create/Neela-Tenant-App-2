@@ -27,6 +27,8 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
+    furnishing_type: '',
+    furnishings_breakdown: '',
     image: '',
   });
   const [addImageFile, setAddImageFile] = useState<File | null>(null);
@@ -45,6 +47,8 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
+    furnishing_type: '',
+    furnishings_breakdown: '',
     image: '',
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -136,11 +140,15 @@ ________________________ Tenant`);
         bedrooms: addFormData.bedrooms,
         bathrooms: addFormData.bathrooms,
         square_footage: addFormData.square_footage,
+        furnishingType: addFormData.furnishing_type || undefined,
+        furnishingsBreakdown: addFormData.furnishings_breakdown
+          ? addFormData.furnishings_breakdown.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+          : undefined,
         image: addFormData.image.trim() || undefined,
       }, addImageFile);
       setProperties([...properties, newProperty]);
       setIsAddModalOpen(false);
-      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
+      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
       setAddImageFile(null);
       setAddImagePreview(null);
     } catch (err) {
@@ -152,7 +160,7 @@ ________________________ Tenant`);
 
   const handleAddCancel = () => {
     setIsAddModalOpen(false);
-    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
+    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
     setAddImageFile(null);
     setAddImagePreview(null);
     setError(null);
@@ -217,6 +225,8 @@ ________________________ Tenant`);
       bedrooms: property.bedrooms || 2,
       bathrooms: property.bathrooms || 2,
       square_footage: property.square_footage || 1000,
+      furnishing_type: property.furnishingType || '',
+      furnishings_breakdown: property.furnishingsBreakdown?.join('\n') || '',
       image: property.image || '',
     });
     setImageFile(null);
@@ -241,7 +251,19 @@ ________________________ Tenant`);
       setIsSaving(true);
       setError(null);
       const updated = await api.updateProperty(editingProperty.id, {
-        ...editFormData,
+        name: editFormData.name,
+        address: editFormData.address,
+        city: editFormData.city,
+        state: editFormData.state,
+        units: editFormData.units,
+        price: editFormData.price,
+        bedrooms: editFormData.bedrooms,
+        bathrooms: editFormData.bathrooms,
+        square_footage: editFormData.square_footage,
+        furnishingType: editFormData.furnishing_type || undefined,
+        furnishingsBreakdown: editFormData.furnishings_breakdown
+          ? editFormData.furnishings_breakdown.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+          : undefined,
         image: imageFile ? undefined : (editFormData.image.trim() || undefined),
       }, imageFile);
       setProperties(properties.map(p => p.id === editingProperty.id ? updated : p));
@@ -259,7 +281,7 @@ ________________________ Tenant`);
   const handleEditCancel = () => {
     setIsEditModalOpen(false);
     setEditingProperty(null);
-    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, image: '' });
+    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
     setImageFile(null);
     setImagePreview(null);
   };
@@ -372,6 +394,9 @@ ________________________ Tenant`);
                               <div>
                                 <h4 className="font-bold text-slate-800">{prop.name}</h4>
                                 <p className="text-sm text-slate-500">{prop.address}, {prop.city}, {prop.state} • <span className="font-medium text-indigo-600">{prop.units} Units</span></p>
+                                {(prop.furnishingType || (prop.furnishingsBreakdown && prop.furnishingsBreakdown.length > 0)) && (
+                                  <p className="text-xs text-slate-600 mt-1">{prop.furnishingType || 'Furnished'}{prop.furnishingsBreakdown?.length ? ` (${prop.furnishingsBreakdown.slice(0, 3).join(', ')}${prop.furnishingsBreakdown.length > 3 ? '...' : ''})` : ''}</p>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -779,6 +804,31 @@ ________________________ Tenant`);
               </div>
               
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishing Type</label>
+                <select
+                  value={editFormData.furnishing_type}
+                  onChange={(e) => setEditFormData({...editFormData, furnishing_type: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="">— Select —</option>
+                  <option value="Semi-furnished">Semi-furnished</option>
+                  <option value="Fully-furnished">Fully-furnished</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishings Breakdown (Optional)</label>
+                <textarea
+                  value={editFormData.furnishings_breakdown}
+                  onChange={(e) => setEditFormData({...editFormData, furnishings_breakdown: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                  rows={3}
+                  placeholder="One item per line, e.g.: Sofa, Dining table, Bed, Wardrobe"
+                />
+                <p className="text-xs text-slate-500 mt-1">List items available. One per line or comma-separated.</p>
+              </div>
+              
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Property Image (Optional)</label>
                 
                 {/* File Upload Input */}
@@ -975,6 +1025,31 @@ ________________________ Tenant`);
                     placeholder="1000"
                   />
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishing Type</label>
+                <select
+                  value={addFormData.furnishing_type}
+                  onChange={(e) => setAddFormData({...addFormData, furnishing_type: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="">— Select —</option>
+                  <option value="Semi-furnished">Semi-furnished</option>
+                  <option value="Fully-furnished">Fully-furnished</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishings Breakdown (Optional)</label>
+                <textarea
+                  value={addFormData.furnishings_breakdown}
+                  onChange={(e) => setAddFormData({...addFormData, furnishings_breakdown: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                  rows={3}
+                  placeholder="One item per line, e.g.: Sofa, Dining table, Bed, Wardrobe"
+                />
+                <p className="text-xs text-slate-500 mt-1">List items available. One per line or comma-separated.</p>
               </div>
               
               <div>

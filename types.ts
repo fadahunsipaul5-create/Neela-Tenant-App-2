@@ -101,6 +101,7 @@ export interface Payment {
   type: 'Rent' | 'Late Fee' | 'Deposit' | 'Application Fee';
   method: 'Stripe (ACH)' | 'Credit Card' | 'Cash' | 'Zelle' | 'Venmo' | 'CashApp' | 'Apple Pay' | 'Check';
   reference?: string;
+  proofOfPaymentFiles?: { filename: string; path: string; size?: number }[];
 }
 
 export interface Invoice {
@@ -197,6 +198,8 @@ export interface Listing {
   image: string;
   description: string;
   amenities: string[];
+  furnishingType?: string;
+  furnishingsBreakdown?: string[];
 }
 
 export interface Property {
@@ -211,6 +214,8 @@ export interface Property {
   units: number;
   price?: number;
   image?: string;
+  furnishingType?: string;
+  furnishingsBreakdown?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

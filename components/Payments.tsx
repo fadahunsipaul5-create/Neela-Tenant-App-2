@@ -2,12 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Payment, Tenant } from '../types';
 import { api } from '../services/api';
 import {
-  ArrowLeft, X, CreditCard, Smartphone, DollarSign, Building2, Info, Download, History, Loader2
+  ArrowLeft, X, CreditCard, Smartphone, DollarSign, Building2, Info, Download, History, Loader2, Upload
 } from 'lucide-react';
 import Modal from './Modal';
 
 export type PaymentSubTab = 'history' | 'payment-options';
 export type PaymentMethod = 'zelle' | 'cashapp' | 'venmo' | 'applepay' | 'ach' | 'card' | 'cash' | null;
+
+export interface SubmitPaymentWithProofData {
+  amount: number;
+  method: string;
+  type: string;
+  reference?: string;
+  date: string;
+  proofFiles: File[];
+}
 
 export interface PaymentModalProps {
   showPaymentModal: boolean;
@@ -16,7 +25,9 @@ export interface PaymentModalProps {
   setManualPaymentMode: (mode: boolean) => void;
   residentBalance: number;
   daysUntilDue: number;
+  tenantId?: string;
   renderPaymentInstructions: (method: string) => React.ReactNode;
+  onSubmitPaymentWithProof?: (data: SubmitPaymentWithProofData) => Promise<void>;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -26,15 +37,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   setManualPaymentMode,
   residentBalance,
   daysUntilDue,
+  tenantId,
   renderPaymentInstructions,
+  onSubmitPaymentWithProof,
 }) => {
   const [modalMethod, setModalMethod] = useState<string | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
+  const [manualPaymentType, setManualPaymentType] = useState('Personal Check');
+  const [manualReference, setManualReference] = useState('');
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [alertModal, setAlertModal] = useState({
     isOpen: false,
     title: '',
     message: '',
     type: 'success' as 'success' | 'error' | 'info' | 'warning',
   });
+
+  const resetForm = () => {
+    setProofFiles([]);
+    setManualReference('');
+    setManualDate(new Date().toISOString().split('T')[0]);
+    setSubmitError(null);
+  };
 
   if (!showPaymentModal) return null;
 
@@ -67,7 +93,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
            )}
 
            {modalMethod ? (
-               <div>
+               <div className="space-y-4">
                    <div className="mb-4 p-3 bg-slate-50 rounded-lg flex items-center justify-between">
                        <div className="flex items-center font-medium text-slate-800">
                            {['Zelle', 'Venmo', 'CashApp', 'Apple Pay'].includes(modalMethod) ? <Smartphone className="w-4 h-4 mr-2 text-indigo-600"/> : 
@@ -78,6 +104,52 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                        <span className="text-sm font-bold text-slate-900">${residentBalance}.00</span>
                    </div>
                    {renderPaymentInstructions(modalMethod)}
+                   <div className="pt-4 border-t border-slate-200">
+                     <label className="block text-sm font-medium text-slate-700 mb-2">
+                       <Upload className="w-4 h-4 inline mr-1.5" />
+                       Attach proof of payment (screenshots/receipts)
+                     </label>
+                     <input
+                       type="file"
+                       accept=".pdf,.jpg,.jpeg,.png"
+                       multiple
+                       onChange={(e) => setProofFiles(Array.from(e.target.files || []))}
+                       className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100"
+                     />
+                     {proofFiles.length > 0 && <p className="mt-1 text-xs text-slate-500">{proofFiles.length} file(s) selected</p>}
+                     <button
+                       type="button"
+                       disabled={!tenantId || !onSubmitPaymentWithProof || isSubmitting || residentBalance <= 0}
+                       onClick={async () => {
+                         if (!tenantId || !onSubmitPaymentWithProof || residentBalance <= 0) return;
+                         setIsSubmitting(true);
+                         setSubmitError(null);
+                         try {
+                           await onSubmitPaymentWithProof({
+                             amount: residentBalance,
+                             method: modalMethod,
+                             type: 'Rent',
+                             date: new Date().toISOString().split('T')[0],
+                             proofFiles,
+                           });
+                           setAlertModal({ isOpen: true, title: 'Payment Submitted', message: 'Your proof of payment has been submitted. The property manager will review and confirm once verified.', type: 'success' });
+                           setShowPaymentModal(false);
+                           setManualPaymentMode(false);
+                           setModalMethod(null);
+                           resetForm();
+                         } catch (e) {
+                           setSubmitError(e instanceof Error ? e.message : 'Failed to submit');
+                         } finally {
+                           setIsSubmitting(false);
+                         }
+                       }}
+                       className="w-full mt-3 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                     >
+                       {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                       Submit proof of payment
+                     </button>
+                     {submitError && <p className="mt-2 text-sm text-rose-600">{submitError}</p>}
+                   </div>
                </div>
            ) : !manualPaymentMode ? (
              <>
@@ -136,7 +208,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Payment Type</label>
-                  <select className="w-full p-2 border border-slate-300 rounded-lg text-slate-800 bg-white">
+                  <select 
+                    className="w-full p-2 border border-slate-300 rounded-lg text-slate-800 bg-white"
+                    value={manualPaymentType}
+                    onChange={(e) => setManualPaymentType(e.target.value)}
+                  >
                     <option>Personal Check</option>
                     <option>Cashier's Check</option>
                     <option>Cash (Handed to Office)</option>
@@ -145,27 +221,68 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Check Number / Reference</label>
-                  <input type="text" className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" placeholder="e.g. #1054" />
+                  <input 
+                    type="text" 
+                    className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" 
+                    placeholder="e.g. #1054" 
+                    value={manualReference}
+                    onChange={(e) => setManualReference(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date Handed Over</label>
-                  <input type="date" className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" />
+                  <input 
+                    type="date" 
+                    className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900" 
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <Upload className="w-4 h-4 inline mr-1.5" />
+                    Attach proof of payment (screenshots/receipts)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    multiple
+                    onChange={(e) => setProofFiles(Array.from(e.target.files || []))}
+                    className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100"
+                  />
+                  {proofFiles.length > 0 && <p className="mt-1 text-xs text-slate-500">{proofFiles.length} file(s) selected</p>}
                 </div>
                 <button 
-                  onClick={() => {
-                    setAlertModal({
-                      isOpen: true,
-                      title: 'Payment Reported',
-                      message: 'Payment reported!',
-                      type: 'success',
-                    });
-                    setShowPaymentModal(false);
-                    setManualPaymentMode(false);
+                  disabled={!tenantId || !onSubmitPaymentWithProof || isSubmitting || residentBalance <= 0}
+                  onClick={async () => {
+                    if (!tenantId || !onSubmitPaymentWithProof || residentBalance <= 0) return;
+                    setIsSubmitting(true);
+                    setSubmitError(null);
+                    try {
+                      await onSubmitPaymentWithProof({
+                        amount: residentBalance,
+                        method: manualPaymentType,
+                        type: 'Rent',
+                        reference: manualReference || undefined,
+                        date: manualDate,
+                        proofFiles,
+                      });
+                      setAlertModal({ isOpen: true, title: 'Payment Reported', message: 'Your payment has been reported with proof. The property manager will verify and update your balance.', type: 'success' });
+                      setShowPaymentModal(false);
+                      setManualPaymentMode(false);
+                      resetForm();
+                    } catch (e) {
+                      setSubmitError(e instanceof Error ? e.message : 'Failed to submit');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
                   }}
-                  className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 mt-4"
+                  className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   Submit Report
                 </button>
+                {submitError && <p className="text-sm text-rose-600">{submitError}</p>}
                 <button 
                   onClick={() => setManualPaymentMode(false)}
                   className="w-full py-2 text-slate-600 text-sm hover:text-slate-800"
@@ -494,6 +611,7 @@ export interface UsePaymentsReturn {
   
   // Handlers
   downloadReceipt: (paymentId: string) => void;
+  submitPaymentWithProof: (data: SubmitPaymentWithProofData) => Promise<void>;
 }
 
 export const usePayments = (currentTenant: Tenant | null, tenantId?: string): UsePaymentsReturn => {
@@ -541,6 +659,21 @@ export const usePayments = (currentTenant: Tenant | null, tenantId?: string): Us
       isMounted = false;
     };
   }, [currentTenant?.id, tenantId]);
+
+  const submitPaymentWithProof = async (data: SubmitPaymentWithProofData) => {
+    const tenantIdToUse = currentTenant?.id || tenantId;
+    if (!tenantIdToUse) throw new Error('Tenant not found');
+    await api.createPayment({
+      tenantId: tenantIdToUse,
+      amount: data.amount,
+      date: data.date,
+      status: 'Pending',
+      type: data.type as any,
+      method: data.method as any,
+      reference: data.reference,
+      proofFiles: data.proofFiles,
+    });
+  };
 
   const downloadReceipt = (paymentId: string) => {
     // Find the payment in the payments array
@@ -591,6 +724,7 @@ ${payment.reference ? `Reference: ${payment.reference}` : ''}
     selectedPaymentMethod,
     setSelectedPaymentMethod,
     downloadReceipt,
+    submitPaymentWithProof,
   };
 };
 

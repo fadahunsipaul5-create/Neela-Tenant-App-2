@@ -319,7 +319,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """Override create to send invoice email after payment is created."""
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        proof_files = request.FILES.getlist('proof_of_payment_files_upload')
+        if proof_files:
+            if hasattr(data, 'setlist'):
+                data.setlist('proof_of_payment_files_upload', proof_files)
+            else:
+                data['proof_of_payment_files_upload'] = proof_files
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         payment = serializer.save()
         invoice_email_sent = False
@@ -352,6 +359,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f"Failed to send confirmation email: {e}")
                 # Don't fail the whole request if email fails
+
+        # Send admin notification when tenant uploads proof of payment
+        if payment.proof_of_payment_files and len(payment.proof_of_payment_files) > 0:
+            try:
+                try:
+                    send_proof_of_payment_notification_to_admin.delay(payment.id)
+                    logger.info(f"Queued proof-of-payment admin notification for payment {payment.id}")
+                except Exception:
+                    send_proof_of_payment_notification_to_admin(payment.id)
+                    logger.info(f"Sent proof-of-payment admin notification inline for payment {payment.id}")
+            except Exception as e:
+                logger.error(f"Failed to send proof-of-payment admin notification: {e}")
 
         response_data = dict(serializer.data)
         response_data['invoice_email_sent'] = invoice_email_sent
