@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApplicationForm, Listing, Property, TenantStatus } from '../types';
 import { api } from '../services/api';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, BedDouble, Bath } from 'lucide-react';
 import Modal from './Modal';
 
 export interface UseApplicationReturn {
@@ -481,7 +481,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 )}
                 
                 {/* 1. Property Preferences */}
-                <div className="space-y-6 bg-slate-50/50 rounded-2xl p-7 border-2 border-slate-100">
+                <div className="space-y-6 bg-slate-50/50 rounded-2xl p-5 sm:p-6 md:p-7 border-2 border-slate-100">
                   <h3 className="font-bold text-slate-900 text-xl border-b-2 border-slate-200 pb-3 flex items-center gap-3">
                     <span className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">1</span>
                     Property Preferences
@@ -504,25 +504,42 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                       How many bedrooms do you desire? (Select all that apply)
                     </label>
-                    <div className="flex gap-4">
-                      {[1, 2, 3].map(num => (
-                        <label key={num} className="flex items-center gap-3 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.bedroomsDesired || []).includes(num)}
-                            onChange={(e) => {
-                              const currentBedrooms = formData.bedroomsDesired || [];
-                              if (e.target.checked) {
-                                setFormData({...formData, bedroomsDesired: [...currentBedrooms, num]});
-                              } else {
-                                setFormData({...formData, bedroomsDesired: currentBedrooms.filter(n => n !== num)});
-                              }
-                            }}
-                            className="w-5 h-5 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
-                          />
-                          <span className="text-slate-700 font-semibold group-hover:text-indigo-600 transition-colors">{num} Bedroom{num > 1 ? 's' : ''}</span>
-                        </label>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                      {[1, 2, 3].map(num => {
+                        const isChecked = (formData.bedroomsDesired || []).includes(num);
+                        return (
+                          <label
+                            key={num}
+                            className={`
+                              flex items-center gap-3 sm:gap-4 p-4 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-200
+                              min-h-[52px] sm:min-h-0
+                              ${isChecked 
+                                ? 'border-indigo-500 bg-indigo-50/80 shadow-sm' 
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}
+                            `}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const currentBedrooms = formData.bedroomsDesired || [];
+                                if (e.target.checked) {
+                                  setFormData({...formData, bedroomsDesired: [...currentBedrooms, num]});
+                                } else {
+                                  setFormData({...formData, bedroomsDesired: currentBedrooms.filter(n => n !== num)});
+                                }
+                              }}
+                              className="w-5 h-5 sm:w-5 sm:h-5 flex-shrink-0 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
+                            />
+                            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                              <BedDouble className={`w-5 h-5 flex-shrink-0 ${isChecked ? 'text-indigo-600' : 'text-slate-400'}`} />
+                              <span className={`font-semibold text-sm sm:text-base truncate ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                {num} {num === 1 ? 'Bedroom' : 'Bedrooms'}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                   
@@ -530,25 +547,42 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                       How many bathrooms do you desire? (Select all that apply)
                     </label>
-                    <div className="flex gap-4">
-                      {[1, 2, 3].map(num => (
-                        <label key={num} className="flex items-center gap-3 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.bathroomsDesired || []).includes(num)}
-                            onChange={(e) => {
-                              const currentBathrooms = formData.bathroomsDesired || [];
-                              if (e.target.checked) {
-                                setFormData({...formData, bathroomsDesired: [...currentBathrooms, num]});
-                              } else {
-                                setFormData({...formData, bathroomsDesired: currentBathrooms.filter(n => n !== num)});
-                              }
-                            }}
-                            className="w-5 h-5 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
-                          />
-                          <span className="text-slate-700 font-semibold group-hover:text-indigo-600 transition-colors">{num} Bathroom{num > 1 ? 's' : ''}</span>
-                        </label>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                      {[1, 2, 3].map(num => {
+                        const isChecked = (formData.bathroomsDesired || []).includes(num);
+                        return (
+                          <label
+                            key={num}
+                            className={`
+                              flex items-center gap-3 sm:gap-4 p-4 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-200
+                              min-h-[52px] sm:min-h-0
+                              ${isChecked 
+                                ? 'border-indigo-500 bg-indigo-50/80 shadow-sm' 
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}
+                            `}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const currentBathrooms = formData.bathroomsDesired || [];
+                                if (e.target.checked) {
+                                  setFormData({...formData, bathroomsDesired: [...currentBathrooms, num]});
+                                } else {
+                                  setFormData({...formData, bathroomsDesired: currentBathrooms.filter(n => n !== num)});
+                                }
+                              }}
+                              className="w-5 h-5 sm:w-5 sm:h-5 flex-shrink-0 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
+                            />
+                            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                              <Bath className={`w-5 h-5 flex-shrink-0 ${isChecked ? 'text-indigo-600' : 'text-slate-400'}`} />
+                              <span className={`font-semibold text-sm sm:text-base truncate ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                {num} {num === 1 ? 'Bathroom' : 'Bathrooms'}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

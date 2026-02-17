@@ -429,42 +429,77 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-slate-800">Attention Needed</h3>
                  </div>
-                 <table className="w-full text-sm text-left">
-                    <thead className="bg-white text-slate-500 border-b border-slate-100">
-                       <tr>
-                          <th className="px-6 py-3 font-medium">Tenant</th>
-                          <th className="px-6 py-3 font-medium">Unit</th>
-                          <th className="px-6 py-3 font-medium">Balance</th>
-                          <th className="px-6 py-3 font-medium text-right">Action</th>
-                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                       {overdueTenants.map(t => (
-                          <tr key={t.id} className="hover:bg-slate-50">
-                             <td className="px-6 py-4 font-medium text-slate-800">{t.name}</td>
-                             <td className="px-6 py-4 text-slate-600">{t.propertyUnit}</td>
-                             <td className="px-6 py-4 text-rose-600 font-bold">${t.balance.toLocaleString()}</td>
-                             <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                <button 
-                                  onClick={() => { setSelectedTenantId(t.id); setShowAdjustment(true); }}
-                                  className="text-indigo-600 hover:text-indigo-800 text-xs font-bold px-2 py-1 hover:bg-indigo-50 rounded"
-                                >
-                                  Adjust
-                                </button>
-                                <button 
-                                  onClick={() => { setSelectedTenantId(t.id); setShowSendNotice(true); }}
-                                  className="text-rose-600 hover:text-rose-800 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded border border-rose-200"
-                                >
-                                  Send Notice
-                                </button>
-                             </td>
+                 {/* Mobile: Card layout */}
+                 <div className="md:hidden divide-y divide-slate-100">
+                    {overdueTenants.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400">All caught up! No overdue balances.</div>
+                    ) : (
+                      overdueTenants.map(t => (
+                        <div key={t.id} className="p-4 sm:p-5 flex flex-col gap-3 hover:bg-slate-50/50">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <p className="font-semibold text-slate-800 truncate">{t.name}</p>
+                            <p className="text-sm text-slate-600 truncate">{t.propertyUnit}</p>
+                            <p className="text-rose-600 font-bold text-lg">${t.balance.toLocaleString()}</p>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <button 
+                              onClick={() => { setSelectedTenantId(t.id); setShowAdjustment(true); }}
+                              className="flex-1 min-w-[100px] py-2.5 text-indigo-600 hover:text-indigo-800 text-sm font-bold hover:bg-indigo-50 rounded-lg border border-indigo-200 transition-colors"
+                            >
+                              Adjust
+                            </button>
+                            <button 
+                              onClick={() => { setSelectedTenantId(t.id); setShowSendNotice(true); }}
+                              className="flex-1 min-w-[100px] py-2.5 text-rose-600 hover:text-rose-800 text-sm font-bold hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors"
+                            >
+                              Send Notice
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                 </div>
+                 {/* Desktop: Table layout */}
+                 <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm text-left min-w-[500px]">
+                       <thead className="bg-white text-slate-500 border-b border-slate-100">
+                          <tr>
+                             <th className="px-4 lg:px-6 py-3 font-medium">Tenant</th>
+                             <th className="px-4 lg:px-6 py-3 font-medium">Unit</th>
+                             <th className="px-4 lg:px-6 py-3 font-medium">Balance</th>
+                             <th className="px-4 lg:px-6 py-3 font-medium text-right">Action</th>
                           </tr>
-                       ))}
-                       {overdueTenants.length === 0 && (
-                          <tr><td colSpan={4} className="p-6 text-center text-slate-400">All caught up! No overdue balances.</td></tr>
-                       )}
-                    </tbody>
-                 </table>
+                       </thead>
+                       <tbody className="divide-y divide-slate-100">
+                          {overdueTenants.map(t => (
+                             <tr key={t.id} className="hover:bg-slate-50">
+                                <td className="px-4 lg:px-6 py-4 font-medium text-slate-800">{t.name}</td>
+                                <td className="px-4 lg:px-6 py-4 text-slate-600">{t.propertyUnit}</td>
+                                <td className="px-4 lg:px-6 py-4 text-rose-600 font-bold">${t.balance.toLocaleString()}</td>
+                                <td className="px-4 lg:px-6 py-4 text-right">
+                                   <div className="flex justify-end gap-2 flex-wrap">
+                                      <button 
+                                        onClick={() => { setSelectedTenantId(t.id); setShowAdjustment(true); }}
+                                        className="text-indigo-600 hover:text-indigo-800 text-xs font-bold px-3 py-1.5 hover:bg-indigo-50 rounded"
+                                      >
+                                        Adjust
+                                      </button>
+                                      <button 
+                                        onClick={() => { setSelectedTenantId(t.id); setShowSendNotice(true); }}
+                                        className="text-rose-600 hover:text-rose-800 text-xs font-bold px-3 py-1.5 hover:bg-rose-50 rounded border border-rose-200"
+                                      >
+                                        Send Notice
+                                      </button>
+                                   </div>
+                                </td>
+                             </tr>
+                          ))}
+                          {overdueTenants.length === 0 && (
+                             <tr><td colSpan={4} className="p-6 text-center text-slate-400">All caught up! No overdue balances.</td></tr>
+                          )}
+                       </tbody>
+                    </table>
+                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

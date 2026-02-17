@@ -452,10 +452,10 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Bar (Mobile Only) - Only show in Admin Mode */}
         {!isPublic && (
-          <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 p-5 flex items-center justify-between sticky top-0 z-30 shadow-sm shadow-slate-500/5">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-xl shadow-md shadow-blue-500/20"></div>
-              <span className="font-bold text-slate-900 text-xl tracking-tight">PropGuard</span>
+          <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-4 py-3 sm:p-5 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 flex-shrink-0 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-xl shadow-md shadow-blue-500/20"></div>
+              <span className="font-bold text-slate-900 text-base sm:text-lg md:text-xl tracking-tight truncate">Neela Capital Investment</span>
             </div>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 

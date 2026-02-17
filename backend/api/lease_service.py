@@ -74,7 +74,7 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{job_title}}': employment.get('jobTitle', '[_JobTitle_]'),
         '{{monthly_income}}': f"${employment.get('monthlyIncome', 0):,.2f}" if employment.get('monthlyIncome') else '[_Income_]',
         '{{current_date}}': datetime.now().strftime('%m/%d/%Y'),
-        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', 'PropGuard Management'),
+        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', 'Neela Capital Investment'),
         
         # Extended fields for Texas Lease
         '{{landlord_name}}': getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez'), # Defaulting to client sample for now
