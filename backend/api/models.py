@@ -87,6 +87,7 @@ class Payment(models.Model):
     type = models.CharField(max_length=50, choices=TYPE_CHOICES)
     method = models.CharField(max_length=50)
     reference = models.CharField(max_length=100, null=True, blank=True)
+    proof_of_payment_files = models.JSONField(default=list, blank=True, help_text="List of uploaded proof of payment file paths (screenshots/receipts)")
 
     def __str__(self):
         return f"{self.tenant.name} - {self.amount} - {self.status}"
@@ -173,6 +174,17 @@ class Property(models.Model):
     square_footage = models.IntegerField(default=1000, help_text="Square footage")
     image = models.ImageField(upload_to='properties/', null=True, blank=True)
     image_url = models.URLField(null=True, blank=True)  # For external URLs
+    furnishing_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Semi-furnished or Fully-furnished"
+    )
+    furnishings_breakdown = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of items available, e.g. [\"Sofa\", \"Dining table\", \"Bed\"]"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

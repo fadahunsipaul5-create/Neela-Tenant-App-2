@@ -252,6 +252,10 @@ DOCUSIGN_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'neela_backend', 'dsign_priva
 LANDLORD_EMAIL = os.environ.get('LANDLORD_EMAIL', '').strip() or None
 LANDLORD_NAME = os.environ.get('LANDLORD_NAME', '').strip() or None
 
+# Admin notification emails (proof of payment, applications, etc.)
+# If set, admin notifications go here. Otherwise uses staff/superuser emails.
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip() or None
+
 DOCUSIGN_REDIRECT_URI = os.environ.get(
     "DOCUSIGN_REDIRECT_URI",
     os.environ.get("DOCUSIGN_REDIRECT_URL")

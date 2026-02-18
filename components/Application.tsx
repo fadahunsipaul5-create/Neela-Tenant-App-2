@@ -132,7 +132,9 @@ export const useApplication = (): UseApplicationReturn => {
       sqft: property.square_footage || 1000,
       image: imageUrl,
       description: `Beautiful ${property.name} located in ${property.city}, ${property.state}. ${property.units} ${property.units === 1 ? 'unit' : 'units'} available.`,
-      amenities: [] // Property model doesn't have amenities
+      amenities: [],
+      furnishingType: property.furnishingType,
+      furnishingsBreakdown: property.furnishingsBreakdown || [],
     };
   };
 

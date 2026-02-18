@@ -101,6 +101,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     selectedPaymentMethod,
     setSelectedPaymentMethod,
     downloadReceipt,
+    submitPaymentWithProof,
   } = usePayments(currentTenant, tenantId);
 
   const handleSendContactMessage = async () => {
@@ -756,7 +757,9 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                 setManualPaymentMode={setManualPaymentMode}
                 residentBalance={residentBalance}
                 daysUntilDue={daysUntilDue}
+                tenantId={currentTenant?.id || tenantId}
                 renderPaymentInstructions={renderPaymentInstructionsWrapper}
+                onSubmitPaymentWithProof={submitPaymentWithProof}
               />
             )}
             
