@@ -1248,6 +1248,24 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                       </div>
                     </div>
                   )}
+
+                  {/* Furnishing */}
+                  {(selectedProperty.furnishingType || (selectedProperty.furnishingsBreakdown && selectedProperty.furnishingsBreakdown.length > 0)) && (
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200 sm:col-span-2">
+                      <div className="p-2 bg-white rounded-lg">
+                        <Home className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Furnishing</p>
+                        <p className="text-sm sm:text-base font-bold text-slate-800">
+                          {selectedProperty.furnishingType || 'Furnished'}
+                        </p>
+                        {selectedProperty.furnishingsBreakdown && selectedProperty.furnishingsBreakdown.length > 0 && (
+                          <p className="text-sm text-slate-600 mt-1">{selectedProperty.furnishingsBreakdown.join(' • ')}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

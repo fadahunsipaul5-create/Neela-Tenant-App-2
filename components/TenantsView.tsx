@@ -5,7 +5,7 @@ import { api } from '../services/api';
 import { 
   Search, UserPlus, MoreVertical, CheckCircle, AlertCircle, Clock, 
   FileText, X, Briefcase, Shield, MessageSquare, Download, ChevronRight, Loader2,
-  Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save, RefreshCw
+  Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save, RefreshCw, Eye
 } from 'lucide-react';
 import Modal from './Modal';
 
@@ -67,6 +67,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     backgroundCheckStatus: undefined,
   });
 
+  // Document Preview Modal (Screening & ID)
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; filename: string; isImage: boolean } | null>(null);
+
   // Filter Lists
   const residents = tenants.filter(t => t.status !== TenantStatus.APPLICANT && t.status !== TenantStatus.DECLINED);
   const applicants = tenants.filter(t => t.status === TenantStatus.APPLICANT || t.status === TenantStatus.DECLINED);
@@ -82,6 +85,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
       default: return 'bg-slate-100 text-slate-700';
     }
   };
+
+  const getMediaUrl = (path: string) => `${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${path}`;
+  const isImageFile = (filename: string) => /\.(jpg|jpeg|png)$/i.test(filename || '');
 
   const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
     setIsSaving(true);
@@ -1094,9 +1100,23 @@ Landlord                            Tenant
                                             </div>
                                          </div>
                                          {file.path && (
-                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
-                                               <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
-                                            </a>
+                                            <div className="flex items-center gap-2">
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setDocumentPreview({
+                                                   url: getMediaUrl(file.path),
+                                                   filename: file.filename || 'Photo ID',
+                                                   isImage: isImageFile(file.filename)
+                                                 })}
+                                                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                                 title="Preview"
+                                               >
+                                                 <Eye className="w-4 h-4" />
+                                               </button>
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                                 <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
+                                               </a>
+                                            </div>
                                          )}
                                       </div>
                                    ))}
@@ -1128,9 +1148,23 @@ Landlord                            Tenant
                                             </div>
                                          </div>
                                          {file.path && (
-                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
-                                               <Download className="w-4 h-4 text-slate-400 hover:text-green-600" />
-                                            </a>
+                                            <div className="flex items-center gap-2">
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setDocumentPreview({
+                                                   url: getMediaUrl(file.path),
+                                                   filename: file.filename || 'Income Document',
+                                                   isImage: isImageFile(file.filename)
+                                                 })}
+                                                 className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                                                 title="Preview"
+                                               >
+                                                 <Eye className="w-4 h-4" />
+                                               </button>
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                                 <Download className="w-4 h-4 text-slate-400 hover:text-green-600" />
+                                               </a>
+                                            </div>
                                          )}
                                       </div>
                                    ))}
@@ -1162,9 +1196,23 @@ Landlord                            Tenant
                                             </div>
                                          </div>
                                          {file.path && (
-                                            <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
-                                               <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
-                                            </a>
+                                            <div className="flex items-center gap-2">
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setDocumentPreview({
+                                                   url: getMediaUrl(file.path),
+                                                   filename: file.filename || 'Background Check',
+                                                   isImage: isImageFile(file.filename)
+                                                 })}
+                                                 className="p-1.5 text-slate-400 hover:text-green-700 hover:bg-green-200 rounded transition-colors"
+                                                 title="Preview"
+                                               >
+                                                 <Eye className="w-4 h-4" />
+                                               </button>
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                                 <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
+                                               </a>
+                                            </div>
                                          )}
                                       </div>
                                    ))}
@@ -1878,6 +1926,49 @@ Landlord                            Tenant
         confirmText="Confirm"
         cancelText="Cancel"
       />
+
+      {/* Document Preview Modal (Screening & ID) */}
+      {documentPreview && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setDocumentPreview(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Document preview"
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+              <h3 className="font-semibold text-slate-800 truncate pr-4">{documentPreview.filename}</h3>
+              <button
+                type="button"
+                onClick={() => setDocumentPreview(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                aria-label="Close preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 min-h-[400px] flex items-center justify-center bg-slate-100">
+              {documentPreview.isImage ? (
+                <img
+                  src={documentPreview.url}
+                  alt={documentPreview.filename}
+                  className="max-w-full max-h-[75vh] object-contain rounded"
+                />
+              ) : (
+                <iframe
+                  src={documentPreview.url}
+                  title={documentPreview.filename}
+                  className="w-full min-h-[70vh] border-0 rounded"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

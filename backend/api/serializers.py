@@ -173,9 +173,19 @@ class TenantSerializer(serializers.ModelSerializer):
         return data
 
 class PaymentSerializer(serializers.ModelSerializer):
+    proof_of_payment_files_upload = serializers.ListField(
+        child=serializers.FileField(max_length=100000, allow_empty_file=False),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    
     class Meta:
         model = Payment
         fields = '__all__'
+        extra_kwargs = {
+            'proof_of_payment_files': {'read_only': True},
+        }
     
     def create(self, validated_data):
         """Override create to auto-update tenant balance after payment"""
@@ -183,9 +193,28 @@ class PaymentSerializer(serializers.ModelSerializer):
         import logging
         logger = logging.getLogger(__name__)
         
+        proof_uploads = validated_data.pop('proof_of_payment_files_upload', [])
+        
         # Ensure payment is fully committed before updating tenant balance
         with transaction.atomic():
             payment = super().create(validated_data)
+            
+            # Handle proof of payment file uploads
+            proof_file_paths = []
+            for file in proof_uploads:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"payments/tenant_{payment.tenant_id}/proof_{timestamp}_{file.name}"
+                path = default_storage.save(filename, ContentFile(file.read()))
+                proof_file_paths.append({
+                    'filename': file.name,
+                    'path': path,
+                    'size': file.size,
+                    'uploaded_at': datetime.now().isoformat()
+                })
+            if proof_file_paths:
+                payment.proof_of_payment_files = proof_file_paths
+                payment.save(update_fields=['proof_of_payment_files'])
+            
             logger.info(f"Payment created: {payment.id} for tenant {payment.tenant.name}, amount: {payment.amount}")
             
             # Get balance before update

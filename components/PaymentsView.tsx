@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, CreditCard, Plus, Download, Mail, Filter, 
   AlertCircle, CheckCircle, Clock, FileText, Search, 
-  MoreVertical, ArrowUpRight, ArrowDownLeft, Wallet, Trash2, X
+  MoreVertical, ArrowUpRight, ArrowDownLeft, Wallet, Trash2, X, Eye, Loader2
 } from 'lucide-react';
 import { Tenant, Payment, Invoice } from '../types';
 import { api } from '../services/api';
@@ -21,7 +21,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   invoices: initialInvoices,
   onDataChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions' | 'pending-proof'>('overview');
   
   // Mutable State for Demo
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
@@ -43,10 +43,13 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   // Adjustment State
   const [adjustmentType, setAdjustmentType] = useState<string>('Late Fee (Charge)');
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
+  const [pendingAdjustments, setPendingAdjustments] = useState<{ adjustmentType: string; amount: number; chargeOrCredit: 'Charge' | 'Waive' }[]>([]);
+  const [isApplyingAdjustments, setIsApplyingAdjustments] = useState(false);
   
   // Send Notice State
   const [selectedNoticeType, setSelectedNoticeType] = useState<string>('Notice of Late Rent');
   const [isSendingNotice, setIsSendingNotice] = useState(false);
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
 
   // Modal State
   const [modalState, setModalState] = useState({
@@ -76,6 +79,12 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
   const recentActivity = [...initialPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
   const overdueTenants = initialTenants.filter(t => t.balance > 0);
+
+  const pendingPaymentsWithProof = initialPayments.filter(
+    p => p.status === 'Pending' && p.proofOfPaymentFiles && p.proofOfPaymentFiles.length > 0
+  );
+
+  const getMediaUrl = (path: string) => `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/media/${path}`;
 
   // Handlers
   const handleCreateInvoice = async () => {
@@ -155,6 +164,29 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
   };
 
+  const handleConfirmPayment = async (paymentId: string) => {
+    setConfirmingPaymentId(paymentId);
+    try {
+      await api.updatePayment(paymentId, { status: 'Paid' });
+      setModalState({
+        isOpen: true,
+        title: 'Payment Confirmed',
+        message: 'Payment has been confirmed. Tenant balance has been updated and a receipt email has been sent.',
+        type: 'success',
+      });
+      if (onDataChange) await onDataChange();
+    } catch (error) {
+      setModalState({
+        isOpen: true,
+        title: 'Confirm Failed',
+        message: error instanceof Error ? error.message : 'Failed to confirm payment',
+        type: 'error',
+      });
+    } finally {
+      setConfirmingPaymentId(null);
+    }
+  };
+
   const handleRecordPayment = async () => {
     if (!selectedTenantId || !amount) return;
     
@@ -189,7 +221,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
   };
 
-  const handleAdjustment = async (type: 'Charge' | 'Waive') => {
+  const handleAddAdjustmentToList = (chargeOrCredit: 'Charge' | 'Waive') => {
     if (!selectedTenantId || !adjustmentAmount) {
       setModalState({
         isOpen: true,
@@ -199,7 +231,6 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       });
       return;
     }
-    
     const adjustmentValue = parseFloat(adjustmentAmount);
     if (isNaN(adjustmentValue) || adjustmentValue <= 0) {
       setModalState({
@@ -210,57 +241,69 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       });
       return;
     }
-    
-    try {
-      // Get current tenant to verify it exists
-      const currentTenant = initialTenants.find(t => t.id === selectedTenantId);
-      if (!currentTenant) {
-        throw new Error('Tenant not found');
-      }
-      
-      // Map dropdown label to backend-allowed type (Rent, Late Fee, Deposit, Application Fee)
-      const backendTypeMap: Record<string, string> = {
-        'Late Fee (Charge)': 'Late Fee',
-        'Maintenance Charge': 'Late Fee',
-        'Waive Fee (Credit)': 'Rent',
-        'Security Deposit Return': 'Deposit',
-      };
-      const backendType = backendTypeMap[adjustmentType] ?? 'Rent';
+    setPendingAdjustments(prev => [...prev, { adjustmentType, amount: adjustmentValue, chargeOrCredit }]);
+    setAdjustmentAmount('');
+  };
 
-      const newPayment: Partial<Payment> = {
-        tenantId: selectedTenantId,
-        amount: adjustmentValue,
-        date: new Date().toISOString().split('T')[0],
-        status: type === 'Charge' ? 'Pending' : 'Paid',
-        type: backendType,
-        method: 'Adjustment',
-        reference: `Adjustment: ${adjustmentType}`,
-      };
-      
-      // Create the payment record
-      await api.createPayment(newPayment);
-      
-      // Refresh data to show updated balance
-      if (onDataChange) {
-        await onDataChange();
-      }
-      
-      setShowAdjustment(false);
+  const handleRemovePendingAdjustment = (index: number) => {
+    setPendingAdjustments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleApplyAllAdjustments = async () => {
+    if (!selectedTenantId || pendingAdjustments.length === 0) {
       setModalState({
         isOpen: true,
-        title: 'Adjustment Applied',
-        message: `${type === 'Charge' ? 'Charge' : 'Credit'} of $${adjustmentValue.toFixed(2)} applied successfully!`,
+        title: 'Validation Error',
+        message: 'Add at least one charge or credit before applying.',
+        type: 'error',
+      });
+      return;
+    }
+    const currentTenant = initialTenants.find(t => t.id === selectedTenantId);
+    if (!currentTenant) {
+      setModalState({ isOpen: true, title: 'Error', message: 'Tenant not found', type: 'error' });
+      return;
+    }
+    const backendTypeMap: Record<string, string> = {
+      'Late Fee (Charge)': 'Late Fee',
+      'Maintenance Charge': 'Late Fee',
+      'Waive Fee (Credit)': 'Rent',
+      'Security Deposit Return': 'Deposit',
+    };
+    const count = pendingAdjustments.length;
+    setIsApplyingAdjustments(true);
+    try {
+      for (const item of pendingAdjustments) {
+        const backendType = backendTypeMap[item.adjustmentType] ?? 'Rent';
+        await api.createPayment({
+          tenantId: selectedTenantId,
+          amount: item.amount,
+          date: new Date().toISOString().split('T')[0],
+          status: item.chargeOrCredit === 'Charge' ? 'Pending' : 'Paid',
+          type: backendType,
+          method: 'Adjustment',
+          reference: `Adjustment: ${item.adjustmentType}`,
+        });
+      }
+      if (onDataChange) await onDataChange();
+      setShowAdjustment(false);
+      setPendingAdjustments([]);
+      resetForms();
+      setModalState({
+        isOpen: true,
+        title: 'Adjustments Applied',
+        message: `${count} adjustment(s) applied successfully. Balance has been updated.`,
         type: 'success',
       });
-      resetForms();
     } catch (error) {
-      console.error('Error applying adjustment:', error);
       setModalState({
         isOpen: true,
         title: 'Adjustment Error',
-        message: error instanceof Error ? error.message : 'Failed to apply adjustment',
+        message: error instanceof Error ? error.message : 'Failed to apply adjustments',
         type: 'error',
       });
+    } finally {
+      setIsApplyingAdjustments(false);
     }
   };
 
@@ -331,6 +374,12 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     setDescription('');
     setAdjustmentType('Late Fee (Charge)');
     setAdjustmentAmount('');
+    setPendingAdjustments([]);
+  };
+
+  const closeAdjustmentModal = () => {
+    setShowAdjustment(false);
+    setPendingAdjustments([]);
   };
 
   // Debug: Log when tenants prop changes
@@ -402,18 +451,28 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       {/* Navigation Tabs */}
       <div className="border-b border-slate-200">
         <nav className="-mb-px flex space-x-8">
-          {['overview', 'invoices', 'transactions'].map((tab) => (
+          {[
+            { id: 'overview', label: 'Overview' },
+            { id: 'invoices', label: 'Invoices' },
+            { id: 'transactions', label: 'Transactions' },
+            { id: 'pending-proof', label: 'Proof to Confirm', badge: pendingPaymentsWithProof.length },
+          ].map(({ id, label, badge }) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
+              key={id}
+              onClick={() => setActiveTab(id as any)}
               className={`
-                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize
-                ${activeTab === tab
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${activeTab === id
                   ? 'border-indigo-500 text-indigo-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
               `}
             >
-              {tab}
+              {label}
+              {badge !== undefined && badge > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
+                  {badge}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -631,6 +690,86 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
               </table>
            </div>
         )}
+
+        {/* 4. PENDING PROOF TAB */}
+        {activeTab === 'pending-proof' && (
+           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
+               <div className="p-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="font-bold text-slate-800">Payments with Proof Awaiting Confirmation</h3>
+                  <p className="text-sm text-slate-600 mt-1">Review proof of payment and confirm to update tenant balance.</p>
+               </div>
+               {pendingPaymentsWithProof.length === 0 ? (
+                 <div className="p-12 text-center text-slate-500">
+                   No pending payments with proof. Tenants will appear here after they upload proof of payment.
+                 </div>
+               ) : (
+               <table className="w-full text-sm text-left">
+                 <thead className="bg-white text-slate-500 border-b border-slate-100">
+                    <tr>
+                       <th className="px-6 py-3 font-medium">Date</th>
+                       <th className="px-6 py-3 font-medium">Tenant</th>
+                       <th className="px-6 py-3 font-medium">Method</th>
+                       <th className="px-6 py-3 font-medium">Amount</th>
+                       <th className="px-6 py-3 font-medium">Proof</th>
+                       <th className="px-6 py-3 font-medium text-right">Action</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100">
+                    {pendingPaymentsWithProof.map((pay) => (
+                       <tr key={pay.id} className="hover:bg-slate-50">
+                          <td className="px-6 py-4 text-slate-600">{pay.date}</td>
+                          <td className="px-6 py-4 font-medium text-slate-800">{tenantsMap[pay.tenantId]?.name}</td>
+                          <td className="px-6 py-4 text-slate-600">{pay.method}</td>
+                          <td className="px-6 py-4 font-bold text-slate-800">${pay.amount}</td>
+                          <td className="px-6 py-4">
+                             <div className="flex flex-wrap gap-2">
+                               {pay.proofOfPaymentFiles?.map((file: any, idx: number) => (
+                                 <div key={idx} className="flex items-center gap-1.5">
+                                   <a
+                                     href={getMediaUrl(file.path)}
+                                     target="_blank"
+                                     rel="noopener noreferrer"
+                                     className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded text-xs font-medium"
+                                     title="View"
+                                   >
+                                     <Eye className="w-3.5 h-3.5" />
+                                     {file.filename || 'Proof'}
+                                   </a>
+                                   <a
+                                     href={getMediaUrl(file.path)}
+                                     target="_blank"
+                                     rel="noopener noreferrer"
+                                     download
+                                     className="text-slate-400 hover:text-slate-600 p-1"
+                                     title="Download"
+                                   >
+                                     <Download className="w-3.5 h-3.5" />
+                                   </a>
+                                 </div>
+                               ))}
+                             </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                             <button
+                               onClick={() => handleConfirmPayment(pay.id)}
+                               disabled={confirmingPaymentId === pay.id}
+                               className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                             >
+                               {confirmingPaymentId === pay.id ? (
+                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                               ) : (
+                                 <CheckCircle className="w-3.5 h-3.5" />
+                               )}
+                               Confirm
+                             </button>
+                          </td>
+                       </tr>
+                    ))}
+                 </tbody>
+              </table>
+               )}
+           </div>
+        )}
       </div>
 
       {/* --- MODALS --- */}
@@ -741,16 +880,16 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       {showAdjustment && (
          <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
-            onClick={() => setShowAdjustment(false)}
+            onClick={closeAdjustmentModal}
          >
             <div 
-               className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95"
+               className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-in zoom-in-95"
                onClick={(e) => e.stopPropagation()}
             >
                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-slate-800">Balance Adjustment</h3>
                   <button 
-                     onClick={() => setShowAdjustment(false)}
+                     onClick={closeAdjustmentModal}
                      className="text-slate-400 hover:text-slate-600 transition-colors"
                      aria-label="Close modal"
                   >
@@ -786,22 +925,52 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                         step="0.01"
                       />
                    </div>
-                   <div className="grid grid-cols-2 gap-3 mt-6">
+                   <div className="grid grid-cols-2 gap-3">
                       <button 
-                        onClick={() => handleAdjustment('Waive')}
+                        onClick={() => handleAddAdjustmentToList('Waive')}
                         disabled={!adjustmentAmount || parseFloat(adjustmentAmount) <= 0}
                         className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                         Apply Credit
+                         Add Credit
                       </button>
                       <button 
-                        onClick={() => handleAdjustment('Charge')}
+                        onClick={() => handleAddAdjustmentToList('Charge')}
                         disabled={!adjustmentAmount || parseFloat(adjustmentAmount) <= 0}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                          Add Charge
                       </button>
                    </div>
+                   {pendingAdjustments.length > 0 && (
+                     <div className="mt-4 pt-4 border-t border-slate-200">
+                       <p className="text-sm font-medium text-slate-700 mb-2">Pending ({pendingAdjustments.length})</p>
+                       <ul className="space-y-2 max-h-40 overflow-y-auto">
+                         {pendingAdjustments.map((item, idx) => (
+                           <li key={idx} className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg text-sm">
+                             <span>
+                               {item.adjustmentType} - ${item.amount.toFixed(2)} ({item.chargeOrCredit === 'Charge' ? 'Charge' : 'Credit'})
+                             </span>
+                             <button
+                               type="button"
+                               onClick={() => handleRemovePendingAdjustment(idx)}
+                               className="text-slate-400 hover:text-rose-600 p-1"
+                               aria-label="Remove"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           </li>
+                         ))}
+                       </ul>
+                       <button
+                         onClick={handleApplyAllAdjustments}
+                         disabled={isApplyingAdjustments}
+                         className="w-full mt-3 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                       >
+                         {isApplyingAdjustments ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                         Apply All ({pendingAdjustments.length})
+                       </button>
+                     </div>
+                   )}
                </div>
             </div>
          </div>
