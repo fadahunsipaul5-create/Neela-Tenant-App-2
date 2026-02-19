@@ -232,10 +232,13 @@ export interface ApplicationForm {
   email: string;
   phone: string;
   dateOfBirth: string;
-  currentAddress: string;
+  currentAddressStreet: string;
+  currentAddressCity: string;
+  currentAddressState: string;
+  currentAddressZip: string;
   
   // Occupants
-  otherOccupants: string;
+  otherOccupantsList: { name: string; age: string }[];
   hasOtherAdults: boolean | null;
   photoIdFiles: File[];
   
@@ -246,14 +249,18 @@ export interface ApplicationForm {
   
   // Rental History
   hasRentedRecently: boolean | null;
-  previousLandlordInfo: string;
+  previousAddress: string;
+  landlordName: string;
+  landlordContact: string;
   hasEvictionOrFelony: boolean | null;
   evictionFelonyExplanation: string;
   
   // Policies & Agreement
   agreesToPolicy: boolean;
   desiredMoveInDate: string;
-  emergencyContact: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
   additionalNotes: string;
   certificationAgreed: boolean;
   backgroundCheckFile: File | null;
