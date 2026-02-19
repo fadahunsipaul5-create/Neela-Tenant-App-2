@@ -1,42 +1,14 @@
 services:
-  # Django Web Service (Running both Web + Worker for Free Tier)
   - type: web
-    name: neela-backend
-    runtime: docker
-    rootDir: backend
-    plan: free
+    name: sec-insights-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: |
+      python manage.py migrate &&
+      python manage.py collectstatic --noinput &&
+      gunicorn backend.wsgi:application
     envVars:
-      - key: SECRET_KEY
-        generateValue: true
-      - key: WEB_CONCURRENCY
-        value: 2
-      - key: DEBUG
-        value: 'False'
       - key: DATABASE_URL
         fromDatabase:
-          name: neela-db
+          name: insightg_db
           property: connectionString
-      - key: CELERY_BROKER_URL
-        sync: false
-      - key: CELERY_RESULT_BACKEND
-        sync: false
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-      - key: DOCUSIGN_API_CLIENT_ID
-        sync: false
-      - key: DOCUSIGN_ACCOUNT_ID
-        sync: false
-      - key: DJANGO_SUPERUSER_EMAIL
-        sync: false # Optional: Set to auto-create admin
-      - key: DJANGO_SUPERUSER_PASSWORD
-        sync: false # Optional: Set to auto-create admin
-    # We don't specify dockerCommand here because we'll use the CMD from Dockerfile
-    # which will point to our start.sh script
-
-databases:
-  - name: neela-db
-    databaseName: neela
-    user: neela
-    plan: free
