@@ -1,5 +1,5 @@
 /**
- * Authentication service for managing user session and token.
+ * Authentication service for managing user session and tokens.
  */
 
 const ACCESS_TOKEN_KEY = 'access_token';
