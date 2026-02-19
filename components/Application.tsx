@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApplicationForm, Listing, Property, TenantStatus } from '../types';
 import { api } from '../services/api';
-import { ArrowLeft, Loader2, BedDouble, Bath } from 'lucide-react';
+import { ArrowLeft, Loader2, BedDouble, Bath, Plus, Trash2 } from 'lucide-react';
 import Modal from './Modal';
 
 export interface UseApplicationReturn {
@@ -45,10 +45,13 @@ export const useApplication = (): UseApplicationReturn => {
       email: '',
       phone: '',
       dateOfBirth: '',
-      currentAddress: '',
+      currentAddressStreet: '',
+      currentAddressCity: '',
+      currentAddressState: '',
+      currentAddressZip: '',
       
       // Occupants
-      otherOccupants: '',
+      otherOccupantsList: [{ name: '', age: '' }],
       hasOtherAdults: null,
       photoIdFiles: [],
       
@@ -59,14 +62,18 @@ export const useApplication = (): UseApplicationReturn => {
       
       // Rental History
       hasRentedRecently: null,
-      previousLandlordInfo: '',
+      previousAddress: '',
+      landlordName: '',
+      landlordContact: '',
       hasEvictionOrFelony: null,
       evictionFelonyExplanation: '',
       
       // Policies & Agreement
       agreesToPolicy: false,
       desiredMoveInDate: '',
-      emergencyContact: '',
+      emergencyContactName: '',
+      emergencyContactRelationship: '',
+      emergencyContactPhone: '',
       additionalNotes: '',
       certificationAgreed: false,
       backgroundCheckFile: null,
@@ -77,10 +84,85 @@ export const useApplication = (): UseApplicationReturn => {
     if (savedDraft) {
       try {
         const parsed = JSON.parse(savedDraft);
+        // Migrate old emergencyContact string to new fields if present
+        let emergencyContactName = parsed.emergencyContactName ?? '';
+        let emergencyContactRelationship = parsed.emergencyContactRelationship ?? '';
+        let emergencyContactPhone = parsed.emergencyContactPhone ?? '';
+        if (!emergencyContactName && !emergencyContactRelationship && !emergencyContactPhone && parsed.emergencyContact) {
+          const parts = String(parsed.emergencyContact).split(',').map((s: string) => s.trim());
+          if (parts.length >= 1) emergencyContactName = parts[0];
+          if (parts.length >= 2) emergencyContactRelationship = parts[1];
+          if (parts.length >= 3) emergencyContactPhone = parts[2];
+        }
+        // Migrate old currentAddress string to new fields if present
+        let currentAddressStreet = parsed.currentAddressStreet ?? '';
+        let currentAddressCity = parsed.currentAddressCity ?? '';
+        let currentAddressState = parsed.currentAddressState ?? '';
+        let currentAddressZip = parsed.currentAddressZip ?? '';
+        if (!currentAddressStreet && !currentAddressCity && !currentAddressState && !currentAddressZip && parsed.currentAddress) {
+          const addrParts = String(parsed.currentAddress).split(',').map((s: string) => s.trim());
+          if (addrParts.length >= 1) currentAddressStreet = addrParts[0];
+          if (addrParts.length >= 2) currentAddressCity = addrParts[1];
+          if (addrParts.length >= 3) {
+            const stateZip = addrParts[2].split(/\s+/);
+            if (stateZip.length >= 2) {
+              currentAddressState = stateZip[0];
+              currentAddressZip = stateZip.slice(1).join(' ');
+            } else {
+              currentAddressState = addrParts[2];
+            }
+          }
+          if (addrParts.length >= 4) currentAddressZip = addrParts[3];
+        }
+        // Migrate old previousLandlordInfo string to new fields if present
+        let previousAddress = parsed.previousAddress ?? '';
+        let landlordName = parsed.landlordName ?? '';
+        let landlordContact = parsed.landlordContact ?? '';
+        if (!previousAddress && !landlordName && !landlordContact && parsed.previousLandlordInfo) {
+          const parts = String(parsed.previousLandlordInfo).split(',').map((s: string) => s.trim());
+          if (parts.length >= 1) previousAddress = parts[0];
+          if (parts.length >= 2) landlordName = parts[1];
+          if (parts.length >= 3) landlordContact = parts[2];
+        }
+        // Migrate old otherOccupants string to otherOccupantsList if present
+        let otherOccupantsList: { name: string; age: string }[] = [{ name: '', age: '' }];
+        if (Array.isArray(parsed.otherOccupantsList) && parsed.otherOccupantsList.length > 0) {
+          otherOccupantsList = parsed.otherOccupantsList.map((o: any) => ({
+            name: (o && typeof o === 'object') ? String(o.name ?? '') : '',
+            age: (o && typeof o === 'object') ? String(o.age ?? '') : '',
+          }));
+        }
+        if (otherOccupantsList.length === 1 && !otherOccupantsList[0]?.name && parsed.otherOccupants && typeof parsed.otherOccupants === 'string') {
+          const raw = parsed.otherOccupants.trim();
+          if (raw) {
+            const parsedList: { name: string; age: string }[] = [];
+            const segments = raw.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean);
+            for (const seg of segments) {
+              const ageMatch = seg.match(/\(age\s*(\d+)\)/i) || seg.match(/\((\d+)\)/);
+              if (ageMatch) {
+                parsedList.push({ name: seg.replace(/\([^)]*\)/, '').trim(), age: ageMatch[1] });
+              } else {
+                parsedList.push({ name: seg, age: '' });
+              }
+            }
+            if (parsedList.length > 0) otherOccupantsList = parsedList;
+          }
+        }
         // Merge with defaults to ensure all fields exist
         return {
           ...defaultForm,
           ...parsed,
+          emergencyContactName,
+          emergencyContactRelationship,
+          emergencyContactPhone,
+          currentAddressStreet,
+          currentAddressCity,
+          currentAddressState,
+          currentAddressZip,
+          previousAddress,
+          landlordName,
+          landlordContact,
+          otherOccupantsList,
           // Ensure arrays are always arrays
           bedroomsDesired: Array.isArray(parsed.bedroomsDesired) ? parsed.bedroomsDesired : [],
           bathroomsDesired: Array.isArray(parsed.bathroomsDesired) ? parsed.bathroomsDesired : [],
@@ -144,10 +226,14 @@ export const useApplication = (): UseApplicationReturn => {
     // Reset form state when opening application
     setApplicationError(null);
     setApplicationSuccess(null);
-    // Pre-fill property address
+    const beds = listing.beds || 2;
+    const baths = listing.baths || 2;
+    // Pre-fill property address and bed/bath from listing
     setFormData(prev => ({
       ...prev,
-      propertyAddress: listing.address || listing.title
+      propertyAddress: listing.address || listing.title,
+      bedroomsDesired: [beds],
+      bathroomsDesired: [baths],
     }));
   };
 
@@ -166,8 +252,8 @@ export const useApplication = (): UseApplicationReturn => {
       return;
     }
     
-    if (!formData.currentAddress) {
-      setApplicationError('Please provide your current address');
+    if (!formData.currentAddressStreet || !formData.currentAddressCity || !formData.currentAddressState || !formData.currentAddressZip) {
+      setApplicationError('Please provide your complete current address (street, city, state, and zip)');
       return;
     }
     
@@ -181,8 +267,19 @@ export const useApplication = (): UseApplicationReturn => {
       return;
     }
     
+    const hasValidOccupant = formData.otherOccupantsList.some(o => o.name.trim() !== '');
+    if (!hasValidOccupant) {
+      setApplicationError('Please provide at least one other occupant (name and age)');
+      return;
+    }
+    
     if (formData.hasRentedRecently === null) {
       setApplicationError('Please indicate if you have rented in the past 2 years');
+      return;
+    }
+    
+    if (formData.hasRentedRecently && (!formData.previousAddress || !formData.landlordName || !formData.landlordContact)) {
+      setApplicationError('Please provide your previous address, landlord name, and landlord contact');
       return;
     }
     
@@ -201,8 +298,8 @@ export const useApplication = (): UseApplicationReturn => {
       return;
     }
     
-    if (!formData.emergencyContact) {
-      setApplicationError('Please provide emergency contact information');
+    if (!formData.emergencyContactName || !formData.emergencyContactRelationship || !formData.emergencyContactPhone) {
+      setApplicationError('Please provide complete emergency contact information (name, relationship, and phone)');
       return;
     }
     
@@ -254,10 +351,13 @@ export const useApplication = (): UseApplicationReturn => {
           firstName: formData.firstName,
           lastName: formData.lastName,
           dateOfBirth: formData.dateOfBirth,
-          currentAddress: formData.currentAddress,
+          currentAddress: `${formData.currentAddressStreet}, ${formData.currentAddressCity}, ${formData.currentAddressState} ${formData.currentAddressZip}`.trim(),
           
           // Occupants
-          otherOccupants: formData.otherOccupants,
+          otherOccupants: formData.otherOccupantsList
+            .filter(o => o.name.trim())
+            .map(o => o.age.trim() ? `${o.name.trim()} (age ${o.age.trim()})` : o.name.trim())
+            .join(', ') || '',
           hasOtherAdults: formData.hasOtherAdults,
           
           // Employment/Income
@@ -266,14 +366,16 @@ export const useApplication = (): UseApplicationReturn => {
           
           // Rental History
           hasRentedRecently: formData.hasRentedRecently,
-          previousLandlordInfo: formData.previousLandlordInfo,
+          previousLandlordInfo: formData.hasRentedRecently 
+            ? `${formData.previousAddress}, ${formData.landlordName}, ${formData.landlordContact}`.trim() 
+            : '',
           hasEvictionOrFelony: formData.hasEvictionOrFelony,
           evictionFelonyExplanation: formData.evictionFelonyExplanation,
           
           // Policies & Agreement
           agreesToPolicy: formData.agreesToPolicy,
           desiredMoveInDate: formData.desiredMoveInDate,
-          emergencyContact: formData.emergencyContact,
+          emergencyContact: `${formData.emergencyContactName}, ${formData.emergencyContactRelationship}, ${formData.emergencyContactPhone}`.trim(),
           additionalNotes: formData.additionalNotes,
           certificationAgreed: formData.certificationAgreed,
         },
@@ -339,10 +441,13 @@ export const useApplication = (): UseApplicationReturn => {
         email: '',
         phone: '',
         dateOfBirth: '',
-        currentAddress: '',
+        currentAddressStreet: '',
+        currentAddressCity: '',
+        currentAddressState: '',
+        currentAddressZip: '',
         
         // Occupants
-        otherOccupants: '',
+        otherOccupantsList: [{ name: '', age: '' }],
         hasOtherAdults: null,
         photoIdFiles: [],
         
@@ -353,14 +458,18 @@ export const useApplication = (): UseApplicationReturn => {
         
         // Rental History
         hasRentedRecently: null,
-        previousLandlordInfo: '',
+        previousAddress: '',
+        landlordName: '',
+        landlordContact: '',
         hasEvictionOrFelony: null,
         evictionFelonyExplanation: '',
         
         // Policies & Agreement
         agreesToPolicy: false,
         desiredMoveInDate: '',
-        emergencyContact: '',
+        emergencyContactName: '',
+        emergencyContactRelationship: '',
+        emergencyContactPhone: '',
         additionalNotes: '',
         certificationAgreed: false,
         backgroundCheckFile: null,
@@ -506,8 +615,18 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                       How many bedrooms do you desire? (Select all that apply)
                     </label>
+                    {selectedListing && (formData.bedroomsDesired || []).sort().join(',') !== [selectedListing.beds || 2].sort().join(',') && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                        This property has <strong>{selectedListing.beds || 2} {selectedListing.beds === 1 ? 'bedroom' : 'bedrooms'}</strong>.
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                      {[1, 2, 3].map(num => {
+                      {(() => {
+                        const propBeds = selectedListing?.beds ?? 2;
+                        const low = selectedListing ? Math.max(1, propBeds - 2) : 1;
+                        const high = selectedListing ? Math.max(propBeds, 1) : 3;
+                        const options = Array.from({ length: high - low + 1 }, (_, i) => low + i);
+                        return options.map(num => {
                         const isChecked = (formData.bedroomsDesired || []).includes(num);
                         return (
                           <label
@@ -533,15 +652,15 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                               }}
                               className="w-5 h-5 sm:w-5 sm:h-5 flex-shrink-0 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
                             />
-                            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                               <BedDouble className={`w-5 h-5 flex-shrink-0 ${isChecked ? 'text-indigo-600' : 'text-slate-400'}`} />
-                              <span className={`font-semibold text-sm sm:text-base truncate ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
+                              <span className={`font-semibold text-sm sm:text-base ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
                                 {num} {num === 1 ? 'Bedroom' : 'Bedrooms'}
                               </span>
                             </div>
                           </label>
                         );
-                      })}
+                      })})()}
                     </div>
                   </div>
                   
@@ -549,8 +668,18 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                       How many bathrooms do you desire? (Select all that apply)
                     </label>
+                    {selectedListing && (formData.bathroomsDesired || []).sort().join(',') !== [selectedListing.baths || 2].sort().join(',') && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                        This property has <strong>{selectedListing.baths || 2} {selectedListing.baths === 1 ? 'bathroom' : 'bathrooms'}</strong>.
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                      {[1, 2, 3].map(num => {
+                      {(() => {
+                        const propBaths = selectedListing?.baths ?? 2;
+                        const low = selectedListing ? Math.max(1, propBaths - 2) : 1;
+                        const high = selectedListing ? Math.max(propBaths, 1) : 3;
+                        const options = Array.from({ length: high - low + 1 }, (_, i) => low + i);
+                        return options.map(num => {
                         const isChecked = (formData.bathroomsDesired || []).includes(num);
                         return (
                           <label
@@ -576,15 +705,15 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                               }}
                               className="w-5 h-5 sm:w-5 sm:h-5 flex-shrink-0 text-indigo-600 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200"
                             />
-                            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
                               <Bath className={`w-5 h-5 flex-shrink-0 ${isChecked ? 'text-indigo-600' : 'text-slate-400'}`} />
-                              <span className={`font-semibold text-sm sm:text-base truncate ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
+                              <span className={`font-semibold text-sm sm:text-base ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
                                 {num} {num === 1 ? 'Bathroom' : 'Bathrooms'}
                               </span>
                             </div>
                           </label>
                         );
-                      })}
+                      })})()}
                     </div>
                   </div>
                 </div>
@@ -663,18 +792,72 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Current Address (Street, City, State, Zip) <span className="text-rose-500">*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
-                      value={formData.currentAddress}
-                      onChange={(e) => setFormData({...formData, currentAddress: e.target.value})}
-                      placeholder="123 Main St, Austin, TX 78701"
-                      required
-                    />
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-slate-700">
+                      Current Address <span className="text-rose-500">*</span>
+                    </p>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Street</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.currentAddressStreet}
+                        onChange={(e) => setFormData({...formData, currentAddressStreet: e.target.value})}
+                        placeholder="e.g., 123 Main St"
+                        required
+                      />
+                    </div>
+                    <div 
+                      className={`overflow-hidden transition-all duration-500 ease-out ${
+                        formData.currentAddressStreet.trim() 
+                          ? 'max-h-[90px] opacity-100 translate-y-0' 
+                          : 'max-h-0 opacity-0 -translate-y-2'
+                      }`}
+                    >
+                      <label className="block text-xs font-medium text-slate-500 mb-1">City</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.currentAddressCity}
+                        onChange={(e) => setFormData({...formData, currentAddressCity: e.target.value})}
+                        placeholder="e.g., Austin"
+                        required={!!formData.currentAddressStreet.trim()}
+                      />
+                    </div>
+                    <div 
+                      className={`overflow-hidden transition-all duration-500 ease-out ${
+                        formData.currentAddressCity.trim() 
+                          ? 'max-h-[90px] opacity-100 translate-y-0' 
+                          : 'max-h-0 opacity-0 -translate-y-2'
+                      }`}
+                    >
+                      <label className="block text-xs font-medium text-slate-500 mb-1">State</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.currentAddressState}
+                        onChange={(e) => setFormData({...formData, currentAddressState: e.target.value})}
+                        placeholder="e.g., TX"
+                        required={!!formData.currentAddressCity.trim()}
+                      />
+                    </div>
+                    <div 
+                      className={`overflow-hidden transition-all duration-500 ease-out ${
+                        formData.currentAddressState.trim() 
+                          ? 'max-h-[90px] opacity-100 translate-y-0' 
+                          : 'max-h-0 opacity-0 -translate-y-2'
+                      }`}
+                    >
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Zip Code</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.currentAddressZip}
+                        onChange={(e) => setFormData({...formData, currentAddressZip: e.target.value})}
+                        placeholder="e.g., 78701"
+                        required={!!formData.currentAddressState.trim()}
+                      />
+                    </div>
                   </div>
                 </div>
                 
@@ -683,16 +866,61 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                   <h3 className="font-semibold text-slate-800 text-lg border-b pb-2">Occupants</h3>
                   
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-3">
                       Names of All Other Occupants (Include ages of minors) <span className="text-rose-500">*</span>
                     </label>
-                    <textarea 
-                      className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
-                      value={formData.otherOccupants}
-                      onChange={(e) => setFormData({...formData, otherOccupants: e.target.value})}
-                      placeholder="e.g., Jane Doe (age 5), John Doe (age 8)"
-                      rows={3}
-                    />
+                    <div className="space-y-3">
+                      {formData.otherOccupantsList.map((occupant, index) => (
+                        <div key={index} className="flex flex-wrap items-end gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="flex-1 min-w-[120px]">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                            <input 
+                              type="text" 
+                              className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
+                              value={occupant.name}
+                              onChange={(e) => {
+                                const updated = [...formData.otherOccupantsList];
+                                updated[index] = { ...updated[index], name: e.target.value };
+                                setFormData({ ...formData, otherOccupantsList: updated });
+                              }}
+                              placeholder="e.g., Jane Doe"
+                            />
+                          </div>
+                          <div className="w-24 flex-shrink-0">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Age</label>
+                            <input 
+                              type="text" 
+                              className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
+                              value={occupant.age}
+                              onChange={(e) => {
+                                const updated = [...formData.otherOccupantsList];
+                                updated[index] = { ...updated[index], age: e.target.value };
+                                setFormData({ ...formData, otherOccupantsList: updated });
+                              }}
+                              placeholder="e.g., 5"
+                            />
+                          </div>
+                          {formData.otherOccupantsList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, otherOccupantsList: formData.otherOccupantsList.filter((_, i) => i !== index) })}
+                              className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                              aria-label="Remove occupant"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, otherOccupantsList: [...formData.otherOccupantsList, { name: '', age: '' }] })}
+                        className="flex items-center gap-2 px-4 py-2.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-lg font-medium transition-all duration-200"
+                      >
+                        <Plus className="w-5 h-5" />
+                        Add another occupant
+                      </button>
+                    </div>
                   </div>
                   
                   <div>
@@ -833,17 +1061,52 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                   </div>
                   
                   {formData.hasRentedRecently && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-slate-700">
                         If yes, provide your previous address and landlord name/contact
-                      </label>
-                      <textarea 
-                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
-                        value={formData.previousLandlordInfo}
-                        onChange={(e) => setFormData({...formData, previousLandlordInfo: e.target.value})}
-                        placeholder="Previous address and landlord contact"
-                        rows={3}
-                      />
+                      </p>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Previous Address</label>
+                        <input 
+                          type="text" 
+                          className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                          value={formData.previousAddress}
+                          onChange={(e) => setFormData({...formData, previousAddress: e.target.value})}
+                          placeholder="e.g., 123 Oak St, Austin, TX 78701"
+                        />
+                      </div>
+                      <div 
+                        className={`overflow-hidden transition-all duration-500 ease-out ${
+                          formData.previousAddress.trim() 
+                            ? 'max-h-[90px] opacity-100 translate-y-0' 
+                            : 'max-h-0 opacity-0 -translate-y-2'
+                        }`}
+                      >
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Landlord Name</label>
+                        <input 
+                          type="text" 
+                          className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                          value={formData.landlordName}
+                          onChange={(e) => setFormData({...formData, landlordName: e.target.value})}
+                          placeholder="e.g., John Smith"
+                        />
+                      </div>
+                      <div 
+                        className={`overflow-hidden transition-all duration-500 ease-out ${
+                          formData.landlordName.trim() 
+                            ? 'max-h-[90px] opacity-100 translate-y-0' 
+                            : 'max-h-0 opacity-0 -translate-y-2'
+                        }`}
+                      >
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Landlord Contact (Phone or Email)</label>
+                        <input 
+                          type="text" 
+                          className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                          value={formData.landlordContact}
+                          onChange={(e) => setFormData({...formData, landlordContact: e.target.value})}
+                          placeholder="e.g., (555) 123-4567 or email@example.com"
+                        />
+                      </div>
                     </div>
                   )}
                   
@@ -922,18 +1185,55 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Emergency Contact (Name, Relationship, Phone) <span className="text-rose-500">*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
-                      value={formData.emergencyContact}
-                      onChange={(e) => setFormData({...formData, emergencyContact: e.target.value})}
-                      placeholder="e.g., Mary Smith, Sister, (555) 123-4567"
-                      required
-                    />
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-slate-700">
+                      Emergency Contact <span className="text-rose-500">*</span>
+                    </p>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.emergencyContactName}
+                        onChange={(e) => setFormData({...formData, emergencyContactName: e.target.value})}
+                        placeholder="e.g., Mary Smith"
+                        required
+                      />
+                    </div>
+                    <div 
+                      className={`overflow-hidden transition-all duration-500 ease-out ${
+                        formData.emergencyContactName.trim() 
+                          ? 'max-h-[90px] opacity-100 translate-y-0' 
+                          : 'max-h-0 opacity-0 -translate-y-2'
+                      }`}
+                    >
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Relationship</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.emergencyContactRelationship}
+                        onChange={(e) => setFormData({...formData, emergencyContactRelationship: e.target.value})}
+                        placeholder="e.g., Sister, Mother, Friend"
+                        required={!!formData.emergencyContactName.trim()}
+                      />
+                    </div>
+                    <div 
+                      className={`overflow-hidden transition-all duration-500 ease-out ${
+                        formData.emergencyContactRelationship.trim() 
+                          ? 'max-h-[90px] opacity-100 translate-y-0' 
+                          : 'max-h-0 opacity-0 -translate-y-2'
+                      }`}
+                    >
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Phone</label>
+                      <input 
+                        type="tel" 
+                        className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                        value={formData.emergencyContactPhone}
+                        onChange={(e) => setFormData({...formData, emergencyContactPhone: e.target.value})}
+                        placeholder="e.g., (555) 123-4567"
+                        required={!!formData.emergencyContactRelationship.trim()}
+                      />
+                    </div>
                   </div>
                   
                   <div>

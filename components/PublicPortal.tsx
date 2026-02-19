@@ -9,12 +9,14 @@ import { usePayments, PaymentModal, renderPaymentInstructions, PaymentSubTab, Pa
 import { useApplication, ApplicationFormView } from './Application';
 import { Listings } from './Listings';
 import { StatusTracker, StatusTrackerView } from './Status';
+import { OnboardingTour } from './OnboardingTour';
+import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
 import { 
   MapPin, BedDouble, Bath, Maximize, Check, ArrowLeft, 
   FileText, Save, Send, User, FileSignature, Download, 
   CreditCard, Clock, AlertCircle, Building2, PenTool,
   Bell, Smartphone, Banknote, Image as ImageIcon, Loader2, X,
-  MessageSquare, History, FileCheck, Mail, Lock, LogIn, ChevronRight,
+  MessageSquare, History, FileCheck, Mail, Lock, LogIn, ChevronRight, Upload,
   Wallet, DollarSign, Copy, Info, RefreshCw, Search, Shield, CheckCircle, CheckCircle2,
   Home, Calendar, ShieldCheck, Users, FileLock, Zap, Sparkles, ChevronDown,
   Building, House, Key, Star, Eye, Phone, Settings, HelpCircle,
@@ -142,8 +144,14 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const [maintenanceImagePreviews, setMaintenanceImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [proofFilesForMethod, setProofFilesForMethod] = useState<File[]>([]);
+  const [isSubmittingProofForMethod, setIsSubmittingProofForMethod] = useState(false);
+  const [proofUploadErrorForMethod, setProofUploadErrorForMethod] = useState<string | null>(null);
+  const [proofUploadSuccessForMethod, setProofUploadSuccessForMethod] = useState<string | null>(null);
+
   const [documents, setDocuments] = useState<any[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   const [leaseDocument, setLeaseDocument] = useState<any | null>(null);
   const [loadingLease, setLoadingLease] = useState(false);
@@ -156,6 +164,21 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   useEffect(() => {
     if (activeTab !== 'documents') setDocumentOpenError(null);
   }, [activeTab]);
+
+  // First-time onboarding for residents
+  useEffect(() => {
+    if (view === 'dashboard' && userStatus === 'resident' && !loadingTenant) {
+      if (!getOnboardingCompleted()) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [view, userStatus, loadingTenant]);
+
+  useEffect(() => {
+    setProofFilesForMethod([]);
+    setProofUploadErrorForMethod(null);
+    setProofUploadSuccessForMethod(null);
+  }, [selectedPaymentMethod]);
   
   useEffect(() => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -749,6 +772,24 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
         {(view === 'dashboard') && (
           <div className="max-w-7xl mx-auto w-full px-4 md:px-8 py-8 animate-fadeIn pb-20">
+            {showOnboarding && userStatus === 'resident' && (
+              <OnboardingTour
+                steps={getOnboardingSteps(daysUntilDue, residentBalance, showMaintenanceForm)}
+                isActive={showOnboarding}
+                onComplete={() => {
+                  setOnboardingCompleted(true);
+                  setShowOnboarding(false);
+                }}
+                onSkip={() => {
+                  setOnboardingCompleted(true);
+                  setShowOnboarding(false);
+                }}
+                currentTab={activeTab}
+                onTabChange={(tab) => setActiveTab(tab as ResidentTab)}
+                paymentSubTab={paymentSubTab}
+                onPaymentSubTabChange={setPaymentSubTab}
+              />
+            )}
             {showPaymentModal && (
               <PaymentModal
                 showPaymentModal={showPaymentModal}
@@ -764,7 +805,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
             )}
             
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 lg:mb-10 gap-4 sm:gap-0">
-              <div className="w-full sm:w-auto">
+              <div className="w-full sm:w-auto" data-onboarding="welcome-header">
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">
                   {userStatus === 'resident' 
                     ? `Welcome Home, ${currentUser?.first_name || currentTenant?.name?.split(' ')[0] || 'Resident'}` 
@@ -790,7 +831,20 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                 )}
                 {userStatus === 'resident' && (
                   <>
-                    <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOnboardingCompleted(false);
+                        setShowOnboarding(true);
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-xs sm:text-sm font-medium"
+                      title="Take a tour of the dashboard"
+                      aria-label="Take tour"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      <span className="hidden sm:inline">Take Tour</span>
+                    </button>
+                    <div className="relative" data-onboarding="notifications-bell">
                       <button
                         type="button"
                         onClick={() => {
@@ -814,6 +868,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         setCurrentTenant(null);
                       }}
                       className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200"
+                      data-onboarding="logout-button"
                     >
                       <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-180" />
                       Log out
@@ -879,6 +934,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as ResidentTab)}
+                      data-onboarding={tab.id === 'overview' ? 'overview-tab' : tab.id === 'payments' ? 'payments-tab' : tab.id === 'maintenance' ? 'maintenance-tab' : tab.id === 'documents' ? 'documents-tab' : undefined}
                       className={`
                         flex items-center px-4 sm:px-6 lg:px-8 py-3 sm:py-4 text-xs sm:text-sm font-semibold border-b-2 transition-all duration-300 whitespace-nowrap flex-shrink-0
                         ${activeTab === tab.id 
@@ -895,7 +951,9 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                 {activeTab === 'overview' && (
                   <div className="space-y-8 animate-fadeIn">
                     {daysUntilDue <= 3 && residentBalance > 0 && (
-                        <div className={`
+                        <div
+                        data-onboarding="rent-alert"
+                        className={`
                         p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border-l-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 backdrop-blur-sm
                         ${daysUntilDue < 0 ? 'bg-red-50/80 border-red-500 text-red-900' : 
                           daysUntilDue === 0 ? 'bg-orange-50/80 border-orange-500 text-orange-900' : 
@@ -929,7 +987,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                      <div className="bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+                      <div className="bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300" data-onboarding="current-balance">
                         <div className="flex items-center justify-between mb-4 sm:mb-6">
                           <h3 className="font-semibold text-gray-500 text-sm sm:text-base">Current Balance</h3>
                           <div className="p-2 sm:p-2.5 bg-emerald-50 rounded-lg">
@@ -951,7 +1009,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                          </button>
                       </div>
                       
-                      <div className="bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+                      <div className="bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300" data-onboarding="lease-status">
                         <div className="flex items-center justify-between mb-4 sm:mb-6">
                           <h3 className="font-semibold text-gray-500 text-sm sm:text-base">Lease Status</h3>
                           <div className="p-2 sm:p-2.5 bg-blue-50 rounded-lg">
@@ -1005,6 +1063,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         <div className="space-y-3 sm:space-y-4">
                           <button 
                             onClick={() => setActiveTab('maintenance')} 
+                            data-onboarding="quick-actions-request-repair"
                             className="w-full py-2.5 sm:py-3 lg:py-3.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl font-medium border border-gray-200 hover:border-gray-300 transition-all duration-200 flex items-center justify-center group text-sm sm:text-base"
                           >
                             <PenTool className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-orange-500 group-hover:scale-110 transition-transform" /> 
@@ -1012,15 +1071,29 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                          </button>
                           <button 
                             onClick={() => setActiveTab('documents')} 
+                            data-onboarding="quick-actions-message-manager"
                             className="w-full py-2.5 sm:py-3 lg:py-3.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl font-medium border border-gray-200 hover:border-gray-300 transition-all duration-200 flex items-center justify-center group text-sm sm:text-base"
                           >
                             <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-blue-500 group-hover:scale-110 transition-transform" /> 
                             Message Manager
                          </button>
+                          <button 
+                            onClick={() => { setActiveTab('payments'); setPaymentSubTab('payment-options'); setShowPaymentModal(true); }} 
+                            disabled={residentBalance === 0}
+                            data-onboarding="quick-actions-upload-proof"
+                            className={`w-full py-2.5 sm:py-3 lg:py-3.5 rounded-lg sm:rounded-xl font-medium border border-gray-200 transition-all duration-200 flex items-center justify-center group text-sm sm:text-base ${
+                              residentBalance === 0 
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' 
+                                : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:border-gray-300 border-gray-200'
+                            }`}
+                          >
+                            <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-emerald-500 group-hover:scale-110 transition-transform" /> 
+                            Upload proof of payment
+                         </button>
                         </div>
                       </div>
 
-                      <div id="notifications-section" className="sm:col-span-2 lg:col-span-3 bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100">
+                      <div id="notifications-section" data-onboarding="notifications-section" className="sm:col-span-2 lg:col-span-3 bg-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl shadow-lg border border-gray-100">
                         <h3 className="font-semibold text-gray-500 mb-4 sm:mb-6 text-sm sm:text-base">Notifications</h3>
                         <div className="space-y-3 sm:space-y-4 lg:space-y-5">
                             {notifications.map(n => (
@@ -1046,6 +1119,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     <div className="border-b border-gray-200 overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
                       <nav className="-mb-px flex space-x-4 sm:space-x-6 lg:space-x-10">
                            <button
+                              data-onboarding="payment-history-subtab"
                               onClick={() => {
                                  setPaymentSubTab('history');
                                  setSelectedPaymentMethod(null);
@@ -1061,6 +1135,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                               Payment History
                            </button>
                            <button
+                              data-onboarding="payment-options-subtab"
                               onClick={() => {
                                  setPaymentSubTab('payment-options');
                                  setSelectedPaymentMethod(null);
@@ -1080,7 +1155,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
                     {paymentSubTab === 'history' && (
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                        <div className="lg:col-span-2 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                        <div className="lg:col-span-2 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden" data-onboarding="payment-history-table">
                           <div className="p-4 sm:p-5 lg:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-gray-900 flex items-center text-sm sm:text-base">
                               <History className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3"/> Payment History
@@ -1145,7 +1220,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </div>
 
                         <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-                          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl sm:rounded-2xl p-6 sm:p-7 lg:p-8 text-white shadow-2xl">
+                          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl sm:rounded-2xl p-6 sm:p-7 lg:p-8 text-white shadow-2xl" data-onboarding="total-balance-payments">
                             <p className="text-blue-200 text-xs sm:text-sm font-medium mb-1 sm:mb-2">Total Balance</p>
                             <p className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 sm:mb-8">${residentBalance}.00</p>
                             <div className="space-y-3 sm:space-y-4">
@@ -1182,7 +1257,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-5 sm:p-6 lg:p-8">
+                          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-5 sm:p-6 lg:p-8" data-onboarding="digital-payments-section">
                             <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
                               <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-blue-600" />
                               Digital Payments
@@ -1212,7 +1287,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                             </div>
                           </div>
 
-                          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-5 sm:p-6 lg:p-8">
+                          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-5 sm:p-6 lg:p-8" data-onboarding="cash-payments-section">
                             <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
                               <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-emerald-600" />
                               Cash Payments
@@ -1229,6 +1304,14 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                               <div className="text-xs sm:text-sm text-gray-500">Physical cash payment instructions</div>
                             </button>
                           </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 p-5 sm:p-6 lg:p-8" data-onboarding="upload-proof-section">
+                          <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3 flex items-center">
+                            <Upload className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-emerald-600" />
+                            Upload Proof of Payment
+                          </h4>
+                          <p className="text-gray-600 text-sm sm:text-base">After paying by any method above, select the method you used to see instructions and attach a screenshot or receipt. The manager will review and confirm.</p>
                         </div>
 
                         {selectedPaymentMethod && (
@@ -1252,6 +1335,65 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                               </button>
                             </div>
                             {selectedPaymentMethod && renderPaymentInstructions({ method: selectedPaymentMethod, residentBalance })}
+                            <div className="mt-6 pt-6 border-t border-gray-200">
+                              <h5 className="font-semibold text-gray-900 mb-3 flex items-center">
+                                <Upload className="w-4 h-4 mr-2 text-emerald-600" />
+                                Upload proof of payment
+                              </h5>
+                              <p className="text-sm text-gray-500 mb-3">Attach screenshots or receipts of your payment</p>
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                multiple
+                                onChange={(e) => {
+                                  setProofFilesForMethod(Array.from(e.target.files || []));
+                                  setProofUploadErrorForMethod(null);
+                                  setProofUploadSuccessForMethod(null);
+                                }}
+                                className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 file:font-medium hover:file:bg-emerald-100 mb-3"
+                              />
+                              {proofFilesForMethod.length > 0 && (
+                                <p className="text-xs text-gray-500 mb-3">{proofFilesForMethod.length} file(s) selected</p>
+                              )}
+                              <button
+                                type="button"
+                                disabled={!(currentTenant?.id || tenantId) || residentBalance <= 0 || proofFilesForMethod.length === 0 || isSubmittingProofForMethod}
+                                onClick={async () => {
+                                  const tenantIdToUse = currentTenant?.id || tenantId;
+                                  if (!tenantIdToUse || residentBalance <= 0 || proofFilesForMethod.length === 0) return;
+                                  const methodDisplayNames: Record<string, string> = {
+                                    zelle: 'Zelle', cashapp: 'CashApp', venmo: 'Venmo', applepay: 'Apple Pay',
+                                    ach: 'ACH', card: 'Credit/Debit Card', cash: 'Cash',
+                                  };
+                                  const methodName = methodDisplayNames[selectedPaymentMethod!] || selectedPaymentMethod;
+                                  setIsSubmittingProofForMethod(true);
+                                  setProofUploadErrorForMethod(null);
+                                  setProofUploadSuccessForMethod(null);
+                                  try {
+                                    await submitPaymentWithProof({
+                                      amount: residentBalance,
+                                      method: methodName,
+                                      type: 'Rent',
+                                      date: new Date().toISOString().split('T')[0],
+                                      proofFiles: proofFilesForMethod,
+                                    });
+                                    setProofUploadSuccessForMethod('Proof of payment submitted. The property manager will review and confirm.');
+                                    setProofFilesForMethod([]);
+                                    setTimeout(() => setProofUploadSuccessForMethod(null), 5000);
+                                  } catch (e) {
+                                    setProofUploadErrorForMethod(e instanceof Error ? e.message : 'Failed to submit');
+                                  } finally {
+                                    setIsSubmittingProofForMethod(false);
+                                  }
+                                }}
+                                className="w-full py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                              >
+                                {isSubmittingProofForMethod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                {isSubmittingProofForMethod ? 'Submitting...' : 'Submit proof of payment'}
+                              </button>
+                              {proofUploadErrorForMethod && <p className="mt-2 text-sm text-rose-600">{proofUploadErrorForMethod}</p>}
+                              {proofUploadSuccessForMethod && <p className="mt-2 text-sm text-emerald-600 font-medium">{proofUploadSuccessForMethod}</p>}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1264,6 +1406,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
                       <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance Requests</h2>
                       <button 
+                        data-onboarding="new-request-button"
                         onClick={() => {
                           if (showMaintenanceForm) {
                             setMaintenanceDesc('');
@@ -1284,7 +1427,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     </div>
 
                     {showMaintenanceForm && (
-                      <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 animate-slideIn border-l-4 border-l-blue-500">
+                      <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl border border-gray-200 animate-slideIn border-l-4 border-l-blue-500" data-onboarding="maintenance-form">
                         <h3 className="font-bold text-gray-900 text-lg sm:text-xl mb-4 sm:mb-6">Submit New Ticket</h3>
                         <div className="space-y-4 sm:space-y-6 max-w-2xl">
                           <div>
@@ -1418,7 +1561,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       </div>
                     )}
 
-                    <div className="space-y-6">
+                    <div className="space-y-6" data-onboarding="my-tickets-list">
                         {myTickets.length === 0 && !showMaintenanceForm && (
                         <div className="bg-white p-12 rounded-2xl shadow-lg border border-gray-200 text-center">
                           <PenTool className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -1489,7 +1632,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                 {activeTab === 'documents' && (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
                     <div className="lg:col-span-2 space-y-8">
-                      <h3 className="font-bold text-gray-900 text-xl">Official Documents & Notices</h3>
+                      <h3 className="font-bold text-gray-900 text-xl" data-onboarding="official-documents-section">Official Documents & Notices</h3>
                       {documentOpenError && (
                         <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm flex items-center gap-2">
                           <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1502,12 +1645,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                           <p className="text-gray-500 text-sm">Loading documents...</p>
                            </div>
                          ) : documents.length === 0 ? (
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12 text-center text-gray-500 text-sm">
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12 text-center text-gray-500 text-sm" data-onboarding="document-list">
                           <FileCheck className="w-14 h-14 mx-auto mb-4 text-gray-300" />
                              <p>No documents available at this time.</p>
                            </div>
                          ) : (
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden" data-onboarding="document-list">
                               {documents.map((doc) => {
                                 const docDate = doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
                                 const docType = doc.type || 'Document';
@@ -1576,7 +1719,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                            </div>
                          )}
 
-                      <h3 className="font-bold text-gray-900 text-xl pt-6">Notice Archive</h3>
+                      <h3 className="font-bold text-gray-900 text-xl pt-6" data-onboarding="notice-archive">Notice Archive</h3>
                       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-10 text-center text-gray-500 text-sm">
                         <FileCheck className="w-14 h-14 mx-auto mb-4 text-gray-300" />
                             <p>You have no active compliance notices or lease violations.</p>
@@ -1584,7 +1727,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       </div>
 
                     <div className="space-y-8">
-                      <div className="bg-white p-7 rounded-2xl shadow-lg border border-gray-200">
+                      <div className="bg-white p-7 rounded-2xl shadow-lg border border-gray-200" data-onboarding="contact-manager-section">
                         <h3 className="font-bold text-gray-900 text-lg mb-6 flex items-center">
                           <Mail className="w-5 h-5 mr-3"/> Contact Manager
                         </h3>
