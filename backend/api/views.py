@@ -5,11 +5,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import *
 from .serializers import *
 from .lease_service import generate_lease_pdf, save_lease_document
-from .docusign_service import *
-try:
-    from docusign_esign.client.api_exception import ApiException as DocusignApiException
-except Exception:
-    DocusignApiException = Exception
+from .dropbox_sign_service import (
+    is_dropbox_sign_configured,
+    get_dropbox_sign_config_status,
+    create_signature_request,
+)
 from .email_service import *
 from accounts.user_service import *
 from django.utils import timezone
@@ -141,14 +141,6 @@ def contact_manager(request):
         return Response({'error': 'Failed to send message'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Note: OAuth callback and token refresh functions removed - using JWT authentication instead
-# JWT authentication is handled automatically by get_docusign_api_client() in docusign_service.py
-
-class DocuSignViewSet(viewsets.ViewSet):
-    @action(detail=False, methods=['get'])
-    def callback(self, request):
-        code = request.GET.get('code')
-        return Response({"message": "Consent granted", "code": code})
-
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
@@ -706,7 +698,7 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             # Save document
             legal_doc = save_lease_document(tenant, pdf_buffer, filled_content)
             
-            # Note: Email will be sent when DocuSign envelope is created (in send_docusign action)
+            # Note: Email will be sent when Dropbox Sign request is created (in send_dropbox_sign action)
             # Do not send email here - wait until envelope is successfully created
             
             # Serialize and return
@@ -820,11 +812,15 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
     
     # Usage in your LegalDocumentViewSet
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='send_docusign')
     def send_docusign(self, request, pk=None):
+        """Alias for send_dropbox_sign (backward compatibility)."""
+        return self.send_dropbox_sign(request, pk)
+
+    @action(detail=True, methods=['post'], url_path='send_dropbox_sign')
+    def send_dropbox_sign(self, request, pk=None):
         """
-        Send lease document via DocuSign for e-signature.
-        Uses JWT authentication for server-to-server integration.
+        Send lease document via Dropbox Sign for e-signature.
         """
         try:
             legal_doc = self.get_object()
@@ -835,28 +831,17 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Check if DocuSign is configured
-            from .docusign_service import is_docusign_configured, get_docusign_config_status
-            if not is_docusign_configured():
-                config_status = get_docusign_config_status()
-                error_message = 'DocuSign is not configured. Missing required configuration keys: '
-                error_message += ', '.join(config_status['missing_keys'])
-                
-                # In DEBUG mode, add more details
+            if not is_dropbox_sign_configured():
+                config_status = get_dropbox_sign_config_status()
+                error_message = 'Dropbox Sign is not configured. Set DROPBOX_SIGN_API_KEY.'
+                if config_status.get('missing_keys'):
+                    error_message += ' Missing: ' + ', '.join(config_status['missing_keys'])
                 if settings.DEBUG:
-                    error_details = {
-                        'error': error_message,
-                        'missing_keys': config_status['missing_keys'],
-                        'present_keys': config_status['present_keys'],
-                    }
-                    logger.error(f"DocuSign configuration check failed. Missing: {config_status['missing_keys']}")
-                    return Response(error_details, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-                else:
-                    logger.error(f"DocuSign configuration check failed. Missing keys: {config_status['missing_keys']}")
                     return Response(
-                        {'error': error_message},
+                        {'error': error_message, 'missing_keys': config_status.get('missing_keys', [])},
                         status=status.HTTP_503_SERVICE_UNAVAILABLE
                     )
+                return Response({'error': error_message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
             # Get PDF URL
             request_obj = request._request if hasattr(request, '_request') else request
@@ -910,7 +895,7 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                             
                             if not pdf_content:
                                 logger.error("All retrieval attempts failed for Cloudinary file.")
-                                logger.error("Cloudinary retrieval failed; refusing to fall back to pdf_file.url for DocuSign.")
+                                logger.error("Cloudinary retrieval failed; refusing to fall back to pdf_file.url for Dropbox Sign.")
                             else:
                                 logger.info(f"Successfully downloaded {len(pdf_content)} bytes from Cloudinary")
                         else:
@@ -919,93 +904,62 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f"Could not read PDF file directly: {e}")
             
-            # If we failed to get content but have a URL, we can still try to let DocuSign download it
-            # BUT: DocuSign needs a public URL. Cloudinary raw/private URLs might not work if they expire quickly or need auth headers not supported by DocuSign fetch.
-            # AND: We prefer sending base64 content.
-            
             if not pdf_content:
                 return Response(
                     {'error': 'Could not retrieve PDF bytes from storage (Cloudinary access control).'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            # Create DocuSign envelope (uses JWT authentication automatically)
             try:
-                logger.info(f"Creating DocuSign envelope for legal document {legal_doc.id}")
-                
-                # Get landlord details from settings
+                logger.info(f"Creating Dropbox Sign signature request for legal document {legal_doc.id}")
                 landlord_email = getattr(settings, 'LANDLORD_EMAIL', None) or 'admin@example.com'
-                landlord_name = getattr(settings, 'LANDLORD_NAME', None) or 'Rosa Martinez'
-                
-                result = create_envelope(
-                    legal_document_id=legal_doc.id,
+                landlord_name = getattr(settings, 'LANDLORD_NAME', None) or 'Landlord'
+
+                result = create_signature_request(
                     tenant_email=legal_doc.tenant.email,
                     tenant_name=legal_doc.tenant.name,
+                    pdf_content=pdf_content,
+                    document_name=f"Lease Agreement - {legal_doc.tenant.name}",
                     landlord_email=landlord_email,
                     landlord_name=landlord_name,
-                    pdf_url=pdf_url,
-                    pdf_content=pdf_content
                 )
-                
+
                 if not result:
                     return Response(
-                        {'error': 'Failed to create DocuSign envelope. Check server logs for details.'},
+                        {'error': 'Failed to create Dropbox Sign signature request. Check server logs.'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
-            except DocusignApiException as e:
-                logger.error(f"DocuSign API error while creating envelope: {e}", exc_info=True)
-                # Map DocuSign API status codes to HTTP responses
-                status_code = getattr(e, 'status', None)
-                if status_code == 401:
-                    return Response(
-                        {'error': 'DocuSign authentication failed (401). Ensure consent is granted for the correct user and try again.'},
-                        status=status.HTTP_401_UNAUTHORIZED
-                    )
-                return Response(
-                    {'error': 'DocuSign API error', 'details': str(getattr(e, 'body', e))},
-                    status=status_code or status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
             except Exception as e:
-                logger.error(f"Error creating DocuSign envelope: {e}", exc_info=True)
-                error_message = str(e)
-                # Provide more helpful error messages
-                if '401' in error_message or 'Unauthorized' in error_message:
-                    return Response(
-                        {'error': 'DocuSign authentication failed. Please check your API credentials and ensure consent has been granted.'},
-                        status=status.HTTP_401_UNAUTHORIZED
-                    )
+                logger.error(f"Error creating Dropbox Sign request: {e}", exc_info=True)
                 return Response(
-                    {'error': f'Failed to create DocuSign envelope: {error_message}'},
+                    {'error': f'Failed to create Dropbox Sign request: {str(e)}'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            # Update legal document with envelope info
-            legal_doc.docusign_envelope_id = result.get('envelope_id')
-            legal_doc.docusign_signing_url = result.get('signing_url')
+            legal_doc.dropbox_sign_signature_request_id = result.get('signature_request_id')
+            legal_doc.dropbox_sign_signing_url = result.get('signing_url')
             legal_doc.status = 'Sent'
-            legal_doc.delivery_method = 'DocuSign'
+            legal_doc.delivery_method = 'Dropbox Sign'
             legal_doc.save()
-            
-            # Update tenant lease status
+
             legal_doc.tenant.lease_status = 'Sent'
             legal_doc.tenant.save()
 
-            # Optionally send notification email
             try:
-                from .email_service import send_lease_docusign_notification
-                task = send_lease_docusign_notification.delay(legal_doc.id)
-                logger.info(f"DocuSign notification email task submitted to Celery: {task.id}")
+                from .email_service import send_lease_dropbox_sign_notification
+                task = send_lease_dropbox_sign_notification.delay(legal_doc.id)
+                logger.info(f"Dropbox Sign notification email task submitted: {task.id}")
             except Exception as e:
-                logger.warning(f"Celery failed, sending DocuSign notification synchronously: {e}")
-                send_lease_docusign_notification(legal_doc.id)
+                logger.warning(f"Celery failed, sending Dropbox Sign notification synchronously: {e}")
+                send_lease_dropbox_sign_notification(legal_doc.id)
 
             serializer = self.get_serializer(legal_doc)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Unexpected error sending lease via DocuSign: {e}", exc_info=True)
+            logger.error(f"Unexpected error sending lease via Dropbox Sign: {e}", exc_info=True)
             return Response(
-                {'error': f'Failed to send lease via DocuSign: {str(e)}'},
+                {'error': f'Failed to send lease via Dropbox Sign: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -1056,17 +1010,17 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'])
     def check_status(self, request, pk=None):
         """
-        Check DocuSign envelope status and update local status.
+        Check Dropbox Sign signature request status and update local status.
         """
-        from .lease_service import process_docusign_status_update
-        
+        from .lease_service import process_dropbox_sign_status_update
+
         legal_doc = self.get_object()
-        
-        if not legal_doc.docusign_envelope_id:
-             return Response({'status': legal_doc.status, 'message': 'No envelope ID found'})
+
+        if not legal_doc.dropbox_sign_signature_request_id:
+            return Response({'status': legal_doc.status, 'message': 'No signature request ID found'})
 
         try:
-            result = process_docusign_status_update(legal_doc)
+            result = process_dropbox_sign_status_update(legal_doc)
             
             if 'errors' in result:
                 logger.warning(f"Partial errors during status update: {result['errors']}")
@@ -1080,30 +1034,30 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             return Response(data)
             
         except Exception as e:
-            logger.error(f"Error checking DocuSign status: {e}", exc_info=True)
+            logger.error(f"Error checking Dropbox Sign status: {e}", exc_info=True)
             return Response(
                 {'error': f'Failed to check status: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
     def perform_update(self, serializer):
         old_instance = self.get_object()
-        old_docusign_signing_url = old_instance.docusign_signing_url
+        old_signing_url = old_instance.dropbox_sign_signing_url
         old_signed_at = old_instance.signed_at
-        
+
         legal_doc = serializer.save()
-        new_docusign_signing_url = legal_doc.docusign_signing_url
+        new_signing_url = legal_doc.dropbox_sign_signing_url
         new_signed_at = legal_doc.signed_at
-        
-        # If DocuSign URL is added, send notification
-        if not old_docusign_signing_url and new_docusign_signing_url:
+
+        if not old_signing_url and new_signing_url:
             try:
-                task = send_lease_docusign_notification.delay(legal_doc.id)
-                logger.info(f"DocuSign notification task submitted to Celery: {task.id}")
+                from .email_service import send_lease_dropbox_sign_notification
+                send_lease_dropbox_sign_notification.delay(legal_doc.id)
+                logger.info("Dropbox Sign notification task submitted")
             except Exception as e:
-                logger.warning(f"Celery connection failed, using threading fallback for DocuSign notification: {e}")
-                send_lease_docusign_notification(legal_doc.id)
+                logger.warning(f"Celery failed, sending Dropbox Sign notification synchronously: {e}")
+                from .email_service import send_lease_dropbox_sign_notification
+                send_lease_dropbox_sign_notification(legal_doc.id)
         
         # If lease is signed (signed_at is set), send confirmation
         if not old_signed_at and new_signed_at:

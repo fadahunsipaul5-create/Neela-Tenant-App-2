@@ -773,30 +773,29 @@ export const api = {
     return await response.json();
   },
 
-  // Send lease via DocuSign
+  // Send lease via Dropbox Sign
   sendLeaseDocuSign: async (legalDocumentId: string, createDraft: boolean = false): Promise<any> => {
-    // Use auth-aware fetch to refresh tokens if needed
     const response = await fetchWithAuth(
-      `${API_URL}/legal-documents/${legalDocumentId}/send_docusign/`,
+      `${API_URL}/legal-documents/${legalDocumentId}/send_dropbox_sign/`,
       {
         method: 'POST',
-        headers: getHeaders(true, true), // Need JSON content type
+        headers: getHeaders(true, true),
         body: JSON.stringify({ create_draft: createDraft }),
       }
     );
     if (!response.ok) {
-      let error: any = { detail: 'Failed to send lease via DocuSign' };
+      let error: any = { detail: 'Failed to send lease via Dropbox Sign' };
       try {
         error = await response.json();
       } catch {
         // keep default
       }
-      throw new Error(error.detail || error.message || 'Failed to send lease via DocuSign');
+      throw new Error(error.detail || error.message || 'Failed to send lease via Dropbox Sign');
     }
     return await response.json();
   },
 
-  // Check lease status via DocuSign
+  // Check lease status (Dropbox Sign)
   checkLeaseStatus: async (legalDocumentId: string): Promise<any> => {
     const response = await fetchWithAuth(
       `${API_URL}/legal-documents/${legalDocumentId}/check_status/`,
@@ -820,8 +819,8 @@ export const api = {
       id: String(data.id),
       tenantId: String(data.tenant),
       pdfUrl: data.pdf_url,
-      docusignEnvelopeId: data.docusign_envelope_id,
-      docusignSigningUrl: data.docusign_signing_url,
+      dropboxSignSignatureRequestId: data.dropbox_sign_signature_request_id ?? data.docusign_envelope_id,
+      dropboxSignSigningUrl: data.dropbox_sign_signing_url ?? data.docusign_signing_url,
       signedPdfUrl: data.signed_pdf_url,
       signedAt: data.signed_at,
     };
@@ -843,8 +842,8 @@ export const api = {
       id: String(item.id),
       tenantId: String(item.tenant),
       pdfUrl: item.pdf_url,
-      docusignEnvelopeId: item.docusign_envelope_id,
-      docusignSigningUrl: item.docusign_signing_url,
+      dropboxSignSignatureRequestId: item.dropbox_sign_signature_request_id ?? item.docusign_envelope_id,
+      dropboxSignSigningUrl: item.dropbox_sign_signing_url ?? item.docusign_signing_url,
       signedPdfUrl: item.signed_pdf_url,
       signedAt: item.signed_at,
     }));

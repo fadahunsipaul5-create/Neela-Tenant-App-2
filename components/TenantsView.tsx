@@ -87,7 +87,15 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   };
 
   const getMediaUrl = (path: string) => `${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${path}`;
-  const isImageFile = (filename: string) => /\.(jpg|jpeg|png)$/i.test(filename || '');
+  const isImageFile = (filename: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(filename || '');
+  /** Get preview/download URL from file object (path, file, or url). */
+  const getFilePreviewUrl = (file: any): string | null => {
+    if (!file) return null;
+    const path = file.path || file.file;
+    if (path) return getMediaUrl(path);
+    if (file.url) return file.url;
+    return null;
+  };
 
   const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
     setIsSaving(true);
@@ -353,7 +361,7 @@ Landlord                            Tenant
       console.error('Failed to check lease status:', error);
       // Don't show error message to user on auto-check, only on manual
       if (!docId) {
-        setErrorMessage('Failed to check status with DocuSign');
+        setErrorMessage('Failed to check status with Dropbox Sign');
       }
     } finally {
       setIsCheckingStatus(false);
@@ -438,9 +446,9 @@ Landlord                            Tenant
       // If we got a sender view URL, open it in new tab
       if (response.sender_view_url) {
           window.open(response.sender_view_url, '_blank');
-          setSuccessMessage('DocuSign Draft Created! Please review and add checkboxes in the opened tab.');
+          setSuccessMessage('Dropbox Sign draft created! Please review and add checkboxes in the opened tab.');
       } else {
-          setSuccessMessage('Lease sent via DocuSign! The tenant will receive an email to sign.');
+          setSuccessMessage('Lease sent via Dropbox Sign! The tenant will receive an email to sign.');
       }
       
       // Refresh doc status
@@ -452,7 +460,7 @@ Landlord                            Tenant
       }
       
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to send lease via DocuSign');
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to send lease via Dropbox Sign');
     } finally {
       setIsSending(false);
     }
@@ -1088,38 +1096,44 @@ Landlord                            Tenant
                              </h4>
                              {selectedApplicant.photoIdFiles && selectedApplicant.photoIdFiles.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                   {selectedApplicant.photoIdFiles.map((file: any, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 bg-white">
-                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-indigo-100 rounded text-indigo-600">
-                                               <FileText className="w-4 h-4" />
+                                   {selectedApplicant.photoIdFiles.map((file: any, idx: number) => {
+                                      const fileUrl = getFilePreviewUrl(file);
+                                      return (
+                                      <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl hover:bg-slate-50/80 bg-white shadow-sm">
+                                         <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <div className="p-2.5 bg-indigo-100 rounded-lg text-indigo-600 shrink-0">
+                                               <FileText className="w-5 h-5" />
                                             </div>
-                                            <div>
-                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Photo ID'}</p>
+                                            <div className="min-w-0">
+                                               <p className="text-sm font-medium text-slate-800 truncate">{file.filename || 'Photo ID'}</p>
                                                <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                             </div>
                                          </div>
-                                         {file.path && (
-                                            <div className="flex items-center gap-2">
-                                               <button
-                                                 type="button"
-                                                 onClick={() => setDocumentPreview({
-                                                   url: getMediaUrl(file.path),
-                                                   filename: file.filename || 'Photo ID',
-                                                   isImage: isImageFile(file.filename)
-                                                 })}
-                                                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                                                 title="Preview"
-                                               >
-                                                 <Eye className="w-4 h-4" />
-                                               </button>
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
-                                                 <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
-                                               </a>
-                                            </div>
-                                         )}
+                                         <div className="flex items-center gap-2 shrink-0">
+                                            {fileUrl ? (
+                                               <>
+                                                 <button
+                                                   type="button"
+                                                   onClick={() => setDocumentPreview({
+                                                     url: fileUrl,
+                                                     filename: file.filename || 'Photo ID',
+                                                     isImage: isImageFile(file.filename)
+                                                   })}
+                                                   className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                                   title="Preview document"
+                                                 >
+                                                   <Eye className="w-4 h-4" /> Preview
+                                                 </button>
+                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
+                                                   <Download className="w-4 h-4" /> Download
+                                                 </a>
+                                               </>
+                                            ) : (
+                                               <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded-lg">Preview unavailable</span>
+                                            )}
+                                         </div>
                                       </div>
-                                   ))}
+                                   ); })}
                                 </div>
                              ) : (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -1136,38 +1150,44 @@ Landlord                            Tenant
                              </h4>
                              {selectedApplicant.incomeVerificationFiles && selectedApplicant.incomeVerificationFiles.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                   {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 bg-white">
-                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-green-100 rounded text-green-600">
-                                               <FileText className="w-4 h-4" />
+                                   {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => {
+                                      const fileUrl = getFilePreviewUrl(file);
+                                      return (
+                                      <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl hover:bg-slate-50/80 bg-white shadow-sm">
+                                         <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <div className="p-2.5 bg-green-100 rounded-lg text-green-600 shrink-0">
+                                               <FileText className="w-5 h-5" />
                                             </div>
-                                            <div>
-                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Income Document'}</p>
+                                            <div className="min-w-0">
+                                               <p className="text-sm font-medium text-slate-800 truncate">{file.filename || 'Income Document'}</p>
                                                <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                             </div>
                                          </div>
-                                         {file.path && (
-                                            <div className="flex items-center gap-2">
-                                               <button
-                                                 type="button"
-                                                 onClick={() => setDocumentPreview({
-                                                   url: getMediaUrl(file.path),
-                                                   filename: file.filename || 'Income Document',
-                                                   isImage: isImageFile(file.filename)
-                                                 })}
-                                                 className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                                                 title="Preview"
-                                               >
-                                                 <Eye className="w-4 h-4" />
-                                               </button>
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
-                                                 <Download className="w-4 h-4 text-slate-400 hover:text-green-600" />
-                                               </a>
-                                            </div>
-                                         )}
+                                         <div className="flex items-center gap-2 shrink-0">
+                                            {fileUrl ? (
+                                               <>
+                                                 <button
+                                                   type="button"
+                                                   onClick={() => setDocumentPreview({
+                                                     url: fileUrl,
+                                                     filename: file.filename || 'Income Document',
+                                                     isImage: isImageFile(file.filename)
+                                                   })}
+                                                   className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                                                   title="Preview document"
+                                                 >
+                                                   <Eye className="w-4 h-4" /> Preview
+                                                 </button>
+                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
+                                                   <Download className="w-4 h-4" /> Download
+                                                 </a>
+                                               </>
+                                            ) : (
+                                               <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded-lg">Preview unavailable</span>
+                                            )}
+                                         </div>
                                       </div>
-                                   ))}
+                                   ); })}
                                 </div>
                              ) : (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -1184,38 +1204,44 @@ Landlord                            Tenant
                              </h4>
                              {selectedApplicant.backgroundCheckFiles && selectedApplicant.backgroundCheckFiles.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                   {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
-                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-green-200 rounded text-green-700">
-                                               <Shield className="w-4 h-4" />
+                                   {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => {
+                                      const fileUrl = getFilePreviewUrl(file);
+                                      return (
+                                      <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-green-200 bg-green-50/50 rounded-xl hover:bg-green-50 shadow-sm">
+                                         <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <div className="p-2.5 bg-green-200 rounded-lg text-green-700 shrink-0">
+                                               <Shield className="w-5 h-5" />
                                             </div>
-                                            <div>
-                                               <p className="text-sm font-medium text-slate-800">{file.filename || 'Background Check'}</p>
+                                            <div className="min-w-0">
+                                               <p className="text-sm font-medium text-slate-800 truncate">{file.filename || 'Background Check'}</p>
                                                <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                             </div>
                                          </div>
-                                         {file.path && (
-                                            <div className="flex items-center gap-2">
-                                               <button
-                                                 type="button"
-                                                 onClick={() => setDocumentPreview({
-                                                   url: getMediaUrl(file.path),
-                                                   filename: file.filename || 'Background Check',
-                                                   isImage: isImageFile(file.filename)
-                                                 })}
-                                                 className="p-1.5 text-slate-400 hover:text-green-700 hover:bg-green-200 rounded transition-colors"
-                                                 title="Preview"
-                                               >
-                                                 <Eye className="w-4 h-4" />
-                                               </button>
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
-                                                 <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
-                                               </a>
-                                            </div>
-                                         )}
+                                         <div className="flex items-center gap-2 shrink-0">
+                                            {fileUrl ? (
+                                               <>
+                                                 <button
+                                                   type="button"
+                                                   onClick={() => setDocumentPreview({
+                                                     url: fileUrl,
+                                                     filename: file.filename || 'Background Check',
+                                                     isImage: isImageFile(file.filename)
+                                                   })}
+                                                   className="flex items-center gap-1.5 px-3 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors shadow-sm"
+                                                   title="Preview document"
+                                                 >
+                                                   <Eye className="w-4 h-4" /> Preview
+                                                 </button>
+                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-800 text-sm font-medium rounded-lg hover:bg-green-100 transition-colors" title="Download">
+                                                   <Download className="w-4 h-4" /> Download
+                                                 </a>
+                                               </>
+                                            ) : (
+                                               <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded-lg">Preview unavailable</span>
+                                            )}
+                                         </div>
                                       </div>
-                                   ))}
+                                   ); })}
                                 </div>
                              ) : (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -1262,9 +1288,9 @@ Landlord                            Tenant
                                  Signed {new Date(generatedLeaseDoc.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                </span>
                              )}
-                             {generatedLeaseDoc?.docusignEnvelopeId && (
+                             {(generatedLeaseDoc?.dropboxSignSignatureRequestId || generatedLeaseDoc?.docusignEnvelopeId) && (
                                <span className="text-xs text-slate-500">
-                                 DocuSign: {generatedLeaseDoc.docusignEnvelopeId.substring(0, 8)}...
+                                 Dropbox Sign: {(generatedLeaseDoc.dropboxSignSignatureRequestId || generatedLeaseDoc.docusignEnvelopeId).substring(0, 8)}...
                                </span>
                              )}
                           </div>
@@ -1379,8 +1405,8 @@ Landlord                            Tenant
                                   )}
                                   {isSending ? 'Processing...' : (
                                       leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet'
-                                      ? 'Review & Tag in DocuSign'
-                                      : 'Send via DocuSign'
+                                      ? 'Review & Tag in Dropbox Sign'
+                                      : 'Send via Dropbox Sign'
                                   )}
                                </button>
                              )}
@@ -1930,39 +1956,52 @@ Landlord                            Tenant
       {/* Document Preview Modal (Screening & ID) */}
       {documentPreview && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           onClick={() => setDocumentPreview(null)}
           role="dialog"
           aria-modal="true"
           aria-label="Document preview"
         >
           <div
-            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col border border-slate-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
-              <h3 className="font-semibold text-slate-800 truncate pr-4">{documentPreview.filename}</h3>
-              <button
-                type="button"
-                onClick={() => setDocumentPreview(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                aria-label="Close preview"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200 shrink-0 bg-slate-50">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Document preview</p>
+                <h3 className="font-semibold text-slate-800 truncate pr-2">{documentPreview.filename}</h3>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={documentPreview.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setDocumentPreview(null)}
+                  className="p-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                  aria-label="Close preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <div className="flex-1 overflow-auto p-4 min-h-[400px] flex items-center justify-center bg-slate-100">
+            <div className="flex-1 overflow-auto p-6 min-h-[480px] flex items-center justify-center bg-slate-200">
               {documentPreview.isImage ? (
                 <img
                   src={documentPreview.url}
                   alt={documentPreview.filename}
-                  className="max-w-full max-h-[75vh] object-contain rounded"
+                  className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-md"
                 />
               ) : (
                 <iframe
                   src={documentPreview.url}
                   title={documentPreview.filename}
-                  className="w-full min-h-[70vh] border-0 rounded"
+                  className="w-full min-h-[75vh] border-0 rounded-lg shadow-md bg-white"
                 />
               )}
             </div>

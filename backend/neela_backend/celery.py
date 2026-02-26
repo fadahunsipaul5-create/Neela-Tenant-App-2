@@ -55,8 +55,8 @@ def debug_task(self):
 from celery.schedules import crontab
 
 app.conf.beat_schedule = {
-    'check-docusign-statuses-every-15-minutes': {
-        'task': 'api.tasks.check_docusign_envelope_statuses',
+    'check-dropbox-sign-statuses-every-15-minutes': {
+        'task': 'api.tasks.check_dropbox_sign_statuses',
         'schedule': crontab(minute='*/15'),  # Run every 15 minutes
     },
     'check-lease-renewals-daily': {

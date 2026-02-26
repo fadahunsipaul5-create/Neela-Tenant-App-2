@@ -363,7 +363,7 @@ const App: React.FC = () => {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-400 to-slate-500 shadow-md"></div>
               </div>
               <h3 className="text-3xl font-bold mb-4 text-slate-900 tracking-tight">Document Center</h3>
-              <p className="text-slate-600 text-lg mb-6 leading-relaxed">Lease Templates & DocuSign Integration</p>
+              <p className="text-slate-600 text-lg mb-6 leading-relaxed">Lease Templates & Dropbox Sign Integration</p>
               <div className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-slate-100 rounded-xl text-slate-600 font-semibold text-sm">
                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></span>
                 Coming Soon

@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TenantViewSet, PaymentViewSet, MaintenanceRequestViewSet,
     LegalDocumentViewSet, ListingViewSet, PropertyViewSet, LeaseTemplateViewSet,
-    EmailTestViewSet, DocuSignViewSet,
+    EmailTestViewSet,
     contact_manager,
 )
 
@@ -16,8 +16,6 @@ router.register(r'lease-templates', LeaseTemplateViewSet)
 router.register(r'listings', ListingViewSet)
 router.register(r'properties', PropertyViewSet)
 router.register(r'email-test', EmailTestViewSet, basename='email-test')
-router.register(r'docusign', DocuSignViewSet, basename='docusign')
-# router.register(r'docusign', DocuSignCallbackViewSet, basename='docusign')
 
 urlpatterns = [
     path('', include(router.urls)),

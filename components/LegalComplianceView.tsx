@@ -117,11 +117,9 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
   const handleSendNotice = async (method: 'Email' | 'Certified Mail' | 'Portal') => {
     if (!selectedTenantId || !generatedDoc) return;
 
-    // Assuming we use DocuSign for "Certified Mail" option or explicit Email
+    // Use Dropbox Sign for "Certified Mail" or Email (send for signature)
     if (method === 'Certified Mail' || method === 'Email') {
-        // Find existing draft if any, or create new? 
-        // Notice Logic: We are generating content on the fly, we don't have a "LegalDocument" ID yet unless we saved it.
-        // Let's first save the document, then send it via DocuSign.
+        // Save document then send via Dropbox Sign
         
         try {
             // 1. Create Legal Document record
@@ -139,7 +137,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                 setModalState({
                   isOpen: true,
                   title: 'Notice Sent',
-                  message: 'Official Notice Sent via DocuSign to Tenant & Landlord!',
+                  message: 'Official Notice Sent via Dropbox Sign to Tenant & Landlord!',
                   type: 'success',
                 });
                 
@@ -151,8 +149,8 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                   generatedContent: generatedDoc,
                   createdAt: new Date().toISOString().split('T')[0],
                   status: 'Sent',
-                  deliveryMethod: 'DocuSign',
-                  trackingNumber: 'DOCUSIGN-TRACKING'
+                  deliveryMethod: 'Dropbox Sign',
+                  trackingNumber: 'DROPBOX-SIGN-TRACKING'
                 };
                 setHistory([newDoc, ...history]);
                 setActiveTab('history');
@@ -165,7 +163,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
             setModalState({
               isOpen: true,
               title: 'Send Notice Error',
-              message: 'Failed to send notice via DocuSign. Please try again.',
+              message: 'Failed to send notice via Dropbox Sign. Please try again.',
               type: 'error',
             });
             return;
@@ -352,7 +350,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                              onClick={() => handleSendNotice('Certified Mail')}
                              className="px-4 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
                           >
-                             <Send className="w-4 h-4" /> Send Official Notice (DocuSign)
+                             <Send className="w-4 h-4" /> Send Official Notice (Dropbox Sign)
                           </button>
                        </div>
                     )}
