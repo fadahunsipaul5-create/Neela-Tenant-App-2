@@ -623,7 +623,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                   <div className="relative px-5 py-2.5 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-300/30 flex items-center gap-3 shadow-sm">
                     <Shield className="w-5 h-5 text-indigo-600" />
                     <span className="text-sm font-bold text-gray-700">Powered by</span>
-                    <span className="font-black text-gray-900 italic tracking-tight">DocuSign</span>
+                    <span className="font-black text-gray-900 italic tracking-tight">Dropbox Sign</span>
               </div>
             </div>
               </div>
@@ -701,16 +701,16 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </a>
                       )}
                     </>
-                  ) : leaseDocument?.docusignSigningUrl ? (
+                  ) : (leaseDocument?.dropboxSignSigningUrl || leaseDocument?.docusignSigningUrl) ? (
                     <>
-                    <p className="text-sm text-gray-600 mb-8">Click the button below to sign via DocuSign.</p>
+                    <p className="text-sm text-gray-600 mb-8">Click the button below to sign via Dropbox Sign.</p>
                       <a
-                        href={leaseDocument.docusignSigningUrl}
+                        href={leaseDocument.dropboxSignSigningUrl || leaseDocument.docusignSigningUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                       className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all duration-300 text-center"
                       >
-                        Sign via DocuSign
+                        Sign via Dropbox Sign
                       </a>
                     </>
                   ) : (

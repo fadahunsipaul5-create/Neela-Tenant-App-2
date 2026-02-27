@@ -24,9 +24,9 @@ services:
         sync: false
       - key: EMAIL_HOST_PASSWORD
         sync: false
-      - key: DOCUSIGN_API_CLIENT_ID
+      - key: DROPBOX_SIGN_API_KEY
         sync: false
-      - key: DOCUSIGN_ACCOUNT_ID
+      - key: DROPBOX_SIGN_CLIENT_ID
         sync: false
       - key: DJANGO_SUPERUSER_EMAIL
         sync: false # Optional: Set to auto-create admin

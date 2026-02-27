@@ -161,11 +161,11 @@ export interface LegalDocument {
   generatedContent: string;
   createdAt: string;
   status: 'Draft' | 'Sent' | 'Delivered' | 'Filed' | 'Signed';
-  deliveryMethod?: 'Email' | 'Certified Mail' | 'Hand Delivered' | 'Portal' | 'DocuSign';
+  deliveryMethod?: 'Email' | 'Certified Mail' | 'Hand Delivered' | 'Portal' | 'Dropbox Sign';
   trackingNumber?: string;
   pdfUrl?: string;
-  docusignEnvelopeId?: string;
-  docusignSigningUrl?: string;
+  dropboxSignSignatureRequestId?: string;
+  dropboxSignSigningUrl?: string;
   signedPdfUrl?: string;
   signedAt?: string;
 }
