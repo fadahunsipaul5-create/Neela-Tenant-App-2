@@ -240,55 +240,27 @@ else:
     EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
     EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
     DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-# DocuSign Configuration (optional)
-DOCUSIGN_API_CLIENT_ID = os.environ.get('DOCUSIGN_API_CLIENT_ID', '').strip()
-# DOCUSIGN_API_SECRET = os.environ.get('DOCUSIGN_API_SECRET', '').strip()
-DOCUSIGN_ACCOUNT_ID = os.environ.get('DOCUSIGN_ACCOUNT_ID', '').strip()
-DOCUSIGN_BASE_PATH = os.environ.get('DOCUSIGN_BASE_PATH', 'https://demo.docusign.net/restapi').strip()
-DOCUSIGN_USER_ID = os.environ.get('DOCUSIGN_USER_ID', '').strip()
-DOCUSIGN_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'neela_backend', 'dsign_private.key')
+# Dropbox Sign (e-signature for leases)
+DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '').strip()
+DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '').strip() or None
+DROPBOX_SIGN_REDIRECT_URI = os.environ.get(
+    'DROPBOX_SIGN_REDIRECT_URI',
+    f"https://{RENDER_EXTERNAL_HOSTNAME}/dropbox-sign/callback/" if RENDER_EXTERNAL_HOSTNAME else "http://localhost:8000/dropbox-sign/callback/"
+)
 
-# Landlord/Admin contact (used for DocuSign routing notifications)
+# Landlord/Admin contact (used for signing routing)
 LANDLORD_EMAIL = os.environ.get('LANDLORD_EMAIL', '').strip() or None
 LANDLORD_NAME = os.environ.get('LANDLORD_NAME', '').strip() or None
 
 # Admin notification emails (proof of payment, applications, etc.)
-# If set, admin notifications go here. Otherwise uses staff/superuser emails.
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip() or None
 
-DOCUSIGN_REDIRECT_URI = os.environ.get(
-    "DOCUSIGN_REDIRECT_URI",
-    os.environ.get("DOCUSIGN_REDIRECT_URL")
-)
-
-if not DOCUSIGN_REDIRECT_URI:
-    if RENDER_EXTERNAL_HOSTNAME:
-        DOCUSIGN_REDIRECT_URI = f"https://{RENDER_EXTERNAL_HOSTNAME}/docusign/callback/"
-    else:
-        DOCUSIGN_REDIRECT_URI = "http://localhost:8000/docusign/callback/"
-
-
-with open(DOCUSIGN_PRIVATE_KEY_FILE, "rb") as f:
-    DOCUSIGN_PRIVATE_KEY = f.read()
-
-# Log DocuSign configuration status at startup
+# Log Dropbox Sign configuration at startup
 logger = logging.getLogger(__name__)
-docusign_configured = bool(DOCUSIGN_API_CLIENT_ID and DOCUSIGN_ACCOUNT_ID)
-if docusign_configured:
-    logger.info(
-        f"DocuSign configured: API Client ID present (length: {len(DOCUSIGN_API_CLIENT_ID)}), "
-        f"Account ID present (length: {len(DOCUSIGN_ACCOUNT_ID)})"
-    )
+if DROPBOX_SIGN_API_KEY:
+    logger.info("Dropbox Sign configured (API key present).")
 else:
-    missing = []
-    if not DOCUSIGN_API_CLIENT_ID:
-        missing.append('DOCUSIGN_API_CLIENT_ID')
-    if not DOCUSIGN_ACCOUNT_ID:
-        missing.append('DOCUSIGN_ACCOUNT_ID')
-    logger.warning(
-        f"DocuSign not configured. Missing environment variables: {', '.join(missing)}. "
-        f"DocuSign features will be unavailable."
-    )
+    logger.warning("Dropbox Sign not configured. Set DROPBOX_SIGN_API_KEY for e-signature.")
 
 # Celery Configuration
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')

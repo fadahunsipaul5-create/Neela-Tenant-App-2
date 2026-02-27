@@ -10,5 +10,27 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: insightg_db
+          name: neela-db
           property: connectionString
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DROPBOX_SIGN_API_KEY
+        sync: false
+      - key: DROPBOX_SIGN_CLIENT_ID
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false # Optional: Set to auto-create admin
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false # Optional: Set to auto-create admin
+
+databases:
+  - name: neela-db
+    databaseName: neela
+    user: neela
+    plan: free

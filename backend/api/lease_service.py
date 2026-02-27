@@ -390,73 +390,55 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
     return legal_doc
 
 
-def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
+def process_dropbox_sign_status_update(legal_doc: LegalDocument) -> dict:
     """
-    Check status of a DocuSign envelope and update the legal document accordingly.
-    Can be called by API views or background tasks.
-    
-    Args:
-        legal_doc: LegalDocument instance
-        
-    Returns:
-        Dictionary with status information and results of any actions taken
+    Check status of a Dropbox Sign signature request and update the legal document.
     """
-    from .docusign_service import get_envelope_status, get_envelope_recipients, download_signed_document
+    from .dropbox_sign_service import get_signature_request_status, download_signed_document
     from .email_service import send_lease_signed_confirmation, send_acceptance_email_to_user, send_landlord_lease_ready_to_sign
     from accounts.user_service import create_user_from_tenant, generate_password_reset_token, get_password_reset_url
     from django.utils import timezone
     from django.core.files.base import ContentFile
-    
-    if not legal_doc.docusign_envelope_id:
-        return {'status': legal_doc.status, 'message': 'No envelope ID found'}
+
+    if not legal_doc.dropbox_sign_signature_request_id:
+        return {'status': legal_doc.status, 'message': 'No signature request ID found'}
 
     try:
-        # Get status from DocuSign
-        status_info = get_envelope_status(legal_doc.docusign_envelope_id)
-        
-        if not status_info:
-            return {'status': legal_doc.status, 'message': 'Could not fetch status from DocuSign'}
-            
-        ds_status = status_info.get('status')
-        
+        sr = get_signature_request_status(legal_doc.dropbox_sign_signature_request_id)
+        if not sr:
+            return {'status': legal_doc.status, 'message': 'Could not fetch status from Dropbox Sign'}
+
+        is_complete = sr.get('is_complete', False)
+        signatures = sr.get('signatures', [])
+
         result = {
             'status': legal_doc.status,
-            'docusign_status': ds_status,
+            'dropbox_sign_complete': is_complete,
             'updated': False,
             'actions': []
         }
-        
-        # Map DocuSign status to our status
-        # 'completed' means ALL signers have signed
-        if ds_status == 'completed':
-            # Always update if it's completed (even if already marked signed, to ensure PDF is captured)
-            if legal_doc.status != 'Signed' or not legal_doc.pdf_file or 'signed' not in legal_doc.pdf_file.name:
-                # Update status
+
+        if is_complete:
+            if legal_doc.status != 'Signed' or not legal_doc.pdf_file or 'signed' not in (legal_doc.pdf_file.name or ''):
                 legal_doc.status = 'Signed'
                 if not legal_doc.signed_at:
                     legal_doc.signed_at = timezone.now()
-                
-                # Download signed document logic... (same as above)
-                signed_pdf_content = download_signed_document(legal_doc.docusign_envelope_id)
+
+                signed_pdf_content = download_signed_document(legal_doc.dropbox_sign_signature_request_id)
                 if signed_pdf_content:
-                    # Save as signed PDF
                     filename = f"signed_lease_{legal_doc.tenant.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    
-                    # Check if using Cloudinary
                     if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
                         try:
                             import cloudinary.uploader
-                            # Keep public_id WITHOUT extension for Cloudinary raw assets.
                             public_id = f"media/signed_leases/{filename}"
                             if public_id.lower().endswith(".pdf"):
                                 public_id = public_id[:-4]
                             logger.info(f"Uploading SIGNED lease to Cloudinary: {public_id}")
-                            # Use raw/upload for signed leases too
                             upload_result = cloudinary.uploader.upload(
-                                signed_pdf_content, 
-                                resource_type="raw", 
+                                signed_pdf_content,
+                                resource_type="raw",
                                 public_id=public_id,
-                                type="upload",  # Explicitly public
+                                type="upload",
                                 format="pdf",
                             )
                             uploaded_public_id = upload_result.get('public_id') or public_id
@@ -466,70 +448,49 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                             legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
                     else:
                         legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_content), save=False)
-                        
                     result['actions'].append('downloaded_signed_pdf')
-                
+
                 legal_doc.save()
-                
-                # Update tenant
+
                 tenant = legal_doc.tenant
                 if tenant.lease_status != 'Signed':
                     tenant.lease_status = 'Signed'
                     tenant.save()
                 result['updated'] = True
-                
-                # Send confirmation (check if already sent to avoid duplicate spam)
-                # We can check a flag or just rely on status change
+
                 try:
                     send_lease_signed_confirmation.delay(legal_doc.id)
                     result['actions'].append('sent_confirmation_email')
-                except:
+                except Exception:
                     send_lease_signed_confirmation(legal_doc.id)
                     result['actions'].append('sent_confirmation_email_sync')
 
-                # CRITICAL: Check if user account exists... (same as above)
                 try:
                     user, created = create_user_from_tenant(tenant)
-                    # We should send the welcome email if the user was JUST created
-                    # OR if they don't have a usable password yet (pending setup)
                     if created or not user.has_usable_password():
                         logger.info(f"Preparing account setup email for tenant {tenant.id} (created={created})")
-                        # Generate password reset token for account setup
                         token, uidb64 = generate_password_reset_token(user)
-                        
-                        # Get frontend URL from settings
                         frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
                         reset_url = get_password_reset_url(uidb64, token, frontend_url)
-                        
-                        # Send acceptance/welcome email with password setup link
                         try:
                             send_acceptance_email_to_user.delay(tenant.id, token, reset_url)
-                            logger.info(f"Account setup email task submitted for tenant {tenant.id}")
                             result['actions'].append('sent_account_setup_email')
                         except Exception as e:
-                            logger.warning(f"Celery connection failed, using threading fallback for account setup: {e}")
+                            logger.warning(f"Celery connection failed for account setup: {e}")
                             send_acceptance_email_to_user(tenant.id, token, reset_url)
                             result['actions'].append('sent_account_setup_email_sync')
                     else:
                         logger.info(f"User {user.email} already has a password set. Skipping setup email.")
-                        
                 except Exception as e:
-                     logger.error(f"Error ensuring user account exists after lease signing: {e}", exc_info=True)
-                     result['errors'] = str(e)
+                    logger.error(f"Error ensuring user account exists after lease signing: {e}", exc_info=True)
+                    result['errors'] = str(e)
 
-        elif ds_status in ['sent', 'delivered']:
-            # Partial progress: tenant may have completed, landlord pending (routing order 2).
-            recipients = get_envelope_recipients(legal_doc.docusign_envelope_id)
+        else:
             try:
-                signers = (recipients or {}).get('signers') or []
-                signer_by_id = {str(s.get('recipientId')): s for s in signers if isinstance(s, dict)}
-                tenant_signer = signer_by_id.get('1')
-                landlord_signer = signer_by_id.get('2')
+                tenant_signed = len(signatures) >= 1 and (signatures[0].get('status_code') == 'signed')
+                landlord_signed = len(signatures) >= 2 and (signatures[1].get('status_code') == 'signed')
 
-                tenant_completed = (tenant_signer or {}).get('status') == 'completed'
-                landlord_completed = (landlord_signer or {}).get('status') == 'completed'
-
-                if tenant_completed and not landlord_completed:
+                if tenant_signed and not landlord_signed:
                     if legal_doc.status != 'Tenant Signed':
                         legal_doc.status = 'Tenant Signed'
                         legal_doc.save()
@@ -538,44 +499,18 @@ def process_docusign_status_update(legal_doc: LegalDocument) -> dict:
                         result['updated'] = True
                         result['status'] = legal_doc.status
                         result['actions'].append('marked_tenant_signed')
-                        # Notify landlord/admin to sign (send once on transition)
                         try:
                             send_landlord_lease_ready_to_sign.delay(legal_doc.id)
                             result['actions'].append('sent_landlord_signing_notification')
                         except Exception:
                             send_landlord_lease_ready_to_sign(legal_doc.id)
                             result['actions'].append('sent_landlord_signing_notification_sync')
-                elif tenant_completed and landlord_completed:
-                    # In theory envelope should be completed, but handle just in case
-                    if legal_doc.status != 'Signed':
-                        legal_doc.status = 'Signed'
-                        legal_doc.signed_at = timezone.now()
-                        legal_doc.save()
-                        legal_doc.tenant.lease_status = 'Signed'
-                        legal_doc.tenant.save()
-                        result['updated'] = True
-                        result['status'] = legal_doc.status
-                        result['actions'].append('marked_signed_from_recipients')
             except Exception as e:
-                logger.warning(f"Error processing partial recipient status: {e}")
-
-
-        elif ds_status in ['declined', 'voided']:
-            if legal_doc.status != 'Declined' and legal_doc.status != 'Voided':
-                new_status = 'Declined' if ds_status == 'declined' else 'Voided'
-                legal_doc.status = new_status
-                legal_doc.save()
-                
-                tenant = legal_doc.tenant
-                tenant.lease_status = new_status
-                tenant.save()
-                
-                result['updated'] = True
-                result['status'] = new_status
+                logger.warning(f"Error processing partial Dropbox Sign status: {e}")
 
         return result
-        
+
     except Exception as e:
-        logger.error(f"Error processing DocuSign status update: {e}", exc_info=True)
+        logger.error(f"Error processing Dropbox Sign status update: {e}", exc_info=True)
         raise e
 

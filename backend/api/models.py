@@ -140,8 +140,8 @@ class LegalDocument(models.Model):
     tracking_number = models.CharField(max_length=100, null=True, blank=True)
     # Lease-specific fields
     pdf_file = models.FileField(upload_to='leases/', null=True, blank=True)
-    docusign_envelope_id = models.CharField(max_length=255, null=True, blank=True)
-    docusign_signing_url = models.URLField(null=True, blank=True)
+    dropbox_sign_signature_request_id = models.CharField(max_length=255, null=True, blank=True)
+    dropbox_sign_signing_url = models.URLField(null=True, blank=True)
     signed_pdf_url = models.URLField(null=True, blank=True)
     signed_at = models.DateTimeField(null=True, blank=True)
 
