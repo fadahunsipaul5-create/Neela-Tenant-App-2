@@ -160,10 +160,11 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
             }
         } catch (e) {
             console.error(e);
+            const message = e instanceof Error ? e.message : 'Failed to send notice via Dropbox Sign. Please try again.';
             setModalState({
               isOpen: true,
               title: 'Send Notice Error',
-              message: 'Failed to send notice via Dropbox Sign. Please try again.',
+              message,
               type: 'error',
             });
             return;

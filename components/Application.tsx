@@ -215,6 +215,7 @@ export const useApplication = (): UseApplicationReturn => {
       image: imageUrl,
       description: `Beautiful ${property.name} located in ${property.city}, ${property.state}. ${property.units} ${property.units === 1 ? 'unit' : 'units'} available.`,
       amenities: [],
+      status: property.status === 'occupied' ? 'occupied' : 'vacant',
       furnishingType: property.furnishingType,
       furnishingsBreakdown: property.furnishingsBreakdown || [],
     };

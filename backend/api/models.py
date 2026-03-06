@@ -185,6 +185,16 @@ class Property(models.Model):
         blank=True,
         help_text="List of items available, e.g. [\"Sofa\", \"Dining table\", \"Bed\"]"
     )
+    STATUS_CHOICES = [
+        ('vacant', 'Vacant'),
+        ('occupied', 'Occupied'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='vacant',
+        help_text="Vacant = available to apply; Occupied = hide Apply button and show label"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

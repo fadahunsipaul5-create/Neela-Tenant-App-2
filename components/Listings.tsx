@@ -12,7 +12,9 @@ interface ListingsProps {
   propertyToListing: (property: Property) => Listing;
 }
 
-const ListingCard: React.FC<{ listing: Listing; handleApply: (listing: Listing) => void }> = ({ listing, handleApply }) => (
+const ListingCard: React.FC<{ listing: Listing; handleApply: (listing: Listing) => void }> = ({ listing, handleApply }) => {
+  const isOccupied = listing.status === 'occupied';
+  return (
   <div className="bg-white rounded-2xl shadow-lg shadow-slate-500/10 border-2 border-slate-200/60 overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 flex flex-col transform hover:-translate-y-1 group">
     <div className="relative h-64 group/image overflow-hidden">
       {listing.image ? (
@@ -51,18 +53,27 @@ const ListingCard: React.FC<{ listing: Listing; handleApply: (listing: Listing) 
       )}
 
       <div className="mt-auto pt-5 border-t-2 border-slate-100">
+        {isOccupied && (
+          <p className="text-xs font-semibold text-rose-600 mb-3 text-right tracking-wide">Occupied</p>
+        )}
         <button 
-          onClick={() => handleApply(listing)}
-          className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold rounded-xl hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300 flex justify-center items-center gap-2 transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-indigo-500/30"
-          aria-label={`Apply for ${listing.title}`}
+          onClick={() => !isOccupied && handleApply(listing)}
+          disabled={isOccupied}
+          className={`w-full py-3.5 font-bold rounded-xl transition-all duration-300 flex justify-center items-center gap-2 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 ${
+            isOccupied
+              ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+              : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white hover:shadow-xl hover:shadow-indigo-500/30 transform hover:-translate-y-0.5'
+          }`}
+          aria-label={isOccupied ? `${listing.title} is occupied` : `Apply for ${listing.title}`}
         >
-          <span>Apply Now</span>
-          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">→</span>
+          <span>{isOccupied ? 'Unavailable' : 'Apply Now'}</span>
+          {!isOccupied && <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">→</span>}
         </button>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handleApply, propertyToListing }) => {
   // Properties State

@@ -198,9 +198,12 @@ export interface Listing {
   image: string;
   description: string;
   amenities: string[];
+  status?: 'vacant' | 'occupied';
   furnishingType?: string;
   furnishingsBreakdown?: string[];
 }
+
+export type PropertyStatus = 'vacant' | 'occupied';
 
 export interface Property {
   id: string;
@@ -214,6 +217,7 @@ export interface Property {
   units: number;
   price?: number;
   image?: string;
+  status?: PropertyStatus;
   furnishingType?: string;
   furnishingsBreakdown?: string[];
   createdAt?: string;

@@ -552,6 +552,7 @@ export const api = {
         id: String(item.id), // Ensure ID is always a string
         price: item.price ? parseFloat(item.price) : undefined,
         image: imageUrl,
+        status: (item.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
         furnishingType: item.furnishing_type || undefined,
         furnishingsBreakdown: item.furnishings_breakdown || [],
         createdAt: item.created_at,
@@ -576,6 +577,7 @@ export const api = {
       formData.append('bedrooms', String(propertyData.bedrooms || 2));
       formData.append('bathrooms', String(propertyData.bathrooms || 2));
       formData.append('square_footage', String(propertyData.square_footage || 1000));
+      formData.append('status', propertyData.status === 'occupied' ? 'occupied' : 'vacant');
       if (propertyData.furnishingType) formData.append('furnishing_type', propertyData.furnishingType);
       if (propertyData.furnishingsBreakdown?.length) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
       formData.append('image', imageFile);
@@ -594,6 +596,7 @@ export const api = {
         bedrooms: propertyData.bedrooms || 2,
         bathrooms: propertyData.bathrooms || 2,
         square_footage: propertyData.square_footage || 1000,
+        status: propertyData.status === 'occupied' ? 'occupied' : 'vacant',
         furnishing_type: propertyData.furnishingType || null,
         furnishings_breakdown: propertyData.furnishingsBreakdown || [],
         image_url: propertyData.image || null, // Use image_url for URL input
@@ -625,6 +628,7 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
+      status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
       createdAt: data.created_at,
@@ -650,6 +654,7 @@ export const api = {
       if (propertyData.square_footage !== undefined) formData.append('square_footage', String(propertyData.square_footage));
       if (propertyData.furnishingType !== undefined) formData.append('furnishing_type', propertyData.furnishingType);
       if (propertyData.furnishingsBreakdown !== undefined) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
+      if (propertyData.status !== undefined) formData.append('status', propertyData.status === 'occupied' ? 'occupied' : 'vacant');
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -666,6 +671,7 @@ export const api = {
       if (propertyData.bedrooms !== undefined) jsonData.bedrooms = propertyData.bedrooms;
       if (propertyData.bathrooms !== undefined) jsonData.bathrooms = propertyData.bathrooms;
       if (propertyData.square_footage !== undefined) jsonData.square_footage = propertyData.square_footage;
+      if (propertyData.status !== undefined) jsonData.status = propertyData.status === 'occupied' ? 'occupied' : 'vacant';
       if (propertyData.image !== undefined) {
         jsonData.image_url = propertyData.image || null; // Use image_url for URL input
       }
@@ -699,6 +705,7 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
+      status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
       createdAt: data.created_at,
@@ -788,9 +795,9 @@ export const api = {
       try {
         error = await response.json();
       } catch {
-        // keep default
+        // keep default (e.g. 503 from Render with HTML body)
       }
-      throw new Error(error.detail || error.message || 'Failed to send lease via Dropbox Sign');
+      throw new Error(error.error || error.detail || error.message || 'Failed to send lease via Dropbox Sign');
     }
     return await response.json();
   },

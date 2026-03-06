@@ -27,6 +27,7 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
+    status: 'vacant' as 'vacant' | 'occupied',
     furnishing_type: '',
     furnishings_breakdown: '',
     image: '',
@@ -47,6 +48,7 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
+    status: 'vacant' as 'vacant' | 'occupied',
     furnishing_type: '',
     furnishings_breakdown: '',
     image: '',
@@ -140,6 +142,7 @@ ________________________ Tenant`);
         bedrooms: addFormData.bedrooms,
         bathrooms: addFormData.bathrooms,
         square_footage: addFormData.square_footage,
+        status: addFormData.status,
         furnishingType: addFormData.furnishing_type || undefined,
         furnishingsBreakdown: addFormData.furnishings_breakdown
           ? addFormData.furnishings_breakdown.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
@@ -148,7 +151,7 @@ ________________________ Tenant`);
       }, addImageFile);
       setProperties([...properties, newProperty]);
       setIsAddModalOpen(false);
-      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
+      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
       setAddImageFile(null);
       setAddImagePreview(null);
     } catch (err) {
@@ -160,7 +163,7 @@ ________________________ Tenant`);
 
   const handleAddCancel = () => {
     setIsAddModalOpen(false);
-    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
+    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
     setAddImageFile(null);
     setAddImagePreview(null);
     setError(null);
@@ -225,6 +228,7 @@ ________________________ Tenant`);
       bedrooms: property.bedrooms || 2,
       bathrooms: property.bathrooms || 2,
       square_footage: property.square_footage || 1000,
+      status: property.status === 'occupied' ? 'occupied' : 'vacant',
       furnishing_type: property.furnishingType || '',
       furnishings_breakdown: property.furnishingsBreakdown?.join('\n') || '',
       image: property.image || '',
@@ -260,6 +264,7 @@ ________________________ Tenant`);
         bedrooms: editFormData.bedrooms,
         bathrooms: editFormData.bathrooms,
         square_footage: editFormData.square_footage,
+        status: editFormData.status,
         furnishingType: editFormData.furnishing_type || undefined,
         furnishingsBreakdown: editFormData.furnishings_breakdown
           ? editFormData.furnishings_breakdown.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
@@ -281,7 +286,7 @@ ________________________ Tenant`);
   const handleEditCancel = () => {
     setIsEditModalOpen(false);
     setEditingProperty(null);
-    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, furnishing_type: '', furnishings_breakdown: '', image: '' });
+    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
     setImageFile(null);
     setImagePreview(null);
   };
@@ -804,6 +809,18 @@ ________________________ Tenant`);
               </div>
               
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select
+                  value={editFormData.status}
+                  onChange={(e) => setEditFormData({...editFormData, status: e.target.value as 'vacant' | 'occupied'})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="vacant">Vacant (Apply button shown)</option>
+                  <option value="occupied">Occupied (Apply disabled)</option>
+                </select>
+              </div>
+              
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Furnishing Type</label>
                 <select
                   value={editFormData.furnishing_type}
@@ -1025,6 +1042,18 @@ ________________________ Tenant`);
                     placeholder="1000"
                   />
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select
+                  value={addFormData.status}
+                  onChange={(e) => setAddFormData({...addFormData, status: e.target.value as 'vacant' | 'occupied'})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="vacant">Vacant (Apply button shown)</option>
+                  <option value="occupied">Occupied (Apply disabled)</option>
+                </select>
               </div>
               
               <div>

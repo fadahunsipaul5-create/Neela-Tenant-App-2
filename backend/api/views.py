@@ -24,6 +24,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
+from pathlib import Path
+import json
 import cloudinary
 import cloudinary.api
 import requests
@@ -1074,6 +1076,41 @@ class ListingViewSet(viewsets.ModelViewSet):
     serializer_class = ListingSerializer
     permission_classes = [AllowAny]  # Public access for listings
 
+def _load_properties_from_json():
+    """Load properties from properties_data.json; return list of dicts in API shape, or [] if missing."""
+    path = Path(settings.BASE_DIR) / "properties_data.json"
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    out = []
+    for row in data:
+        img = row.get("image_url")
+        out.append({
+            "id": row.get("id"),
+            "name": row.get("name", ""),
+            "address": row.get("address", ""),
+            "city": row.get("city", ""),
+            "state": row.get("state", ""),
+            "units": row.get("units", 1),
+            "price": row.get("price"),
+            "bedrooms": row.get("bedrooms", 2),
+            "bathrooms": row.get("bathrooms", "2.0"),
+            "square_footage": row.get("square_footage", 1000),
+            "image": None,
+            "image_url": img,
+            "furnishing_type": row.get("furnishing_type"),
+            "furnishings_breakdown": row.get("furnishings_breakdown") or [],
+            "status": row.get("status", "vacant"),
+            "display_image": img,
+            "created_at": None,
+            "updated_at": None,
+        })
+    return out
+
+
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
@@ -1084,6 +1121,13 @@ class PropertyViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+    def list(self, request, *args, **kwargs):
+        json_list = _load_properties_from_json()
+        db_qs = Property.objects.all().order_by("id")
+        db_data = PropertySerializer(db_qs, many=True, context={"request": request}).data
+        combined = json_list + list(db_data)
+        return Response(combined)
 
 
 class EmailTestViewSet(viewsets.ViewSet):

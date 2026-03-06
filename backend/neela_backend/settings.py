@@ -130,13 +130,19 @@ WSGI_APPLICATION = 'neela_backend.wsgi.application'
 #    )
 #}
 
-# Database Configuration
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),   # <-- external DB URL
-        conn_max_age=600,
-    )
-}
+# Database Configuration: use SQLite locally when DATABASE_URL is not set
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    DATABASES = {
+        'default': dj_database_url.config(default=_db_url, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
