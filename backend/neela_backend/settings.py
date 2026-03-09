@@ -130,13 +130,19 @@ WSGI_APPLICATION = 'neela_backend.wsgi.application'
 #    )
 #}
 
-# Database Configuration
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),   # <-- external DB URL
-        conn_max_age=600,
-    )
-}
+# Database Configuration: use SQLite locally when DATABASE_URL is not set
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    DATABASES = {
+        'default': dj_database_url.config(default=_db_url, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -248,9 +254,15 @@ DROPBOX_SIGN_REDIRECT_URI = os.environ.get(
     f"https://{RENDER_EXTERNAL_HOSTNAME}/dropbox-sign/callback/" if RENDER_EXTERNAL_HOSTNAME else "http://localhost:8000/dropbox-sign/callback/"
 )
 
-# Landlord/Admin contact (used for signing routing)
+# Landlord/Admin contact (used for lease placeholders, signing, emails)
 LANDLORD_EMAIL = os.environ.get('LANDLORD_EMAIL', '').strip() or None
 LANDLORD_NAME = os.environ.get('LANDLORD_NAME', '').strip() or None
+LANDLORD_ADDRESS = os.environ.get('LANDLORD_ADDRESS', '').strip() or None
+LANDLORD_PHONE = os.environ.get('LANDLORD_PHONE', '').strip() or None
+# Property manager / company name in leases and notices
+PROPERTY_MANAGER_NAME = os.environ.get('PROPERTY_MANAGER_NAME', '').strip() or 'Neela Capital Investment'
+# Default city/state/zip when not derivable from tenant property_unit (e.g. "Houston, Texas, 77011")
+PROPERTY_DEFAULT_CITY_STATE_ZIP = os.environ.get('PROPERTY_DEFAULT_CITY_STATE_ZIP', '').strip() or None
 
 # Admin notification emails (proof of payment, applications, etc.)
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip() or None

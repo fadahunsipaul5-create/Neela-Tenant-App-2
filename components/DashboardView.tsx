@@ -259,7 +259,7 @@
 
 // export default DashboardView;
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
@@ -268,6 +268,7 @@ import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home
 import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property } from '../types';
 import Modal from './Modal';
 import { api } from '../services/api';
+import { formatDateMMDDYYYY } from '../utils/date';
 
 interface DashboardProps {
   tenants: Tenant[];
@@ -280,6 +281,17 @@ interface DashboardProps {
   onNavigateToPayments?: () => void;
   onNavigateToMaintenance?: () => void;
 }
+
+const DASHBOARD_LISTING_AREAS = [
+  'Avenue Q',
+  'Sherman St',
+  'Avenue H',
+  '70th Street',
+  'Wooding St',
+  'Bella Jess Dr',
+  'Magnolia Dr',
+  'Westlock Dr',
+];
 
 const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings, onNavigateToTenants, onNavigateToPayments, onNavigateToMaintenance }) => {
   // Derived Metrics
@@ -310,6 +322,18 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
+  // Property filters (dashboard Properties section)
+  const [filterBedrooms, setFilterBedrooms] = useState<number | ''>('');
+  const [filterBathrooms, setFilterBathrooms] = useState<number | ''>('');
+  const [filterStatus, setFilterStatus] = useState<'' | 'occupied' | 'vacant'>('');
+  const [filterArea, setFilterArea] = useState('');
+  const [appliedFilterBedrooms, setAppliedFilterBedrooms] = useState<number | ''>('');
+  const [appliedFilterBathrooms, setAppliedFilterBathrooms] = useState<number | ''>('');
+  const [appliedFilterStatus, setAppliedFilterStatus] = useState<'' | 'occupied' | 'vacant'>('');
+  const [appliedFilterArea, setAppliedFilterArea] = useState('');
+  const DASHBOARD_PROPERTIES_PAGE_SIZE = 6;
+  const [dashboardPropertiesToShow, setDashboardPropertiesToShow] = useState(DASHBOARD_PROPERTIES_PAGE_SIZE);
+
   // Responsive state for chart labels and sizing
   const [screenSize, setScreenSize] = useState({
     isLarge: typeof window !== 'undefined' && window.innerWidth >= 1024,
@@ -331,6 +355,49 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
 
   const overdueTenants = tenants.filter(t => t.balance > 0);
   const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
+
+  const dashboardAreaOptions = useMemo(() => {
+    const fromProps = properties.map(p => p.area).filter((a): a is string => Boolean(a?.trim()));
+    return [...new Set([...DASHBOARD_LISTING_AREAS, ...fromProps])].sort((a, b) => a.localeCompare(b));
+  }, [properties]);
+
+  const filteredDashboardProperties = useMemo(() => {
+    let list = properties;
+    if (appliedFilterBedrooms !== '') list = list.filter(p => Math.round(Number(p.bedrooms ?? 2)) === appliedFilterBedrooms);
+    if (appliedFilterBathrooms !== '') list = list.filter(p => Math.round(Number(p.bathrooms ?? 2)) === appliedFilterBathrooms);
+    if (appliedFilterStatus !== '') list = list.filter(p => (p.status ?? 'vacant') === appliedFilterStatus);
+    if (appliedFilterArea) {
+      const areaLower = appliedFilterArea.toLowerCase();
+      list = list.filter(p => {
+        if (p.area && p.area.toLowerCase() === areaLower) return true;
+        const full = [p.address, p.name, p.city, p.state].filter(Boolean).join(' ').toLowerCase();
+        return full.includes(areaLower);
+      });
+    }
+    return list;
+  }, [properties, appliedFilterBedrooms, appliedFilterBathrooms, appliedFilterStatus, appliedFilterArea]);
+
+  useEffect(() => {
+    setDashboardPropertiesToShow(DASHBOARD_PROPERTIES_PAGE_SIZE);
+  }, [appliedFilterBedrooms, appliedFilterBathrooms, appliedFilterStatus, appliedFilterArea]);
+
+  const applyDashboardFilters = () => {
+    setAppliedFilterBedrooms(filterBedrooms);
+    setAppliedFilterBathrooms(filterBathrooms);
+    setAppliedFilterStatus(filterStatus);
+    setAppliedFilterArea(filterArea.trim() || '');
+  };
+
+  const clearDashboardFilters = () => {
+    setFilterBedrooms('');
+    setFilterBathrooms('');
+    setFilterStatus('');
+    setFilterArea('');
+    setAppliedFilterBedrooms('');
+    setAppliedFilterBathrooms('');
+    setAppliedFilterStatus('');
+    setAppliedFilterArea('');
+  };
 
   // Generate Recent Activity from real system data
   const getRecentActivity = () => {
@@ -467,7 +534,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
     } else if (diffDays < 7) {
       return `${diffDays} days ago`;
     } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return formatDateMMDDYYYY(date);
     }
   };
 
@@ -915,6 +982,67 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform hidden sm:block" />
           </button>
         </div>
+
+        {properties.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <span className="text-xs font-semibold text-slate-500 uppercase">Filter</span>
+            <select
+              value={filterBedrooms === '' ? '' : String(filterBedrooms)}
+              onChange={e => setFilterBedrooms(e.target.value === '' ? '' : Number(e.target.value))}
+              className="text-sm rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
+            >
+              <option value="">Bedrooms: Any</option>
+              {[1, 2, 3, 4, 5].map(n => (
+                <option key={n} value={n}>{n} bedroom{n !== 1 ? 's' : ''}</option>
+              ))}
+            </select>
+            <select
+              value={filterBathrooms === '' ? '' : String(filterBathrooms)}
+              onChange={e => setFilterBathrooms(e.target.value === '' ? '' : Number(e.target.value))}
+              className="text-sm rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
+            >
+              <option value="">Bathrooms: Any</option>
+              {[1, 2, 3, 4].map(n => (
+                <option key={n} value={n}>{n} bathroom{n !== 1 ? 's' : ''}</option>
+              ))}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value as '' | 'occupied' | 'vacant')}
+              className="text-sm rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
+            >
+              <option value="">Status: Any</option>
+              <option value="vacant">Vacant</option>
+              <option value="occupied">Occupied</option>
+            </select>
+            <select
+              value={filterArea}
+              onChange={e => setFilterArea(e.target.value)}
+              className="text-sm rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
+            >
+              <option value="">Area: Any</option>
+              {dashboardAreaOptions.map(area => (
+                <option key={area} value={area}>{area}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={applyDashboardFilters}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg"
+            >
+              Apply
+            </button>
+            {(appliedFilterBedrooms !== '' || appliedFilterBathrooms !== '' || appliedFilterStatus !== '' || appliedFilterArea !== '') && (
+              <button
+                type="button"
+                onClick={clearDashboardFilters}
+                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
         
         {properties.length === 0 ? (
           <div className="text-center py-8 sm:py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 px-4">
@@ -927,10 +1055,21 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
               Add Property
             </button>
           </div>
+        ) : filteredDashboardProperties.length === 0 ? (
+          <div className="text-center py-8 sm:py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 px-4">
+            <p className="text-slate-600 font-medium">No properties match the current filters.</p>
+            <button
+              type="button"
+              onClick={clearDashboardFilters}
+              className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
-              {properties.slice(0, 6).map(prop => (
+              {filteredDashboardProperties.slice(0, dashboardPropertiesToShow).map(prop => (
                 <div 
                   key={prop.id} 
                   className="group bg-gradient-to-b from-white to-slate-50 rounded-xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-slate-300 transition-all duration-300 transform hover:-translate-y-1"
@@ -960,8 +1099,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                       {prop.address}, {prop.city}, {prop.state}
                     </p>
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                      <div className="text-sm text-slate-500">
-                        Occupancy: <span className="font-semibold text-slate-700">{calculatePropertyOccupancy(prop)}%</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${prop.status === 'occupied' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {prop.status === 'occupied' ? 'Occupied' : 'Vacant'}
+                        </span>
+                        <span className="text-sm text-slate-500">
+                          Occupancy: <span className="font-semibold text-slate-700">{calculatePropertyOccupancy(prop)}%</span>
+                        </span>
                       </div>
                       <button 
                         onClick={() => {
@@ -979,19 +1123,25 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
               ))}
             </div>
             
-            {properties.length > 6 && (
-              <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-                <a 
-                  href="#settings"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.hash = 'settings';
-                  }}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+            {filteredDashboardProperties.length > dashboardPropertiesToShow && (
+              <div className="mt-6 pt-6 border-t border-slate-200 text-center flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDashboardPropertiesToShow(prev => Math.min(prev + DASHBOARD_PROPERTIES_PAGE_SIZE, filteredDashboardProperties.length))}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
                 >
-                  View All Properties ({properties.length})
+                  Load more ({filteredDashboardProperties.length - dashboardPropertiesToShow} remaining)
                   <ChevronRight className="w-4 h-4" />
-                </a>
+                </button>
+                {onNavigateToSettings && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToSettings}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                  >
+                    View all in Settings
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -1133,6 +1283,9 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                 <div>
                   <h3 className="text-lg sm:text-xl font-bold text-slate-800">{selectedProperty.name}</h3>
                   <p className="text-xs sm:text-sm text-slate-500">Property Details</p>
+                  <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProperty.status === 'occupied' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {selectedProperty.status === 'occupied' ? 'Occupied' : 'Vacant'}
+                  </span>
                 </div>
               </div>
               <button

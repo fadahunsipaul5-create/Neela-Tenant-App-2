@@ -24,7 +24,14 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
+from django.db.models import Sum
+import re
 import cloudinary
+
+from api.management.commands.import_properties import (
+    extract_unit_from_address,
+    strip_city_state_from_address,
+)
 import cloudinary.api
 import requests
 logger = logging.getLogger(__name__)
@@ -140,13 +147,49 @@ def contact_manager(request):
         logger.error(f"Failed to send contact manager message: {e}", exc_info=True)
         return Response({'error': 'Failed to send message'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_stats(request):
+    """Return aggregate stats for dashboard without loading full lists."""
+    total_revenue = Payment.objects.filter(status='Paid').aggregate(
+        total=Sum('amount')
+    )['total'] or 0
+    overdue_amount = Tenant.objects.filter(balance__gt=0).aggregate(
+        total=Sum('balance')
+    )['total'] or 0
+    tenant_count = Tenant.objects.count()
+    active_count = Tenant.objects.filter(status='Active').count()
+    occupancy_rate = round((active_count / tenant_count) * 100) if tenant_count else 0
+    open_tickets = MaintenanceRequest.objects.exclude(status='Resolved').count()
+    new_applications = Tenant.objects.filter(status='Applicant').count()
+    return Response({
+        'totalRevenue': float(total_revenue),
+        'overdueAmount': float(overdue_amount),
+        'occupancyRate': occupancy_rate,
+        'openTickets': open_tickets,
+        'newApplications': new_applications,
+    })
+
+
 # Note: OAuth callback and token refresh functions removed - using JWT authentication instead
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
     permission_classes = [AllowAny]  # Require auth for most operations
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
-        
+
+    def get_queryset(self):
+        qs = Tenant.objects.all().order_by('-id')
+        try:
+            limit = int(self.request.query_params.get('limit', 0))
+            offset = int(self.request.query_params.get('offset', 0))
+            if limit > 0:
+                qs = qs[offset:offset + limit]
+        except (ValueError, TypeError):
+            pass
+        return qs
+
     def perform_create(self, serializer):
         tenant = serializer.save()
         
@@ -1074,6 +1117,16 @@ class ListingViewSet(viewsets.ModelViewSet):
     serializer_class = ListingSerializer
     permission_classes = [AllowAny]  # Public access for listings
 
+def _clean_property_name_and_address(name, address, city, state):
+    """Put unit from address into name and strip unit + duplicate city/state from address."""
+    unit_label, address_no_unit = extract_unit_from_address(address)
+    address_clean = strip_city_state_from_address(address_no_unit, city, state)
+    if unit_label:
+        base = re.sub(r"\s*-\s*Unit\s+[A-Za-z0-9]+\s*$", "", name, flags=re.IGNORECASE).strip() or name
+        name = f"{base} - {unit_label}"
+    return name, address_clean
+
+
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
@@ -1084,6 +1137,20 @@ class PropertyViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+    def list(self, request, *args, **kwargs):
+        qs = Property.objects.all().order_by("id")
+        data = PropertySerializer(qs, many=True, context={"request": request}).data
+        for item in data:
+            name, address = _clean_property_name_and_address(
+                item.get("name", ""),
+                item.get("address", ""),
+                item.get("city", ""),
+                item.get("state", ""),
+            )
+            item["name"] = name
+            item["address"] = address
+        return Response(data)
 
 
 class EmailTestViewSet(viewsets.ViewSet):

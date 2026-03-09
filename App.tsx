@@ -287,9 +287,9 @@ const App: React.FC = () => {
             <h3 className="text-3xl font-bold mb-4 text-slate-900 tracking-tight">Authentication Required</h3>
             <p className="text-slate-600 mb-8 text-lg leading-relaxed">Please log in to access the admin portal.</p>
             <button
-              onClick={() => setActiveTab('public-portal')}
+              onClick={() => navigate('/admin')}
               className="px-8 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:via-purple-700 hover:to-blue-800 transform hover:-translate-y-1 hover:scale-[1.02] shadow-lg hover:shadow-xl shadow-blue-500/25 transition-all duration-300 font-semibold text-base focus:outline-none focus:ring-4 focus:ring-blue-500/30"
-              aria-label="Navigate to login page"
+              aria-label="Navigate to admin login page"
             >
               Go to Login
             </button>
@@ -422,7 +422,7 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Neela Capital Investments</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Neela Capital Investment</h1>
           <p className="text-slate-600 font-medium text-base">Premium Property Management</p>
         </div>
       </div>

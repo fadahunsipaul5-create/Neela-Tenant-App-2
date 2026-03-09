@@ -39,7 +39,7 @@ const AdminLoginPage: React.FC = () => {
       }
       navigate('/', { replace: true, state: { adminLogin: true } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
+      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
     } finally {
       setIsLoading(false);
     }
@@ -75,9 +75,15 @@ const AdminLoginPage: React.FC = () => {
           </div>
           <form onSubmit={handleSubmit} className="p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600" />
-                <span className="font-semibold">{error}</span>
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600" />
+                  <div>
+                    <p className="font-semibold">Something went wrong. Try again.</p>
+                    <p className="mt-1 text-red-700">{error}</p>
+                    <button type="button" onClick={() => setError(null)} className="mt-3 text-sm font-semibold text-red-700 underline hover:no-underline">Try again</button>
+                  </div>
+                </div>
               </div>
             )}
             <div className="space-y-3">

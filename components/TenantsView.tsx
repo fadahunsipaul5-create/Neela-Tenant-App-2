@@ -8,6 +8,7 @@ import {
   Check, Sparkles, Send, PenTool, Printer, Edit, Trash2, Save, RefreshCw, Eye
 } from 'lucide-react';
 import Modal from './Modal';
+import { formatDateMMDDYYYY } from '../utils/date';
 
 interface TenantsProps {
   tenants: Tenant[];
@@ -1325,7 +1326,7 @@ Landlord                            Tenant
                              </span>
                              {generatedLeaseDoc?.signedAt && (
                                <span className="text-xs text-slate-500">
-                                 Signed {new Date(generatedLeaseDoc.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                 Signed {formatDateMMDDYYYY(generatedLeaseDoc.signedAt)}
                                </span>
                              )}
                              {(generatedLeaseDoc?.dropboxSignSignatureRequestId || generatedLeaseDoc?.docusignEnvelopeId) && (

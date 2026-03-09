@@ -17,6 +17,24 @@ from reportlab.lib import colors
 from .models import Tenant, LeaseTemplate, LegalDocument
 
 
+def _property_city_state_zip(tenant: Tenant) -> str:
+    """Derive property city/state/zip from tenant.property_unit or settings."""
+    pu = (tenant.property_unit or '').strip()
+    if pu:
+        parts = [p.strip() for p in pu.split(',') if p.strip()]
+        if len(parts) >= 2:
+            return ', '.join(parts[-2:])  # e.g. "Houston, TX 77001"
+        if len(parts) >= 3:
+            return ', '.join(parts[-3:])   # e.g. "Houston, Texas, 77011"
+    return getattr(settings, 'PROPERTY_DEFAULT_CITY_STATE_ZIP', None) or '[Property City, State ZIP]'
+
+
+def _last_day_of_month(d):
+    """Return the last day of the month for date d."""
+    next_first = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return next_first - timedelta(days=1)
+
+
 def fill_lease_template(template_content: str, tenant: Tenant) -> str:
     """
     Fill lease template with tenant data.
@@ -74,20 +92,23 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{job_title}}': employment.get('jobTitle', '[_JobTitle_]'),
         '{{monthly_income}}': f"${employment.get('monthlyIncome', 0):,.2f}" if employment.get('monthlyIncome') else '[_Income_]',
         '{{current_date}}': datetime.now().strftime('%m/%d/%Y'),
-        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', 'Neela Capital Investment'),
+        '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', None) or 'Neela Capital Investment',
         
-        # Extended fields for Texas Lease
-        '{{landlord_name}}': getattr(settings, 'LANDLORD_NAME', 'Rosa Martinez'), # Defaulting to client sample for now
-        '{{landlord_address}}': getattr(settings, 'LANDLORD_ADDRESS', '6838 Avenue R, Houston, Texas, 77011'),
-        '{{landlord_phone}}': getattr(settings, 'LANDLORD_PHONE', '(346) 255-6143'),
-        '{{landlord_email}}': getattr(settings, 'LANDLORD_EMAIL', 'N/A'),
+        # Landlord/company from settings only (no hardcoded defaults)
+        '{{landlord_name}}': getattr(settings, 'LANDLORD_NAME', None) or '[Landlord Name]',
+        '{{landlord_address}}': getattr(settings, 'LANDLORD_ADDRESS', None) or '[Landlord Address]',
+        '{{landlord_phone}}': getattr(settings, 'LANDLORD_PHONE', None) or '[Landlord Phone]',
+        '{{landlord_email}}': getattr(settings, 'LANDLORD_EMAIL', None) or '[Landlord Email]',
         
-        # Address split helpers (assuming property_unit contains city/state or we default)
-        '{{property_city_state_zip}}': 'Houston, Texas, 77011', # Ideally parsed from property model if available
+        # Property city/state/zip: derive from tenant.property_unit when it contains commas, else settings or placeholder
+        '{{property_city_state_zip}}': _property_city_state_zip(tenant),
+        # Aliases used in some templates (e.g. Settings UI)
+        '{{company_name}}': getattr(settings, 'PROPERTY_MANAGER_NAME', None) or getattr(settings, 'LANDLORD_NAME', None) or 'Neela Capital Investment',
+        '{{property_address}}': tenant.property_unit or '[Property Address]',
         
         # Date helpers for Notices
-        '{{period_start_date}}': lease_start.replace(day=1).strftime('%m/%d/%Y'), # Default to 1st of start month
-        '{{period_end_date}}': (lease_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1), # End of that month
+        '{{period_start_date}}': lease_start.replace(day=1).strftime('%m/%d/%Y'),
+        '{{period_end_date}}': (_last_day_of_month(lease_start)).strftime('%m/%d/%Y'),
         
         # Termination Helper (Default to 30 days from now)
         '{{move_out_deadline}}': (datetime.now() + timedelta(days=30)).strftime('%B %d, %Y'),

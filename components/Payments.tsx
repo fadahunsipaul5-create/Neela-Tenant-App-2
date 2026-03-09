@@ -148,7 +148,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                        Submit proof of payment
                      </button>
-                     {submitError && <p className="mt-2 text-sm text-rose-600">{submitError}</p>}
+                     {submitError && (
+                       <div className="mt-2 p-3 rounded-lg bg-rose-50 border border-rose-200">
+                         <p className="text-sm font-medium text-rose-800">Something went wrong. Try again.</p>
+                         <p className="mt-1 text-xs text-rose-600">{submitError}</p>
+                         <button type="button" onClick={() => setSubmitError(null)} className="mt-2 text-sm font-medium text-rose-700 hover:text-rose-900 underline">Try again</button>
+                       </div>
+                     )}
                    </div>
                </div>
            ) : !manualPaymentMode ? (
@@ -282,7 +288,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   Submit Report
                 </button>
-                {submitError && <p className="text-sm text-rose-600">{submitError}</p>}
+                {submitError && (
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
+                    <p className="text-sm font-medium text-rose-800">Something went wrong. Try again.</p>
+                    <p className="mt-1 text-xs text-rose-600">{submitError}</p>
+                    <button type="button" onClick={() => setSubmitError(null)} className="mt-2 text-sm font-medium text-rose-700 hover:text-rose-900 underline">Try again</button>
+                  </div>
+                )}
                 <button 
                   onClick={() => setManualPaymentMode(false)}
                   className="w-full py-2 text-slate-600 text-sm hover:text-slate-800"
