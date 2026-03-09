@@ -7,6 +7,17 @@ import { api } from '../services/api';
 import { Property } from '../types';
 import Modal from './Modal';
 
+const PROPERTY_AREAS = [
+  'Avenue Q',
+  'Sherman St',
+  'Avenue H',
+  '70th Street',
+  'Wooding St',
+  'Bella Jess Dr',
+  'Magnolia Dr',
+  'Westlock Dr',
+];
+
 const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'properties' | 'templates' | 'finance' | 'branding'>('properties');
 
@@ -22,6 +33,7 @@ const SettingsView: React.FC = () => {
     address: '',
     city: '',
     state: '',
+    area: '',
     units: 1,
     price: undefined as number | undefined,
     bedrooms: 2,
@@ -43,6 +55,7 @@ const SettingsView: React.FC = () => {
     address: '',
     city: '',
     state: '',
+    area: '',
     units: 1,
     price: undefined as number | undefined,
     bedrooms: 2,
@@ -62,6 +75,9 @@ const SettingsView: React.FC = () => {
     message: '',
     onConfirm: () => {},
   });
+
+  const PROPERTIES_PAGE_SIZE = 12;
+  const [propertiesToShow, setPropertiesToShow] = useState(PROPERTIES_PAGE_SIZE);
 
   // Templates
   const [appConfig, setAppConfig] = useState({
@@ -124,6 +140,15 @@ ________________________ Tenant`);
     fetchProperties();
   }, []);
 
+  useEffect(() => {
+    setPropertiesToShow(prev => {
+      if (properties.length === 0) return prev;
+      if (prev > properties.length) return properties.length;
+      if (prev === 0) return Math.min(PROPERTIES_PAGE_SIZE, properties.length);
+      return prev;
+    });
+  }, [properties.length]);
+
   const handleAddProperty = async () => {
     if (!addFormData.name.trim() || !addFormData.address.trim() || !addFormData.city.trim() || !addFormData.state.trim()) {
       setError('Please fill in all required fields');
@@ -137,6 +162,7 @@ ________________________ Tenant`);
         address: addFormData.address,
         city: addFormData.city,
         state: addFormData.state,
+        area: addFormData.area.trim() || undefined,
         units: addFormData.units,
         price: addFormData.price,
         bedrooms: addFormData.bedrooms,
@@ -151,7 +177,7 @@ ________________________ Tenant`);
       }, addImageFile);
       setProperties([...properties, newProperty]);
       setIsAddModalOpen(false);
-      setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
+      setAddFormData({ name: '', address: '', city: '', state: '', area: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
       setAddImageFile(null);
       setAddImagePreview(null);
     } catch (err) {
@@ -163,7 +189,7 @@ ________________________ Tenant`);
 
   const handleAddCancel = () => {
     setIsAddModalOpen(false);
-    setAddFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
+    setAddFormData({ name: '', address: '', city: '', state: '', area: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
     setAddImageFile(null);
     setAddImagePreview(null);
     setError(null);
@@ -223,6 +249,7 @@ ________________________ Tenant`);
       address: property.address,
       city: property.city,
       state: property.state,
+      area: property.area || '',
       units: property.units,
       price: property.price,
       bedrooms: property.bedrooms || 2,
@@ -259,6 +286,7 @@ ________________________ Tenant`);
         address: editFormData.address,
         city: editFormData.city,
         state: editFormData.state,
+        area: editFormData.area.trim() || undefined,
         units: editFormData.units,
         price: editFormData.price,
         bedrooms: editFormData.bedrooms,
@@ -286,7 +314,7 @@ ________________________ Tenant`);
   const handleEditCancel = () => {
     setIsEditModalOpen(false);
     setEditingProperty(null);
-    setEditFormData({ name: '', address: '', city: '', state: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
+    setEditFormData({ name: '', address: '', city: '', state: '', area: '', units: 1, price: undefined, bedrooms: 2, bathrooms: 2, square_footage: 1000, status: 'vacant', furnishing_type: '', furnishings_breakdown: '', image: '' });
     setImageFile(null);
     setImagePreview(null);
   };
@@ -390,14 +418,20 @@ ________________________ Tenant`);
                           <p>No properties yet. Add your first property below.</p>
                         </div>
                       ) : (
-                        properties.map(prop => (
+                        <>
+                        {properties.slice(0, propertiesToShow).map(prop => (
                           <div key={prop.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors group">
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-slate-200 text-slate-400">
                                 <Home className="w-5 h-5" />
                               </div>
                               <div>
-                                <h4 className="font-bold text-slate-800">{prop.name}</h4>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-bold text-slate-800">{prop.name}</h4>
+                                  {prop.status === 'occupied' && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Occupied</span>
+                                  )}
+                                </div>
                                 <p className="text-sm text-slate-500">{prop.address}, {prop.city}, {prop.state} • <span className="font-medium text-indigo-600">{prop.units} Units</span></p>
                                 {(prop.furnishingType || (prop.furnishingsBreakdown && prop.furnishingsBreakdown.length > 0)) && (
                                   <p className="text-xs text-slate-600 mt-1">{prop.furnishingType || 'Furnished'}{prop.furnishingsBreakdown?.length ? ` (${prop.furnishingsBreakdown.slice(0, 3).join(', ')}${prop.furnishingsBreakdown.length > 3 ? '...' : ''})` : ''}</p>
@@ -420,7 +454,19 @@ ________________________ Tenant`);
                               </button>
                             </div>
                           </div>
-                        ))
+                        ))}
+                        {properties.length > propertiesToShow && (
+                          <div className="pt-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setPropertiesToShow(prev => Math.min(prev + PROPERTIES_PAGE_SIZE, properties.length))}
+                              className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            >
+                              Load more ({properties.length - propertiesToShow} remaining)
+                            </button>
+                          </div>
+                        )}
+                        </>
                       )}
                     </div>
                     
@@ -720,7 +766,21 @@ ________________________ Tenant`);
                   placeholder="101 Sunset Blvd"
                 />
               </div>
-              
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Area (Optional)</label>
+                <select
+                  value={editFormData.area}
+                  onChange={(e) => setEditFormData({...editFormData, area: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="">— Select area —</option>
+                  {PROPERTY_AREAS.map(area => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">City *</label>
@@ -955,6 +1015,20 @@ ________________________ Tenant`);
                   className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
                   placeholder="101 Sunset Blvd"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Area (Optional)</label>
+                <select
+                  value={addFormData.area}
+                  onChange={(e) => setAddFormData({...addFormData, area: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
+                >
+                  <option value="">— Select area —</option>
+                  {PROPERTY_AREAS.map(area => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
               </div>
               
               <div className="grid grid-cols-2 gap-4">

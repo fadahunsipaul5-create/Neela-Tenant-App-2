@@ -555,6 +555,7 @@ export const api = {
         status: (item.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
         furnishingType: item.furnishing_type || undefined,
         furnishingsBreakdown: item.furnishings_breakdown || [],
+        area: item.area || undefined,
         createdAt: item.created_at,
         updatedAt: item.updated_at,
       };
@@ -572,6 +573,7 @@ export const api = {
       formData.append('address', propertyData.address || '');
       formData.append('city', propertyData.city || '');
       formData.append('state', propertyData.state || '');
+      if (propertyData.area !== undefined && propertyData.area !== null) formData.append('area', propertyData.area);
       formData.append('units', String(propertyData.units || 1));
       if (propertyData.price !== undefined) formData.append('price', String(propertyData.price));
       formData.append('bedrooms', String(propertyData.bedrooms || 2));
@@ -591,6 +593,7 @@ export const api = {
         address: propertyData.address,
         city: propertyData.city,
         state: propertyData.state,
+        area: propertyData.area !== undefined && propertyData.area !== null ? propertyData.area : null,
         units: propertyData.units || 1,
         price: propertyData.price !== undefined ? propertyData.price : null,
         bedrooms: propertyData.bedrooms || 2,
@@ -631,6 +634,7 @@ export const api = {
       status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
+      area: data.area || undefined,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -647,6 +651,7 @@ export const api = {
       if (propertyData.address) formData.append('address', propertyData.address);
       if (propertyData.city) formData.append('city', propertyData.city);
       if (propertyData.state) formData.append('state', propertyData.state);
+      if (propertyData.area !== undefined) formData.append('area', propertyData.area ?? '');
       if (propertyData.units !== undefined) formData.append('units', String(propertyData.units));
       if (propertyData.price !== undefined) formData.append('price', String(propertyData.price));
       if (propertyData.bedrooms !== undefined) formData.append('bedrooms', String(propertyData.bedrooms));
@@ -666,6 +671,7 @@ export const api = {
       if (propertyData.address !== undefined) jsonData.address = propertyData.address;
       if (propertyData.city !== undefined) jsonData.city = propertyData.city;
       if (propertyData.state !== undefined) jsonData.state = propertyData.state;
+      if (propertyData.area !== undefined) jsonData.area = propertyData.area;
       if (propertyData.units !== undefined) jsonData.units = propertyData.units;
       if (propertyData.price !== undefined) jsonData.price = propertyData.price;
       if (propertyData.bedrooms !== undefined) jsonData.bedrooms = propertyData.bedrooms;
@@ -708,6 +714,7 @@ export const api = {
       status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
+      area: data.area || undefined,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };

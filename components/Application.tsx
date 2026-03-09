@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ApplicationForm, Listing, Property, TenantStatus } from '../types';
 import { api } from '../services/api';
 import { ArrowLeft, Loader2, BedDouble, Bath, Plus, Trash2 } from 'lucide-react';
@@ -227,8 +227,8 @@ export const useApplication = (): UseApplicationReturn => {
     // Reset form state when opening application
     setApplicationError(null);
     setApplicationSuccess(null);
-    const beds = listing.beds || 2;
-    const baths = listing.baths || 2;
+    const beds = Math.round(Number(listing.beds ?? 2));
+    const baths = Math.round(Number(listing.baths ?? 2));
     // Pre-fill property address and bed/bath from listing
     setFormData(prev => ({
       ...prev,
@@ -504,6 +504,7 @@ export const useApplication = (): UseApplicationReturn => {
     propertyToListing,
     confirmModal,
     setConfirmModal,
+    clearApplicationError: () => setApplicationError(null),
   };
 };
 
@@ -521,6 +522,7 @@ export interface ApplicationFormViewProps {
   setView: (view: string) => void;
   confirmModal: { isOpen: boolean; title: string; message: string; onConfirm: () => void };
   setConfirmModal: (state: { isOpen: boolean; title: string; message: string; onConfirm: () => void }) => void;
+  clearApplicationError: () => void;
 }
 
 export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
@@ -537,10 +539,54 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
   setView,
   confirmModal,
   setConfirmModal,
+  clearApplicationError,
 }) => {
+  const APPLICATION_STEPS = 6;
+  const [currentStep, setCurrentStep] = useState(1);
+  const [leaveNote, setLeaveNote] = useState<string | null>(null);
+  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const stepRatiosRef = useRef<number[]>(new Array(APPLICATION_STEPS).fill(0));
+
+  // Track which step is in view for step indicator
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = sectionRefs.current.indexOf(entry.target as HTMLDivElement);
+          if (index >= 0) stepRatiosRef.current[index] = entry.intersectionRatio;
+        });
+        const ratios = stepRatiosRef.current;
+        const maxIdx = ratios.reduce((best, r, i) => (r > ratios[best] ? i : best), 0);
+        setCurrentStep(maxIdx + 1);
+      },
+      { threshold: [0, 0.2, 0.5, 0.8, 1], rootMargin: '-100px 0px -40% 0px' }
+    );
+    const refs = sectionRefs.current;
+    refs.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const handleBackToListings = () => {
+    if (localStorage.getItem('application_draft')) {
+      setLeaveNote('Your progress is saved. You can return anytime to continue.');
+      setTimeout(() => {
+        setView('listings');
+        setLeaveNote(null);
+      }, 2500);
+    } else {
+      setView('listings');
+    }
+  };
+
   // Save application draft to localStorage whenever formData changes
   useEffect(() => {
-    localStorage.setItem('application_draft', JSON.stringify(formData));
+    try {
+      const toSave = { ...formData, photoIdFiles: [], incomeVerificationFiles: [], backgroundCheckFile: null };
+      localStorage.setItem('application_draft', JSON.stringify(toSave));
+    } catch (_) {}
   }, [formData]);
 
   // Auto-save form draft every 30 seconds
@@ -562,7 +608,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
       <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl shadow-indigo-500/10 border-2 border-slate-200/60 overflow-hidden">
           <div className="p-8 border-b-2 border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50 flex items-center gap-5">
              <button 
-               onClick={() => setView('listings')} 
+               onClick={handleBackToListings}
                className="text-slate-500 hover:text-slate-900 hover:bg-slate-100 p-2.5 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                aria-label="Go back to listings"
              >
@@ -571,14 +617,22 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
              <div className="flex-1">
                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Application for {selectedListing?.title}</h2>
                <p className="text-sm text-slate-500 mt-1 font-medium">Complete all sections to submit your application</p>
+               <p className="text-xs font-semibold text-indigo-600 mt-1.5">Step {currentStep} of {APPLICATION_STEPS}</p>
              </div>
           </div>
+          {leaveNote && (
+            <div className="px-8 py-3 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-sm font-medium">
+              {leaveNote}
+            </div>
+          )}
           <div className="p-8 md:p-10">
              <div className="space-y-10">
                 {/* Error/Success Messages */}
                 {applicationError && (
-                  <div className="bg-gradient-to-r from-red-50 via-red-100/50 to-red-50 border-2 border-red-200 text-red-800 px-6 py-4 rounded-2xl text-sm font-semibold shadow-lg shadow-red-500/10 animate-shake">
-                    {applicationError}
+                  <div className="bg-gradient-to-r from-red-50 via-red-100/50 to-red-50 border-2 border-red-200 text-red-800 px-6 py-4 rounded-2xl text-sm shadow-lg shadow-red-500/10 animate-shake">
+                    <p className="font-semibold">Something went wrong. Try again.</p>
+                    <p className="mt-1 text-red-700">{applicationError}</p>
+                    <button type="button" onClick={clearApplicationError} className="mt-3 text-sm font-semibold text-red-700 underline hover:no-underline">Try again</button>
                   </div>
                 )}
                 {applicationSuccess && (
@@ -593,7 +647,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 )}
                 
                 {/* 1. Property Preferences */}
-                <div className="space-y-6 bg-slate-50/50 rounded-2xl p-5 sm:p-6 md:p-7 border-2 border-slate-100">
+                <div ref={(el) => { sectionRefs.current[0] = el; }} className="space-y-6 bg-slate-50/50 rounded-2xl p-5 sm:p-6 md:p-7 border-2 border-slate-100">
                   <h3 className="font-bold text-slate-900 text-xl border-b-2 border-slate-200 pb-3 flex items-center gap-3">
                     <span className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">1</span>
                     Property Preferences
@@ -720,7 +774,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 </div>
                 
                 {/* 2. Applicant Information */}
-                <div className="space-y-6 bg-slate-50/50 rounded-2xl p-7 border-2 border-slate-100">
+                <div ref={(el) => { sectionRefs.current[1] = el; }} className="space-y-6 bg-slate-50/50 rounded-2xl p-7 border-2 border-slate-100">
                   <h3 className="font-bold text-slate-900 text-xl border-b-2 border-slate-200 pb-3 flex items-center gap-3">
                     <span className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">2</span>
                     Applicant Information
@@ -863,7 +917,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 </div>
                 
                 {/* 3. Occupants */}
-                <div className="space-y-4">
+                <div ref={(el) => { sectionRefs.current[2] = el; }} className="space-y-4">
                   <h3 className="font-semibold text-slate-800 text-lg border-b pb-2">Occupants</h3>
                   
                   <div>
@@ -976,7 +1030,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 </div>
                 
                 {/* 4. Employment/Income Verification */}
-                <div className="space-y-4">
+                <div ref={(el) => { sectionRefs.current[3] = el; }} className="space-y-4">
                   <h3 className="font-semibold text-slate-800 text-lg border-b pb-2">Employment/Income Verification</h3>
                   
                   <div>
@@ -1030,7 +1084,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 </div>
                 
                 {/* 5. Rental History */}
-                <div className="space-y-4">
+                <div ref={(el) => { sectionRefs.current[4] = el; }} className="space-y-4">
                   <h3 className="font-semibold text-slate-800 text-lg border-b pb-2">Rental History</h3>
                   
                   <div>
@@ -1156,7 +1210,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                 </div>
                 
                 {/* 6. Policies & Agreement */}
-                <div className="space-y-4">
+                <div ref={(el) => { sectionRefs.current[5] = el; }} className="space-y-4">
                   <h3 className="font-semibold text-slate-800 text-lg border-b pb-2">Policies & Agreement</h3>
                   
                   <div>

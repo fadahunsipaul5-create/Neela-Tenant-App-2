@@ -11,6 +11,7 @@ import { Listings } from './Listings';
 import { StatusTracker, StatusTrackerView } from './Status';
 import { OnboardingTour } from './OnboardingTour';
 import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
+import { formatDateMMDDYYYY } from '../utils/date';
 import { 
   MapPin, BedDouble, Bath, Maximize, Check, ArrowLeft, 
   FileText, Save, Send, User, FileSignature, Download, 
@@ -48,6 +49,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     setLoginEmail,
     loginPassword,
     setLoginPassword,
+    clearLoginError,
     currentUser,
     currentTenant,
     loadingTenant,
@@ -89,6 +91,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     propertyToListing,
     confirmModal,
     setConfirmModal,
+    clearApplicationError,
   } = useApplication();
 
   const {
@@ -214,7 +217,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const nextDueDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
   const diffTime = nextDueDate.getTime() - today.getTime();
   const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const dueDateLabel = nextDueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dueDateLabel = formatDateMMDDYYYY(nextDueDate);
 
   const notifications: PortalNotification[] =
     residentBalance > 0
@@ -606,6 +609,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
           isLoading={isLoggingIn}
           error={loginError}
           onApplyClick={() => {setLoginType(null); setView('listings')}}
+          onRetry={clearLoginError}
         />
       )}
       
@@ -685,7 +689,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         <div>
                           <p className="text-emerald-800 font-semibold">✓ Lease Signed</p>
                         {leaseDocument.signedAt && (
-                          <p className="text-emerald-600 text-xs mt-1">Signed on {new Date(leaseDocument.signedAt).toLocaleDateString()}</p>
+                          <p className="text-emerald-600 text-xs mt-1">Signed on {formatDateMMDDYYYY(leaseDocument.signedAt)}</p>
                         )}
                         </div>
                       </div>
@@ -767,6 +771,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
             setView={setView}
             confirmModal={confirmModal}
             setConfirmModal={setConfirmModal}
+            clearApplicationError={clearApplicationError}
           />
         )}
 
@@ -1028,7 +1033,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                              </div>
                              {leaseDocument.status === 'Signed' && leaseDocument.signedAt && (
                               <p className="text-sm text-gray-500 mb-3">
-                                 Signed: {new Date(leaseDocument.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                 Signed: {formatDateMMDDYYYY(leaseDocument.signedAt)}
                                </p>
                              )}
                              {leaseDocument.status === 'Sent' && (
@@ -1188,7 +1193,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                                     <tr key={payment.id} className="hover:bg-gray-50 transition-colors duration-200">
                                       <td className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-5 text-gray-600">
                                         <div className="flex flex-col">
-                                          <span>{new Date(payment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                          <span>{formatDateMMDDYYYY(payment.date)}</span>
                                           <span className="text-xs text-gray-400 sm:hidden mt-0.5">{payment.type}</span>
                                         </div>
                                       </td>
@@ -1225,7 +1230,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                             <p className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 sm:mb-8">${residentBalance}.00</p>
                             <div className="space-y-3 sm:space-y-4">
                               <div className="flex justify-between text-xs sm:text-sm border-b border-blue-500/30 pb-2 sm:pb-3">
-                                <span>Rent ({nextDueDate.toLocaleDateString('en-US', { month: 'short' })})</span>
+                                <span>Rent ({formatDateMMDDYYYY(nextDueDate)})</span>
                                 <span>$1,800.00</span>
                               </div>
                               <div className="flex justify-between text-xs sm:text-sm border-b border-blue-500/30 pb-2 sm:pb-3">
@@ -1391,7 +1396,13 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                                 {isSubmittingProofForMethod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                                 {isSubmittingProofForMethod ? 'Submitting...' : 'Submit proof of payment'}
                               </button>
-                              {proofUploadErrorForMethod && <p className="mt-2 text-sm text-rose-600">{proofUploadErrorForMethod}</p>}
+                              {proofUploadErrorForMethod && (
+                                <div className="mt-2 p-3 rounded-lg bg-rose-50 border border-rose-200">
+                                  <p className="text-sm font-medium text-rose-800">Something went wrong. Try again.</p>
+                                  <p className="mt-1 text-xs text-rose-600">{proofUploadErrorForMethod}</p>
+                                  <button type="button" onClick={() => setProofUploadErrorForMethod(null)} className="mt-2 text-sm font-medium text-rose-700 hover:text-rose-900 underline">Try again</button>
+                                </div>
+                              )}
                               {proofUploadSuccessForMethod && <p className="mt-2 text-sm text-emerald-600 font-medium">{proofUploadSuccessForMethod}</p>}
                             </div>
                           </div>
@@ -1652,7 +1663,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                          ) : (
                         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden" data-onboarding="document-list">
                               {documents.map((doc) => {
-                                const docDate = doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+                                const docDate = doc.created_at ? formatDateMMDDYYYY(doc.created_at) : 'N/A';
                                 const docType = doc.type || 'Document';
                                 const docName = doc.type === 'Lease Agreement' ? 
                                   (doc.status === 'Signed' ? 'Signed Lease Agreement' : 'Lease Agreement') : 
@@ -1682,7 +1693,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                                            </div>
                                     <p className="text-sm text-gray-500 mt-1">
                                               {docDate} • {docType}
-                                              {doc.signed_at && ` • Signed ${new Date(doc.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                                              {doc.signed_at && ` • Signed ${formatDateMMDDYYYY(doc.signed_at)}`}
                                            </p>
                                         </div>
                                      </div>

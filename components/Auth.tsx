@@ -20,10 +20,11 @@ export interface LoginModalProps {
   isLoading: boolean;
   error: string | null;
   onApplyClick: () => void;
+  onRetry?: () => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ 
-  isOpen, loginType, onClose, onSubmit, email, setEmail, password, setPassword, isLoading, error, onApplyClick 
+  isOpen, loginType, onClose, onSubmit, email, setEmail, password, setPassword, isLoading, error, onApplyClick, onRetry 
 }) => {
   const [showPassword, setShowPassword] = useState(false);
   
@@ -62,9 +63,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         
         <form onSubmit={onSubmit} className="p-5 sm:p-6 lg:p-8 md:p-10 space-y-5 sm:space-y-6 lg:space-y-7">
           {error && (
-            <div className="bg-gradient-to-r from-red-50 via-red-100/50 to-red-50 border-2 border-red-200 text-red-800 px-6 py-4 rounded-2xl text-sm flex items-start gap-4 animate-shake shadow-lg shadow-red-500/10">
-              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600" />
-              <span className="font-semibold leading-relaxed">{error}</span>
+            <div className="bg-gradient-to-r from-red-50 via-red-100/50 to-red-50 border-2 border-red-200 text-red-800 px-6 py-4 rounded-2xl text-sm animate-shake shadow-lg shadow-red-500/10">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600" />
+                <div>
+                  <p className="font-semibold leading-relaxed">Something went wrong. Try again.</p>
+                  <p className="mt-1 text-red-700">{error}</p>
+                  {onRetry && <button type="button" onClick={onRetry} className="mt-3 text-sm font-semibold text-red-700 underline hover:no-underline">Try again</button>}
+                </div>
+              </div>
             </div>
           )}
           
@@ -555,17 +562,15 @@ export const useAuth = (): UseAuthReturn => {
     setLoginEmail,
     loginPassword,
     setLoginPassword,
-    
+    clearLoginError: () => setLoginError(null),
     currentUser,
     currentTenant,
     loadingTenant,
     tempTenant,
     setTempTenant,
-    
     handleLoginSubmit,
     handleStatusFound,
     refreshApplicationStatus,
-    
     setCurrentUser,
     setCurrentTenant,
     setLoadingTenant,

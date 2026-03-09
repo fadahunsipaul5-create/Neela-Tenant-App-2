@@ -195,6 +195,12 @@ class Property(models.Model):
         default='vacant',
         help_text="Vacant = available to apply; Occupied = hide Apply button and show label"
     )
+    area = models.CharField(
+        max_length=120,
+        blank=True,
+        null=True,
+        help_text="Area/location for filtering (e.g. Avenue Q, Sherman St). If missing, can be derived from address."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

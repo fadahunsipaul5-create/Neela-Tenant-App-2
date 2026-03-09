@@ -220,6 +220,7 @@ export interface Property {
   status?: PropertyStatus;
   furnishingType?: string;
   furnishingsBreakdown?: string[];
+  area?: string;
   createdAt?: string;
   updatedAt?: string;
 }
