@@ -70,7 +70,9 @@ def create_signature_request(
     files = {
         "file": (f"{document_name}.pdf", pdf_content, "application/pdf"),
     }
+    test_mode = getattr(settings, 'DROPBOX_SIGN_TEST_MODE', True)
     data = {
+        "test_mode": "1" if test_mode else "0",
         "title": document_name,
         "subject": "Please sign your lease agreement",
         "message": "Please sign the attached lease agreement. Thank you.",

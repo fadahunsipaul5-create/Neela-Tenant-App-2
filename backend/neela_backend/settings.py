@@ -249,6 +249,7 @@ else:
 # Dropbox Sign (e-signature for leases)
 DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '').strip()
 DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '').strip() or None
+DROPBOX_SIGN_TEST_MODE = os.environ.get('DROPBOX_SIGN_TEST_MODE', 'True').strip().lower() not in ('false', '0', 'no')
 DROPBOX_SIGN_REDIRECT_URI = os.environ.get(
     'DROPBOX_SIGN_REDIRECT_URI',
     f"https://{RENDER_EXTERNAL_HOSTNAME}/dropbox-sign/callback/" if RENDER_EXTERNAL_HOSTNAME else "http://localhost:8000/dropbox-sign/callback/"
