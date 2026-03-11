@@ -38,12 +38,12 @@ def is_dropbox_sign_configured() -> bool:
     return bool(get_dropbox_sign_config().get('api_key'))
 
 
-def _headers() -> Dict[str, str]:
-    """Authorization header for Dropbox Sign API."""
+def _auth():
+    """HTTP Basic Auth tuple for Dropbox Sign API (api_key as username, empty password)."""
     api_key = get_dropbox_sign_config().get('api_key')
     if not api_key:
-        return {}
-    return {"Authorization": f"Bearer {api_key}"}
+        return None
+    return (api_key, '')
 
 
 def create_signature_request(
@@ -66,7 +66,6 @@ def create_signature_request(
     landlord_name = (landlord_name or getattr(settings, 'LANDLORD_NAME', None) or 'Landlord').strip()
 
     url = f"{API_BASE}/signature_request/send"
-    headers = _headers()
 
     files = {
         "file": (f"{document_name}.pdf", pdf_content, "application/pdf"),
@@ -82,7 +81,7 @@ def create_signature_request(
     }
 
     try:
-        resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
+        resp = requests.post(url, auth=_auth(), data=data, files=files, timeout=60)
         if resp.status_code not in (200, 201):
             logger.error(f"Dropbox Sign send failed: {resp.status_code} - {resp.text}")
             return None
@@ -115,7 +114,7 @@ def get_signature_request_status(signature_request_id: str) -> Optional[Dict[str
         return None
     url = f"{API_BASE}/signature_request/{signature_request_id}"
     try:
-        resp = requests.get(url, headers=_headers(), timeout=30)
+        resp = requests.get(url, auth=_auth(), timeout=30)
         if resp.status_code != 200:
             logger.warning(f"Dropbox Sign status failed: {resp.status_code}")
             return None
@@ -133,7 +132,7 @@ def download_signed_document(signature_request_id: str) -> Optional[bytes]:
     try:
         resp = requests.get(
             url,
-            headers=_headers(),
+            auth=_auth(),
             params={"response_type": "pdf"},
             timeout=60,
         )
