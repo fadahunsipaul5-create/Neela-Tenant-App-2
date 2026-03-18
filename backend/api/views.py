@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import *
 from .serializers import *
-from .lease_service import generate_lease_pdf, save_lease_document
+from .lease_service import generate_lease_pdf, save_lease_document, stamp_signed_pdf
 from .dropbox_sign_service import (
     is_dropbox_sign_configured,
     get_dropbox_sign_config_status,
@@ -673,7 +673,227 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         if tenant_id:
             queryset = queryset.filter(tenant_id=tenant_id)
         return queryset
-    
+
+    @action(detail=True, methods=['get'], url_path='signing_metadata', permission_classes=[AllowAny])
+    def signing_metadata(self, request, pk=None):
+        """
+        Return metadata required for in-house e-signing:
+        - Backend PDF proxy URL
+        - Normalized overlay field definitions (checkboxes, initials, signatures, dates).
+
+        Coordinates are normalized (0-1) relative to the visible page so the
+        frontend can render a responsive overlay across devices.
+        """
+        try:
+            legal_doc = self.get_object()
+        except LegalDocument.DoesNotExist:
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not legal_doc.pdf_file:
+            return Response({'error': 'No PDF file available for this document'}, status=status.HTTP_400_BAD_REQUEST)
+
+        request_obj = request._request if hasattr(request, '_request') else request
+        pdf_proxy_url = request_obj.build_absolute_uri(f"/api/legal-documents/{legal_doc.id}/pdf/")
+
+        # For now we expose a conservative, static field map for Lease Agreement.
+        # These normalized coordinates are easy for the frontend to adapt and we can
+        # evolve them later (e.g. store per-template configuration in DB).
+        fields = []
+        if (legal_doc.type or '').lower() == 'lease agreement':
+            fields = [
+                # Agreement checkboxes (tenant ticks to confirm)
+                {
+                    "id": "agree_terms",
+                    "type": "checkbox",
+                    "label": "I agree to the terms",
+                    "page": 1,
+                    "x": 0.12,
+                    "y": 0.72,
+                    "width": 0.04,
+                    "height": 0.04,
+                    "required": True,
+                },
+                {
+                    "id": "agree_rules",
+                    "type": "checkbox",
+                    "label": "I agree to community rules",
+                    "page": 1,
+                    "x": 0.12,
+                    "y": 0.76,
+                    "width": 0.04,
+                    "height": 0.04,
+                    "required": True,
+                },
+                # Tenant initials (short text)
+                {
+                    "id": "tenant_initials",
+                    "type": "text",
+                    "label": "Initials",
+                    "page": 1,
+                    "x": 0.55,
+                    "y": 0.72,
+                    "width": 0.12,
+                    "height": 0.04,
+                    "required": True,
+                },
+                # Tenant signature block
+                {
+                    "id": "tenant_signature",
+                    "type": "signature",
+                    "label": "Tenant Signature",
+                    "page": 1,
+                    "x": 0.12,
+                    "y": 0.82,
+                    "width": 0.35,
+                    "height": 0.07,
+                    "required": True,
+                },
+                {
+                    "id": "tenant_signature_date",
+                    "type": "text",
+                    "label": "Date",
+                    "page": 1,
+                    "x": 0.52,
+                    "y": 0.82,
+                    "width": 0.15,
+                    "height": 0.05,
+                    "required": True,
+                },
+                # Landlord signature block
+                {
+                    "id": "landlord_signature",
+                    "type": "signature",
+                    "label": "Landlord Signature",
+                    "page": 1,
+                    "x": 0.12,
+                    "y": 0.9,
+                    "width": 0.35,
+                    "height": 0.07,
+                    "required": False,
+                },
+                {
+                    "id": "landlord_signature_date",
+                    "type": "text",
+                    "label": "Date",
+                    "page": 1,
+                    "x": 0.52,
+                    "y": 0.9,
+                    "width": 0.15,
+                    "height": 0.05,
+                    "required": False,
+                },
+            ]
+
+        return Response(
+            {
+                "id": legal_doc.id,
+                "tenant_id": legal_doc.tenant_id,
+                "type": legal_doc.type,
+                "status": legal_doc.status,
+                "pdf_url": pdf_proxy_url,
+                "fields": fields,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='submit_signed', permission_classes=[AllowAny])
+    def submit_signed(self, request, pk=None):
+        """
+        Submit filled form values and field definitions; stamp them onto the PDF,
+        store the signed PDF, and record audit info.
+        Body: { "values": { field_id: value }, "fields": [ { id, type, page, x, y, width, height }, ... ] }
+        """
+        try:
+            legal_doc = self.get_object()
+        except LegalDocument.DoesNotExist:
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.is_authenticated:
+            tenant = Tenant.objects.filter(email=request.user.email).first()
+            if tenant and legal_doc.tenant_id != tenant.id:
+                return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        if not legal_doc.pdf_file:
+            return Response({'error': 'No PDF file available'}, status=status.HTTP_400_BAD_REQUEST)
+
+        values = request.data.get('values')
+        fields = request.data.get('fields')
+        if not isinstance(values, dict):
+            return Response({'error': 'values must be an object'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(fields, list):
+            return Response({'error': 'fields must be an array'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pdf_bytes = None
+        if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+            public_id = (legal_doc.pdf_file.name or '').lstrip('/')
+            pdf_bytes = download_cloudinary_file(public_id)
+        if not pdf_bytes:
+            try:
+                legal_doc.pdf_file.open('rb')
+                pdf_bytes = legal_doc.pdf_file.read()
+                legal_doc.pdf_file.close()
+            except Exception as e:
+                logger.warning(f"Could not read PDF file from storage: {e}")
+        if not pdf_bytes:
+            return Response({'error': 'Could not retrieve PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        try:
+            signed_pdf_bytes = stamp_signed_pdf(pdf_bytes, fields, values)
+        except Exception as e:
+            logger.error(f"Error stamping PDF: {e}", exc_info=True)
+            return Response({'error': f'Failed to stamp PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        filename = f"signed_lease_{legal_doc.tenant_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        request_obj = request._request if hasattr(request, '_request') else request
+        audit = {
+            'signed_at': timezone.now().isoformat(),
+            'tenant_id': legal_doc.tenant_id,
+            'ip': request_obj.META.get('REMOTE_ADDR'),
+            'user_agent': (request_obj.META.get('HTTP_USER_AGENT') or '')[:500],
+        }
+
+        if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+            try:
+                import cloudinary.uploader
+                if not cloudinary.config().api_secret:
+                    cloudinary.config(
+                        cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+                        api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
+                        api_secret=settings.CLOUDINARY_STORAGE['API_SECRET'],
+                    )
+                public_id_new = f"media/signed_leases/{filename}"
+                if public_id_new.lower().endswith('.pdf'):
+                    public_id_new = public_id_new[:-4]
+                upload_result = cloudinary.uploader.upload(
+                    signed_pdf_bytes,
+                    resource_type="raw",
+                    public_id=public_id_new,
+                    type="upload",
+                    format="pdf",
+                )
+                legal_doc.pdf_file.name = upload_result.get('public_id') or public_id_new
+            except Exception as e:
+                logger.error(f"Cloudinary upload failed for signed PDF: {e}")
+                legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_bytes), save=False)
+        else:
+            legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_bytes), save=False)
+
+        legal_doc.status = 'Signed'
+        legal_doc.signed_at = timezone.now()
+        legal_doc.signing_audit = audit
+        legal_doc.save()
+
+        tenant = legal_doc.tenant
+        tenant.lease_status = 'Signed'
+        tenant.save(update_fields=['lease_status'])
+
+        pdf_url = request_obj.build_absolute_uri(f"/api/legal-documents/{legal_doc.id}/pdf/")
+        serializer = self.get_serializer(legal_doc)
+        data = dict(serializer.data)
+        data['pdf_url'] = pdf_url
+        data['signed_at'] = legal_doc.signed_at.isoformat() if legal_doc.signed_at else None
+        return Response(data, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'])
     def generate_lease(self, request):
         """Generate lease PDF for a tenant."""
@@ -1036,15 +1256,20 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         if not legal_doc.pdf_file:
             return Response({'error': 'No PDF found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Use our improved download helper function for Cloudinary files
-        public_id = (legal_doc.pdf_file.name or "").lstrip("/")
-        logger.info(f"Attempting to download PDF for document {pk}, path: {public_id}")
-        
-        pdf_bytes = download_cloudinary_file(public_id)
-        
-        if pdf_bytes:
-            logger.info(f"Successfully retrieved PDF for document {pk} ({len(pdf_bytes)} bytes)")
-
+        pdf_bytes = None
+        if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+            public_id = (legal_doc.pdf_file.name or "").lstrip("/")
+            logger.info(f"Attempting to download PDF for document {pk}, path: {public_id}")
+            pdf_bytes = download_cloudinary_file(public_id)
+            if pdf_bytes:
+                logger.info(f"Successfully retrieved PDF for document {pk} ({len(pdf_bytes)} bytes)")
+        if not pdf_bytes:
+            try:
+                legal_doc.pdf_file.open('rb')
+                pdf_bytes = legal_doc.pdf_file.read()
+                legal_doc.pdf_file.close()
+            except Exception as e:
+                logger.warning(f"Could not read PDF file for document {pk}: {e}")
         if not pdf_bytes:
             return Response({'error': 'Could not retrieve PDF'}, status=status.HTTP_404_NOT_FOUND)
 

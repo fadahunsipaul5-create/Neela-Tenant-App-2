@@ -144,6 +144,7 @@ class LegalDocument(models.Model):
     dropbox_sign_signing_url = models.URLField(null=True, blank=True)
     signed_pdf_url = models.URLField(null=True, blank=True)
     signed_at = models.DateTimeField(null=True, blank=True)
+    signing_audit = models.JSONField(null=True, blank=True, help_text="Who signed, when, IP, etc.")
 
     def __str__(self):
         return f"{self.type} - {self.tenant.name}"

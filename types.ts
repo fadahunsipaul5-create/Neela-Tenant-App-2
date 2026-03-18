@@ -170,6 +170,33 @@ export interface LegalDocument {
   signedAt?: string;
 }
 
+export type LeaseFieldType = 'checkbox' | 'text' | 'signature';
+
+export interface LeaseSigningField {
+  id: string;
+  type: LeaseFieldType;
+  label: string;
+  page: number;
+  /**
+   * Normalized coordinates (0-1) relative to the page.
+   * These make the overlay fully responsive across devices.
+   */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required?: boolean;
+}
+
+export interface LeaseSigningMetadata {
+  id: string;
+  tenantId: string;
+  type: string;
+  status: string;
+  pdfUrl: string;
+  fields: LeaseSigningField[];
+}
+
 export interface LeaseTemplate {
   id: string;
   name: string;

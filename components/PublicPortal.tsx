@@ -10,6 +10,8 @@ import { useApplication, ApplicationFormView } from './Application';
 import { Listings } from './Listings';
 import { StatusTracker, StatusTrackerView } from './Status';
 import { OnboardingTour } from './OnboardingTour';
+import LeaseSigningOverlay from './LeaseSigningOverlay';
+import type { LeaseSigningMetadata } from '../types';
 import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
 import { formatDateMMDDYYYY } from '../utils/date';
 import { 
@@ -161,6 +163,8 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const [leaseError, setLeaseError] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [loadingPdfBlob, setLoadingPdfBlob] = useState(false);
+  const [leaseSigningMetadata, setLeaseSigningMetadata] = useState<LeaseSigningMetadata | null>(null);
+  const [loadingSigningMetadata, setLoadingSigningMetadata] = useState(false);
   const [documentPdfLoadingId, setDocumentPdfLoadingId] = useState<string | null>(null);
   const [documentOpenError, setDocumentOpenError] = useState<string | null>(null);
 
@@ -348,6 +352,48 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       setPdfBlobUrl(null);
     };
   }, [view, leaseDocument?.id]);
+
+  // Fetch signing metadata for in-house e-sign when lease is draft (not signed, no Dropbox URL)
+  useEffect(() => {
+    if (
+      view !== 'lease_signing' ||
+      !leaseDocument?.id ||
+      leaseDocument?.status === 'Signed' ||
+      leaseDocument?.dropboxSignSigningUrl ||
+      leaseDocument?.docusignSigningUrl
+    ) {
+      setLeaseSigningMetadata(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSigningMetadata(true);
+    api.getLeaseSigningMetadata(leaseDocument.id)
+      .then((meta) => {
+        if (!cancelled) setLeaseSigningMetadata(meta);
+      })
+      .catch(() => {
+        if (!cancelled) setLeaseSigningMetadata(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSigningMetadata(false);
+      });
+    return () => {
+      cancelled = true;
+      setLeaseSigningMetadata(null);
+    };
+  }, [view, leaseDocument?.id, leaseDocument?.status, leaseDocument?.dropboxSignSigningUrl, leaseDocument?.docusignSigningUrl]);
+
+  const refreshLeaseDocument = async () => {
+    const tenantIdToUse = currentTenant?.id || tenantId;
+    if (!tenantIdToUse || !leaseDocument?.id) return;
+    try {
+      const docs = await api.getLegalDocuments(tenantIdToUse);
+      const lease = docs.find((doc: any) => doc.type === 'Lease Agreement' && String(doc.id) === String(leaseDocument.id));
+      if (lease) setLeaseDocument(lease);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -626,8 +672,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg blur-md opacity-10"></div>
                   <div className="relative px-5 py-2.5 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-300/30 flex items-center gap-3 shadow-sm">
                     <Shield className="w-5 h-5 text-indigo-600" />
-                    <span className="text-sm font-bold text-gray-700">Powered by</span>
-                    <span className="font-black text-gray-900 italic tracking-tight">Dropbox Sign</span>
+                    <span className="text-sm font-bold text-gray-700">Secure in-house signing</span>
               </div>
             </div>
               </div>
@@ -655,6 +700,21 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
                         <p className="text-gray-600">Loading PDF...</p>
                       </div>
+                    </div>
+                  ) : loadingSigningMetadata && leaseDocument?.status !== 'Signed' && !leaseDocument?.dropboxSignSigningUrl ? (
+                    <div className="flex items-center justify-center min-h-[800px]">
+                      <div className="text-center">
+                        <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
+                        <p className="text-gray-600">Preparing signing form...</p>
+                      </div>
+                    </div>
+                  ) : leaseSigningMetadata && (pdfBlobUrl || leaseSigningMetadata.pdfUrl) ? (
+                    <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px] p-4">
+                      <LeaseSigningOverlay
+                        metadata={leaseSigningMetadata}
+                        pdfUrlOverride={pdfBlobUrl}
+                        onSubmitSuccess={() => refreshLeaseDocument()}
+                      />
                     </div>
                   ) : pdfBlobUrl && leaseDocument?.id ? (
                   <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px]">
@@ -694,9 +754,9 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </div>
                       </div>
                       </div>
-                      {leaseDocument.signedPdfUrl && (
+                      {(leaseDocument.signedPdfUrl || leaseDocument.pdfUrl) && (
                         <a
-                          href={leaseDocument.signedPdfUrl}
+                          href={leaseDocument.signedPdfUrl || leaseDocument.pdfUrl}
                           download
                         className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all duration-300 text-center mb-3 flex items-center justify-center"
                         >
@@ -717,6 +777,8 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         Sign via Dropbox Sign
                       </a>
                     </>
+                  ) : leaseSigningMetadata ? (
+                    <p className="text-sm text-gray-600">Complete all required fields on the document and click <strong>Complete & Sign</strong> below.</p>
                   ) : (
                     <>
                     <p className="text-sm text-gray-600 mb-8">Please review the lease document. Once you're ready, you can sign it.</p>
