@@ -787,6 +787,23 @@ export const api = {
     return await response.json();
   },
 
+  // Send lease via in-house signing (generates a one-time token link and emails tenant)
+  sendLeaseInhouse: async (legalDocumentId: string): Promise<any> => {
+    const response = await fetchWithAuth(
+      `${API_URL}/legal-documents/${legalDocumentId}/send_lease_inhouse/`,
+      {
+        method: 'POST',
+        headers: getHeaders(true, true),
+      }
+    );
+    if (!response.ok) {
+      let error: any = { detail: 'Failed to send lease' };
+      try { error = await response.json(); } catch { /* keep default */ }
+      throw new Error(error.error || error.detail || error.message || 'Failed to send lease');
+    }
+    return await response.json();
+  },
+
   // Send lease via Dropbox Sign
   sendLeaseDocuSign: async (legalDocumentId: string, createDraft: boolean = false): Promise<any> => {
     const response = await fetchWithAuth(

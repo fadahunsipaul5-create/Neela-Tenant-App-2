@@ -5,6 +5,7 @@ from .views import (
     LegalDocumentViewSet, ListingViewSet, PropertyViewSet, LeaseTemplateViewSet,
     EmailTestViewSet,
     contact_manager,
+    sign_lease_by_token,
 )
 
 router = DefaultRouter()
@@ -20,4 +21,5 @@ router.register(r'email-test', EmailTestViewSet, basename='email-test')
 urlpatterns = [
     path('', include(router.urls)),
     path('contact-manager/', contact_manager, name='contact-manager'),
+    path('sign-lease/', sign_lease_by_token, name='sign-lease-by-token'),
 ]

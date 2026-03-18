@@ -887,6 +887,16 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         tenant.lease_status = 'Signed'
         tenant.save(update_fields=['lease_status'])
 
+        # Send confirmation emails to tenant and admin
+        try:
+            from .email_service import send_lease_signed_confirmation
+            try:
+                send_lease_signed_confirmation.delay(legal_doc.id)
+            except Exception:
+                send_lease_signed_confirmation(legal_doc.id)
+        except Exception as e:
+            logger.error(f"Failed to send signed confirmation email: {e}")
+
         pdf_url = request_obj.build_absolute_uri(f"/api/legal-documents/{legal_doc.id}/pdf/")
         serializer = self.get_serializer(legal_doc)
         data = dict(serializer.data)
@@ -1074,6 +1084,52 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             )
     
     # Usage in your LegalDocumentViewSet
+
+    @action(detail=True, methods=['post'], url_path='send_lease_inhouse', permission_classes=[IsAuthenticated])
+    def send_lease_inhouse(self, request, pk=None):
+        """
+        Send a one-time signing link to the tenant via email (in-house flow, no Dropbox).
+        Creates/reuses a LeaseSigningToken and emails the tenant a link to sign in-app.
+        """
+        try:
+            legal_doc = self.get_object()
+        except LegalDocument.DoesNotExist:
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not legal_doc.pdf_file:
+            return Response({'error': 'No PDF file available. Generate the lease first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if legal_doc.status == 'Signed':
+            return Response({'error': 'This lease is already signed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from datetime import timedelta
+        from .models import LeaseSigningToken
+
+        # Create a fresh token (invalidate previous one by deleting it)
+        LeaseSigningToken.objects.filter(legal_document=legal_doc).delete()
+        signing_token = LeaseSigningToken.objects.create(
+            legal_document=legal_doc,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+
+        legal_doc.status = 'Sent'
+        legal_doc.delivery_method = 'In-House'
+        legal_doc.save(update_fields=['status', 'delivery_method'])
+
+        legal_doc.tenant.lease_status = 'Sent'
+        legal_doc.tenant.save(update_fields=['lease_status'])
+
+        # Send lease-ready email synchronously — admin-triggered, no Celery worker needed.
+        try:
+            from .email_service import _send_lease_ready_for_signing
+            _send_lease_ready_for_signing(legal_doc.id, token=str(signing_token.token))
+            logger.info(f"Lease-ready email sent for document {legal_doc.id}")
+        except Exception as e:
+            logger.error(f"Failed to send in-house lease email: {e}", exc_info=True)
+            return Response({'error': f'Lease marked as Sent but email failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        serializer = self.get_serializer(legal_doc)
+        return Response({**serializer.data, 'signing_token': str(signing_token.token)}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='send_docusign')
     def send_docusign(self, request, pk=None):
@@ -1449,3 +1505,164 @@ class EmailTestViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# ==================== Token-based in-house lease signing ====================
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def sign_lease_by_token(request):
+    """
+    GET  /api/sign-lease/?token=<uuid>  — validate token, return signing metadata
+    POST /api/sign-lease/?token=<uuid>  — submit signed fields, stamp PDF, mark Signed
+
+    No login required. The token is a one-time link sent via email by the admin.
+    """
+    raw_token = request.query_params.get('token') or request.data.get('token')
+    if not raw_token:
+        return Response({'error': 'token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        signing_token = LeaseSigningToken.objects.select_related(
+            'legal_document__tenant'
+        ).get(token=raw_token)
+    except (LeaseSigningToken.DoesNotExist, Exception):
+        return Response({'error': 'Invalid or expired signing link.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not signing_token.is_valid:
+        return Response({'error': 'This signing link has already been used or has expired.'}, status=status.HTTP_410_GONE)
+
+    legal_doc = signing_token.legal_document
+
+    if request.method == 'GET':
+        request_obj = request._request if hasattr(request, '_request') else request
+        pdf_proxy_url = request_obj.build_absolute_uri(f"/api/legal-documents/{legal_doc.id}/pdf/")
+
+        fields = []
+        if (legal_doc.type or '').lower() == 'lease agreement':
+            fields = [
+                {"id": "agree_terms", "type": "checkbox", "label": "I agree to the terms",
+                 "page": 1, "x": 0.12, "y": 0.72, "width": 0.04, "height": 0.04, "required": True},
+                {"id": "agree_rules", "type": "checkbox", "label": "I agree to community rules",
+                 "page": 1, "x": 0.12, "y": 0.76, "width": 0.04, "height": 0.04, "required": True},
+                {"id": "tenant_initials", "type": "text", "label": "Initials",
+                 "page": 1, "x": 0.55, "y": 0.72, "width": 0.12, "height": 0.04, "required": True},
+                {"id": "tenant_signature", "type": "signature", "label": "Tenant Signature",
+                 "page": 1, "x": 0.12, "y": 0.82, "width": 0.35, "height": 0.07, "required": True},
+                {"id": "tenant_signature_date", "type": "text", "label": "Date",
+                 "page": 1, "x": 0.52, "y": 0.82, "width": 0.15, "height": 0.05, "required": True},
+                {"id": "landlord_signature", "type": "signature", "label": "Landlord Signature",
+                 "page": 1, "x": 0.12, "y": 0.9, "width": 0.35, "height": 0.07, "required": False},
+                {"id": "landlord_signature_date", "type": "text", "label": "Date",
+                 "page": 1, "x": 0.52, "y": 0.9, "width": 0.15, "height": 0.05, "required": False},
+            ]
+
+        return Response({
+            'id': legal_doc.id,
+            'tenant_id': legal_doc.tenant_id,
+            'tenant_name': legal_doc.tenant.name,
+            'property_unit': legal_doc.tenant.property_unit,
+            'type': legal_doc.type,
+            'status': legal_doc.status,
+            'pdf_url': pdf_proxy_url,
+            'generated_content': legal_doc.generated_content or '',
+            'fields': fields,
+        }, status=status.HTTP_200_OK)
+
+    # POST — submit signed values
+    values = request.data.get('values')
+    fields = request.data.get('fields')
+    if not isinstance(values, dict):
+        return Response({'error': 'values must be an object'}, status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(fields, list):
+        return Response({'error': 'fields must be an array'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Download original PDF
+    pdf_bytes = None
+    if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+        public_id = (legal_doc.pdf_file.name or '').lstrip('/')
+        pdf_bytes = download_cloudinary_file(public_id)
+    if not pdf_bytes:
+        try:
+            legal_doc.pdf_file.open('rb')
+            pdf_bytes = legal_doc.pdf_file.read()
+            legal_doc.pdf_file.close()
+        except Exception as e:
+            logger.warning(f"Could not read PDF for token signing: {e}")
+    if not pdf_bytes:
+        return Response({'error': 'Could not retrieve PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Stamp PDF
+    try:
+        signed_pdf_bytes = stamp_signed_pdf(pdf_bytes, fields, values)
+    except Exception as e:
+        logger.error(f"Error stamping PDF (token signing): {e}", exc_info=True)
+        return Response({'error': f'Failed to stamp PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    filename = f"signed_lease_{legal_doc.tenant_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    request_obj = request._request if hasattr(request, '_request') else request
+    audit = {
+        'signed_at': timezone.now().isoformat(),
+        'tenant_id': legal_doc.tenant_id,
+        'ip': request_obj.META.get('REMOTE_ADDR'),
+        'user_agent': (request_obj.META.get('HTTP_USER_AGENT') or '')[:500],
+        'method': 'token_link',
+    }
+
+    # Save signed PDF
+    if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+        try:
+            import cloudinary.uploader
+            if not cloudinary.config().api_secret:
+                cloudinary.config(
+                    cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+                    api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
+                    api_secret=settings.CLOUDINARY_STORAGE['API_SECRET'],
+                )
+            public_id_new = f"media/signed_leases/{filename}"
+            if public_id_new.lower().endswith('.pdf'):
+                public_id_new = public_id_new[:-4]
+            upload_result = cloudinary.uploader.upload(
+                signed_pdf_bytes,
+                resource_type="raw",
+                public_id=public_id_new,
+                type="upload",
+                format="pdf",
+            )
+            legal_doc.pdf_file.name = upload_result.get('public_id') or public_id_new
+        except Exception as e:
+            logger.error(f"Cloudinary upload failed for token-signed PDF: {e}")
+            legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_bytes), save=False)
+    else:
+        legal_doc.pdf_file.save(filename, ContentFile(signed_pdf_bytes), save=False)
+
+    legal_doc.status = 'Signed'
+    legal_doc.signed_at = timezone.now()
+    legal_doc.signing_audit = audit
+    legal_doc.save()
+
+    # Mark token as used
+    signing_token.used_at = timezone.now()
+    signing_token.save(update_fields=['used_at'])
+
+    # Update tenant lease status
+    tenant = legal_doc.tenant
+    tenant.lease_status = 'Signed'
+    tenant.save(update_fields=['lease_status'])
+
+    # Send confirmation emails
+    try:
+        from .email_service import send_lease_signed_confirmation
+        try:
+            send_lease_signed_confirmation.delay(legal_doc.id)
+        except Exception:
+            send_lease_signed_confirmation(legal_doc.id)
+    except Exception as e:
+        logger.error(f"Failed to send signed confirmation after token signing: {e}")
+
+    pdf_url = request_obj.build_absolute_uri(f"/api/legal-documents/{legal_doc.id}/pdf/")
+    return Response({
+        'status': 'Signed',
+        'pdf_url': pdf_url,
+        'signed_at': legal_doc.signed_at.isoformat(),
+    }, status=status.HTTP_200_OK)

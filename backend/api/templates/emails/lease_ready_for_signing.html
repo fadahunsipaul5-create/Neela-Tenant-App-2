@@ -80,13 +80,15 @@
             {% endif %}
         </div>
         
-        <p>Please review the lease agreement carefully. Once you're ready, you can sign it electronically using the link below.</p>
-        
+        <p>Please review the lease agreement carefully. Once you're ready, you can sign it electronically right inside the Neela tenant portal — no account or login required.</p>
+
         <div style="text-align: center;">
-            <a href="{{ signing_url }}" class="button">Review & Sign Lease</a>
+            <a href="{{ signing_url }}" class="button">Review &amp; Sign Lease</a>
         </div>
-        
-        <p><strong>Important:</strong> Please review all terms and conditions before signing. If you have any questions, please contact the property management office.</p>
+
+        <p style="font-size: 13px; color: #6b7280;">Or copy this link into your browser:<br>{{ signing_url }}</p>
+
+        <p><strong>Important:</strong> This link expires in 7 days. Please review all terms and conditions before signing. If you have any questions, contact the property management office before signing.</p>
         
         <p>Best regards,<br><strong>Neela Property Management Team</strong></p>
     </div>

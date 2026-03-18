@@ -473,35 +473,23 @@ Landlord                            Tenant
       setErrorMessage('No lease document available. Please generate the lease first.');
       return;
     }
-    
+
     setIsSending(true);
     setErrorMessage(null);
     setSuccessMessage(null);
-    
+
     try {
-      // Check if this is "Wills Lease Packet"
-      const isWillsPacket = leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet';
-      
-      const response = await api.sendLeaseDocuSign(generatedLeaseDoc.id, isWillsPacket);
-      
-      // If we got a sender view URL, open it in new tab
-      if (response.sender_view_url) {
-          window.open(response.sender_view_url, '_blank');
-          setSuccessMessage('Dropbox Sign draft created! Please review and add checkboxes in the opened tab.');
-      } else {
-          setSuccessMessage('Lease sent via Dropbox Sign! The tenant will receive an email to sign.');
-      }
-      
-      // Refresh doc status
+      await api.sendLeaseInhouse(generatedLeaseDoc.id);
+      setSuccessMessage('Lease sent! The tenant will receive an email with a link to sign.');
+
       const updatedDoc = await api.getLegalDocuments(selectedApplicant!.id);
       const leaseDocs = updatedDoc.filter((d: any) => d.type === 'Lease Agreement');
       if (leaseDocs.length > 0) {
-          setGeneratedLeaseDoc(leaseDocs[leaseDocs.length - 1]);
-          setLeaseStatus(leaseDocs[leaseDocs.length - 1].status || 'Sent');
+        setGeneratedLeaseDoc(leaseDocs[leaseDocs.length - 1]);
+        setLeaseStatus(leaseDocs[leaseDocs.length - 1].status || 'Sent');
       }
-      
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to send lease via Dropbox Sign');
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to send lease');
     } finally {
       setIsSending(false);
     }
@@ -1430,25 +1418,13 @@ Landlord                            Tenant
                              )}
                              <div className="flex-1"></div>
                              {leaseStatus === 'Draft' && !isEditingLease && (
-                               <button 
+                               <button
                                   onClick={handleSendDocuSign}
                                   disabled={isSending}
-                                  className={`px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg ${
-                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet'
-                                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
-                                      : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
-                                  }`}
+                                  className="px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
                                >
-                                  {isSending ? <Loader2 className="animate-spin w-4 h-4"/> : (
-                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet' 
-                                      ? <PenTool className="w-4 h-4"/> 
-                                      : <Send className="w-4 h-4"/>
-                                  )}
-                                  {isSending ? 'Processing...' : (
-                                      leaseTemplates.find(t => String(t.id) === selectedTemplateId)?.name === 'Wills Lease Packet'
-                                      ? 'Review & Tag in Dropbox Sign'
-                                      : 'Send via Dropbox Sign'
-                                  )}
+                                  {isSending ? <Loader2 className="animate-spin w-4 h-4"/> : <Send className="w-4 h-4"/>}
+                                  {isSending ? 'Sending...' : 'Send Lease to Tenant'}
                                </button>
                              )}
                              {leaseStatus === 'Sent' && (

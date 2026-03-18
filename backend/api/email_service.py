@@ -1132,27 +1132,33 @@ def send_payment_confirmation_to_tenant(payment_id):
 
 # ==================== Lease Email Functions ====================
 
-def _send_lease_ready_for_signing(legal_document_id):
+def _send_lease_ready_for_signing(legal_document_id, token=None):
     """
-    Internal function to send email to tenant when lease is generated and ready for signing.
+    Send email to tenant when their lease is ready to sign in-house.
+    token: UUID string from LeaseSigningToken — builds a direct sign link.
     """
     from .models import LegalDocument
-    
+
     try:
         legal_doc = LegalDocument.objects.select_related('tenant').get(id=legal_document_id)
     except LegalDocument.DoesNotExist:
         logger.error(f"Legal document with ID {legal_document_id} not found for lease ready email.")
         return
-    
+
     if not legal_doc.tenant.email:
         logger.warning(f"Tenant {legal_doc.tenant.id} has no email address for lease ready email.")
         return
-    
-    subject = f'Lease Agreement Ready for Signing - {legal_doc.tenant.property_unit}'
-    
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app')
-    signing_url = getattr(legal_doc, 'dropbox_sign_signing_url', None) or f"{frontend_url.rstrip('/')}/lease-signed"
-    
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://neela-tenant.vercel.app').rstrip('/')
+
+    if token:
+        signing_url = f"{frontend_url}/sign-lease?token={token}"
+    else:
+        # Fallback: send tenant to the login page with instructions
+        signing_url = f"{frontend_url}/tenant"
+
+    subject = f'Your Lease Agreement is Ready to Sign – {legal_doc.tenant.property_unit}'
+
     context = {
         'tenant_name': legal_doc.tenant.name,
         'property_unit': legal_doc.tenant.property_unit,
@@ -1160,25 +1166,24 @@ def _send_lease_ready_for_signing(legal_document_id):
         'rent_amount': legal_doc.tenant.rent_amount,
         'signing_url': signing_url,
     }
-    
+
     html_message = render_to_string('emails/lease_ready_for_signing.html', context)
-    plain_message = f"""
-    Lease Ready for Signing
-    
-    Dear {legal_doc.tenant.name},
-    
-    Your lease agreement has been prepared and is ready for your review and signature.
-    
-    Property Unit: {legal_doc.tenant.property_unit}
-    Lease Type: {legal_doc.type}
-    
-    Please review the lease agreement carefully and sign it using the link below:
-    {signing_url}
-    
-    Best regards,
-    Neela Property Management Team
-    """
-    
+    plain_message = f"""Your Lease Agreement is Ready to Sign
+
+Dear {legal_doc.tenant.name},
+
+Your lease agreement for {legal_doc.tenant.property_unit} has been prepared and is ready for your review and signature.
+
+Please click the link below to review and sign your lease. No login is required — the link is unique to you.
+
+Sign your lease: {signing_url}
+
+This link expires in 7 days. If it expires, please contact your property manager.
+
+Best regards,
+Neela Property Management Team
+"""
+
     send_email_with_logging(
         subject=subject,
         message=plain_message,
@@ -1190,13 +1195,13 @@ def _send_lease_ready_for_signing(legal_document_id):
 
 
 @shared_task
-def send_lease_ready_for_signing(legal_document_id):
+def send_lease_ready_for_signing(legal_document_id, token=None):
     """
-    Celery task to send email to tenant when lease is generated and ready for signing.
+    Celery task to send email to tenant when lease is ready for in-house signing.
     """
     email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
     logger.info(f"Celery task executing: send_lease_ready_for_signing for document {legal_document_id}, using email backend: {email_backend}")
-    _send_lease_ready_for_signing(legal_document_id)
+    _send_lease_ready_for_signing(legal_document_id, token=token)
 
 
 def _send_lease_dropbox_sign_notification(legal_document_id):

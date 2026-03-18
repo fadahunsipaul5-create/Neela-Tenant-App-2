@@ -359,8 +359,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       view !== 'lease_signing' ||
       !leaseDocument?.id ||
       leaseDocument?.status === 'Signed' ||
-      leaseDocument?.dropboxSignSigningUrl ||
-      leaseDocument?.docusignSigningUrl
+      leaseDocument?.dropboxSignSigningUrl
     ) {
       setLeaseSigningMetadata(null);
       return;
@@ -381,7 +380,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       cancelled = true;
       setLeaseSigningMetadata(null);
     };
-  }, [view, leaseDocument?.id, leaseDocument?.status, leaseDocument?.dropboxSignSigningUrl, leaseDocument?.docusignSigningUrl]);
+  }, [view, leaseDocument?.id, leaseDocument?.status, leaseDocument?.dropboxSignSigningUrl]);
 
   const refreshLeaseDocument = async () => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -765,30 +764,10 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         </a>
                       )}
                     </>
-                  ) : (leaseDocument?.dropboxSignSigningUrl || leaseDocument?.docusignSigningUrl) ? (
-                    <>
-                    <p className="text-sm text-gray-600 mb-8">Click the button below to sign via Dropbox Sign.</p>
-                      <a
-                        href={leaseDocument.dropboxSignSigningUrl || leaseDocument.docusignSigningUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all duration-300 text-center"
-                      >
-                        Sign via Dropbox Sign
-                      </a>
-                    </>
                   ) : leaseSigningMetadata ? (
                     <p className="text-sm text-gray-600">Complete all required fields on the document and click <strong>Complete & Sign</strong> below.</p>
                   ) : (
-                    <>
-                    <p className="text-sm text-gray-600 mb-8">Please review the lease document. Once you're ready, you can sign it.</p>
-                      <button 
-                          onClick={handleSignLease}
-                      className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all duration-300 mt-auto"
-                        >
-                          Finish & Submit
-                      </button>
-                    </>
+                    <p className="text-sm text-gray-600">Your lease document is loading. Please wait a moment.</p>
                   )}
                </div>
             </div>

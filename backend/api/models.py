@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.utils import timezone
 
@@ -148,6 +149,35 @@ class LegalDocument(models.Model):
 
     def __str__(self):
         return f"{self.type} - {self.tenant.name}"
+
+class LeaseSigningToken(models.Model):
+    """
+    One-time token that lets a tenant open and sign their lease without needing
+    to log in first. Created when admin sends a lease. Expires after 7 days.
+    """
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    legal_document = models.OneToOneField(
+        LegalDocument,
+        on_delete=models.CASCADE,
+        related_name='signing_token',
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_valid(self):
+        return self.used_at is None and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"SigningToken for doc {self.legal_document_id}"
+
 
 class Listing(models.Model):
     title = models.CharField(max_length=255)
