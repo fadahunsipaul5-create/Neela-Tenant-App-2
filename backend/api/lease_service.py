@@ -1,10 +1,13 @@
 """
 Lease generation and PDF creation service.
 """
+import base64
 import logging
 import re
 from io import BytesIO
 from datetime import datetime, timedelta
+from typing import Any
+
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -409,6 +412,74 @@ def save_lease_document(tenant: Tenant, pdf_buffer: BytesIO, filled_content: str
         legal_doc.pdf_file.save(filename, ContentFile(pdf_buffer.read()), save=True)
     
     return legal_doc
+
+
+# Letter size in points (PyMuPDF / PDF coordinate system)
+_PDF_PAGE_WIDTH = 612
+_PDF_PAGE_HEIGHT = 792
+
+
+def stamp_signed_pdf(pdf_bytes: bytes, fields: list[dict], values: dict[str, Any]) -> bytes:
+    """
+    Stamp checkboxes, text, and signature images onto the PDF at the given
+    normalized (0-1) coordinates. Returns a new PDF as bytes (flattened).
+    """
+    import fitz
+
+    if not pdf_bytes or not isinstance(fields, list):
+        raise ValueError("pdf_bytes and fields required")
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if len(doc) == 0:
+        doc.close()
+        raise ValueError("PDF has no pages")
+    out = BytesIO()
+    try:
+        for field in fields:
+            field_id = field.get("id")
+            field_type = field.get("type")
+            if not field_id or field_type not in ("checkbox", "text", "signature"):
+                continue
+            raw = values.get(field_id)
+            if raw is None:
+                continue
+            page_index = max(0, int(field.get("page", 1)) - 1)
+            if page_index >= len(doc):
+                continue
+            page = doc[page_index]
+            x = float(field.get("x", 0))
+            y = float(field.get("y", 0))
+            w = float(field.get("width", 0.1))
+            h = float(field.get("height", 0.05))
+            left = x * _PDF_PAGE_WIDTH
+            top = y * _PDF_PAGE_HEIGHT
+            right = (x + w) * _PDF_PAGE_WIDTH
+            bottom = (y + h) * _PDF_PAGE_HEIGHT
+            rect = fitz.Rect(left, top, right, bottom)
+
+            if field_type == "checkbox":
+                checked = raw is True or (isinstance(raw, str) and str(raw).lower() in ("true", "1", "yes", "x"))
+                if checked:
+                    cx = (left + right) / 2
+                    fontsize = min(14, rect.height * 0.8)
+                    pt = fitz.Point(cx - fontsize * 0.3, rect.y1 - 2)
+                    page.insert_text(pt, "✓", fontsize=fontsize, color=(0, 0, 0))
+            elif field_type == "text":
+                text = str(raw).strip() if raw else ""
+                if text:
+                    page.insert_textbox(rect, text, fontsize=10, fontname="helv", align=0)
+            elif field_type == "signature":
+                if isinstance(raw, str) and raw.startswith("data:image"):
+                    try:
+                        payload = raw.split(",", 1)[1]
+                        image_bytes = base64.b64decode(payload)
+                        if image_bytes:
+                            page.insert_image(rect, stream=image_bytes)
+                    except Exception as e:
+                        logger.warning("Failed to stamp signature image for %s: %s", field_id, e)
+    finally:
+        doc.save(out, deflate=True, garbage=4)
+        doc.close()
+    return out.getvalue()
 
 
 def process_dropbox_sign_status_update(legal_doc: LegalDocument) -> dict:

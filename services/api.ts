@@ -1,4 +1,4 @@
-import { Tenant, Payment, MaintenanceRequest, Listing, Property } from '../types';
+import { Tenant, Payment, MaintenanceRequest, Listing, Property, LeaseSigningMetadata } from '../types';
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
 // const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com';
@@ -870,6 +870,65 @@ export const api = {
     });
     if (!response.ok) throw new Error('Failed to load PDF');
     return response.blob();
+  },
+
+  // In-house e-signing: fetch PDF URL + normalized field definitions
+  getLeaseSigningMetadata: async (documentId: string): Promise<LeaseSigningMetadata> => {
+    const response = await fetchWithAuth(
+      `${API_URL}/legal-documents/${documentId}/signing_metadata/`,
+      {
+        method: 'GET',
+        headers: getHeaders(false, false),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to load signing metadata' }));
+      throw new Error(error.detail || error.error || error.message || 'Failed to load signing metadata');
+    }
+    const data = await response.json();
+    return {
+      id: String(data.id),
+      tenantId: String(data.tenant_id),
+      type: data.type,
+      status: data.status,
+      pdfUrl: data.pdf_url,
+      fields: (data.fields || []).map((f: any) => ({
+        id: String(f.id),
+        type: f.type,
+        label: f.label,
+        page: Number(f.page || 1),
+        x: Number(f.x),
+        y: Number(f.y),
+        width: Number(f.width),
+        height: Number(f.height),
+        required: !!f.required,
+      })),
+    };
+  },
+
+  // Submit signed lease: send values + field definitions; backend stamps PDF and stores it
+  submitSignedLease: async (
+    documentId: string,
+    payload: { values: Record<string, string | boolean>; fields: { id: string; type: string; page: number; x: number; y: number; width: number; height: number }[] }
+  ): Promise<{ pdf_url: string; status: string; signed_at: string | null }> => {
+    const response = await fetchWithAuth(
+      `${API_URL}/legal-documents/${documentId}/submit_signed/`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ values: payload.values, fields: payload.fields }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to submit signed lease' }));
+      throw new Error(error.error || error.detail || error.message || 'Failed to submit signed lease');
+    }
+    const data = await response.json();
+    return {
+      pdf_url: data.pdf_url,
+      status: data.status,
+      signed_at: data.signed_at ?? null,
+    };
   },
 
   // Generate and send legal notice to tenant
