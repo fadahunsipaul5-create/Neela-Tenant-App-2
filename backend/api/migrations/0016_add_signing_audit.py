@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0015_add_property_area'),
+        ('api', '0013_legaldocument_dropbox_sign'),
     ]
 
     operations = [

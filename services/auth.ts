@@ -44,9 +44,6 @@ export interface LoginResponse {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-/**
- * Login with email and password.
- */
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch(`${API_URL}/accounts/login/`, {
     method: 'POST',
