@@ -89,11 +89,23 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{property_unit}}': tenant.property_unit,
         '{{rent_amount}}': f"${tenant.rent_amount:,.2f}",
         '{{deposit_amount}}': f"${tenant.deposit:,.2f}",
+        # Backward-compatible aliases used by some legal/compliance templates
+        '{{deposit}}': f"{tenant.deposit:,.2f}",
         '{{lease_start_date}}': lease_start.strftime('%m/%d/%Y'),
         '{{lease_end_date}}': lease_end.strftime('%m/%d/%Y'),
+        '{{lease_start}}': lease_start.strftime('%m/%d/%Y'),
+        '{{lease_end}}': lease_end.strftime('%m/%d/%Y'),
         '{{employer}}': employment.get('employer', '[_Employer_]'),
         '{{job_title}}': employment.get('jobTitle', '[_JobTitle_]'),
-        '{{monthly_income}}': f"${employment.get('monthlyIncome', 0):,.2f}" if employment.get('monthlyIncome') else '[_Income_]',
+        '{{monthly_income}}': (
+            f"${float(employment.get('monthlyIncome')):,.2f}"
+            if employment.get('monthlyIncome') not in (None, '')
+            else (
+                f"${float(application_data.get('monthlyIncome')):,.2f}"
+                if application_data.get('monthlyIncome') not in (None, '')
+                else '[_Income_]'
+            )
+        ),
         '{{current_date}}': datetime.now().strftime('%m/%d/%Y'),
         '{{property_manager}}': getattr(settings, 'PROPERTY_MANAGER_NAME', None) or 'Neela Capital Investment',
         

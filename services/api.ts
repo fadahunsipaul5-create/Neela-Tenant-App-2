@@ -974,6 +974,38 @@ export const api = {
     };
   },
 
+  // Send an existing legal document PDF as a tenant legal notice (no e-sign provider).
+  sendNoticeEmail: async (
+    legalDocumentId: string,
+    payload: { deliveryMethod: string; noticeType: string; trackingNumber?: string }
+  ): Promise<any> => {
+    const response = await fetchWithAuth(
+      `${API_URL}/legal-documents/${legalDocumentId}/send_notice_email/`,
+      {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          delivery_method: payload.deliveryMethod,
+          notice_type: payload.noticeType,
+          tracking_number: payload.trackingNumber,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to send notice email' }));
+      throw new Error(error.detail || error.message || error.error || 'Failed to send notice email');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      tenantId: String(data.tenant),
+      pdfUrl: data.pdf_url,
+    };
+  },
+
   // Check Application Status
   checkApplicationStatus: async (email: string, phone: string): Promise<any> => {
     const response = await fetch(`${API_URL}/tenants/check_status/`, {
