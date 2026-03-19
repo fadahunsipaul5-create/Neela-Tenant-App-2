@@ -1282,6 +1282,60 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='send_notice_email',
+        permission_classes=[IsAuthenticated],
+    )
+    def send_notice_email(self, request, pk=None):
+        """
+        Send an existing LegalDocument PDF to the tenant as a legal notice email.
+
+        This is used by the Legal Compliance Center to ensure the email attachment
+        matches the preview/template the admin generated (no Dropbox/DocuSign flow).
+        """
+        from .email_service import send_notice_to_tenant
+
+        legal_doc = self.get_object()
+
+        # Frontend supplies delivery_method (Email/Certified Mail) and notice_type
+        # so we can update the document fields before emailing.
+        delivery_method = request.data.get('delivery_method', 'Email')
+        notice_type = request.data.get('notice_type') or legal_doc.type
+        tracking_number = request.data.get('tracking_number')
+
+        if delivery_method not in ('Email', 'Certified Mail', 'Hand Delivered', 'Portal'):
+            delivery_method = 'Email'
+
+        legal_doc.type = notice_type
+        legal_doc.status = 'Sent'
+        legal_doc.delivery_method = delivery_method
+        if tracking_number:
+            legal_doc.tracking_number = tracking_number
+
+        # Persist changes before sending the email task.
+        fields_to_update = ['type', 'status', 'delivery_method']
+        if tracking_number:
+            fields_to_update.append('tracking_number')
+        legal_doc.save(update_fields=fields_to_update)
+
+        # Send email with the PDF attachment from the stored document.
+        if not legal_doc.pdf_file:
+            return Response(
+                {'error': 'No PDF file available. Generate the notice first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            send_notice_to_tenant.delay(legal_doc.id)
+        except Exception:
+            # Celery may be misconfigured; fail-safe: send inline.
+            send_notice_to_tenant(legal_doc.id)
+
+        serializer = self.get_serializer(legal_doc)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get'], url_path='pdf', permission_classes=[AllowAny])
     def pdf(self, request, pk=None):
         """

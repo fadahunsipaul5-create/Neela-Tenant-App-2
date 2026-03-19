@@ -21,27 +21,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // History State
-  const [history, setHistory] = useState<LegalDocument[]>([
-    {
-      id: 'doc-101',
-      tenantId: 't2', // Bob Smith (from constants)
-      type: LegalNoticeType.NOTICE_TO_VACATE_3_DAY,
-      generatedContent: '...',
-      createdAt: '2024-04-28',
-      status: 'Delivered',
-      deliveryMethod: 'Certified Mail',
-      trackingNumber: '9400 1000 0000 0000 0000 01'
-    },
-    {
-      id: 'doc-102',
-      tenantId: 't1',
-      type: LegalNoticeType.LEASE_TERMINATION_30_DAY,
-      generatedContent: '...',
-      createdAt: '2023-12-01',
-      status: 'Filed',
-      deliveryMethod: 'Portal'
-    }
-  ]);
+  const [history, setHistory] = useState<LegalDocument[]>([]);
 
   // Modal State
   const [modalState, setModalState] = useState({
@@ -72,7 +52,12 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
   const [editingTemplateContent, setEditingTemplateContent] = useState('');
 
   const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
-  const delinquentTenants = tenants.filter(t => t.balance > 0 || t.status === 'Eviction Pending');
+  // Legal/Compliance actions should only be available for actual tenants
+  // (not pending applicants).
+  const eligibleTenants = tenants.filter(t => t.status !== 'Applicant');
+  const delinquentTenants = eligibleTenants.filter(
+    (t) => t.balance > 0 || t.status === 'Eviction Pending'
+  );
 
   // --- Actions ---
 
@@ -117,50 +102,48 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
   const handleSendNotice = async (method: 'Email' | 'Certified Mail' | 'Portal') => {
     if (!selectedTenantId || !generatedDoc) return;
 
-    // Use Dropbox Sign for "Certified Mail" or Email (send for signature)
     if (method === 'Certified Mail' || method === 'Email') {
-        // Save document then send via Dropbox Sign
-        
         try {
-            // 1. Create Legal Document record
-            // Since our generateLease API doesn't return the ID, we might need to rely on history or update API.
-            // For now, let's assume we can generate AND save in one go if we pass a flag, 
-            // OR we assume the generateLease call ALREADY saved a draft (it does in backend view: save_lease_document).
-            
-            // To get the ID of the document we just generated, we need to fetch the latest for this tenant.
-            // This is a bit race-condition prone but works for MVP.
+            // Send the already-generated preview PDF (the backend email uses the stored PDF).
             const docs = await api.getLegalDocuments(selectedTenantId);
-            const latestDoc = docs[docs.length - 1]; // Assuming it's the last one created
-            
-            if (latestDoc) {
-                await api.sendLeaseDocuSign(latestDoc.id);
-                setModalState({
-                  isOpen: true,
-                  title: 'Notice Sent',
-                  message: 'Official Notice Sent via Dropbox Sign to Tenant & Landlord!',
-                  type: 'success',
-                });
-                
-                // Update local history
-                const newDoc: LegalDocument = {
-                  id: latestDoc.id,
-                  tenantId: selectedTenantId,
-                  type: noticeType,
-                  generatedContent: generatedDoc,
-                  createdAt: new Date().toISOString().split('T')[0],
-                  status: 'Sent',
-                  deliveryMethod: 'Dropbox Sign',
-                  trackingNumber: 'DROPBOX-SIGN-TRACKING'
-                };
-                setHistory([newDoc, ...history]);
-                setActiveTab('history');
-                setGeneratedDoc('');
-                setSelectedTenantId('');
-                return;
-            }
+            const latestDoc = docs[docs.length - 1];
+            if (!latestDoc) return;
+
+            await api.sendNoticeEmail(latestDoc.id, {
+              deliveryMethod: method,
+              noticeType: noticeType,
+              trackingNumber: method === 'Certified Mail' ? 'PENDING-TRACKING' : undefined,
+            });
+
+            setModalState({
+              isOpen: true,
+              title: 'Notice Sent',
+              message: method === 'Certified Mail'
+                ? 'Official Notice prepared for Certified Mail.'
+                : 'Official Notice sent via Email.',
+              type: 'success',
+            });
+
+            // Update local history
+            const newDoc: LegalDocument = {
+              id: latestDoc.id,
+              tenantId: selectedTenantId,
+              type: noticeType,
+              generatedContent: generatedDoc,
+              createdAt: new Date().toISOString().split('T')[0],
+              status: 'Sent',
+              deliveryMethod: method,
+              trackingNumber: method === 'Certified Mail' ? 'PENDING-TRACKING' : undefined,
+            };
+
+            setHistory([newDoc, ...history]);
+            setActiveTab('history');
+            setGeneratedDoc('');
+            setSelectedTenantId('');
+            return;
         } catch (e) {
             console.error(e);
-            const message = e instanceof Error ? e.message : 'Failed to send notice via Dropbox Sign. Please try again.';
+            const message = e instanceof Error ? e.message : 'Failed to send notice. Please try again.';
             setModalState({
               isOpen: true,
               title: 'Send Notice Error',
@@ -296,7 +279,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                           </option>
                        ))}
                        <option disabled>---</option>
-                       {tenants.filter(t => !delinquentTenants.includes(t)).map(t => (
+                       {eligibleTenants.filter(t => !delinquentTenants.includes(t)).map(t => (
                           <option key={t.id} value={t.id}>{t.name} (Good Standing)</option>
                        ))}
                     </select>
@@ -344,14 +327,14 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                           <button className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Print PDF">
                              <Printer className="w-5 h-5" />
                           </button>
-                          <button onClick={() => handleSendNotice('Email')} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Email PDF">
+                          <button onClick={() => handleSendNotice('Email')} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Email Notice">
                              <Mail className="w-5 h-5" />
                           </button>
                           <button 
                              onClick={() => handleSendNotice('Certified Mail')}
                              className="px-4 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
                           >
-                             <Send className="w-4 h-4" /> Send Official Notice (Dropbox Sign)
+                             <Send className="w-4 h-4" /> Send Official Notice
                           </button>
                        </div>
                     )}

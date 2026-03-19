@@ -201,15 +201,37 @@ const SigPad: React.FC<SigPadProps> = ({ label, required, value, onChange }) => 
 // ─── Content renderer ─────────────────────────────────────────────────────────
 // Returns { beforeSig, introText } — content split at the SIGNATURES section.
 function splitAtSignatures(content: string): { body: string; sigIntro: string } {
-  // Look for the SIGNATURES section header
-  const marker = /^8\.\s*SIGNATURES|^SIGNATURES/im;
-  const match = marker.exec(content);
-  if (!match || match.index === undefined) {
-    return { body: content, sigIntro: '' };
+  // We split the template text at the start of the "signature area"
+  // so the HTML signing UI can render the signature blocks itself.
+  //
+  // Residential template commonly uses a `SIGNATURES` header.
+  // Other templates use different headings like "Landlord's Signature" or
+  // "Applicant's Signature", etc.
+  const signatureStartPatterns: RegExp[] = [
+    /^8\.\s*SIGNATURES\b/im,
+    /^SIGNATURES\b/im,
+    /^Applicant's Signature\b/im,
+    /^Applicant Signature\b/im,
+    /^Landlord's Signature\b/im,
+    /^Landlord Signature\b/im,
+    /^Tenant's Signature\b/im,
+    /^Tenant Signature\b/im,
+    /^Server Signature\b/im,
+    /^Signature of Deliverer\b/im,
+  ];
+
+  let best: { index: number; match: RegExpExecArray } | null = null;
+  for (const re of signatureStartPatterns) {
+    const m = re.exec(content);
+    if (!m || m.index === undefined) continue;
+    if (!best || m.index < best.index) best = { index: m.index, match: m };
   }
-  const body = content.slice(0, match.index).trim();
-  // Grab the intro paragraph that follows the header (up to first blank line)
-  const rest = content.slice(match.index + match[0].length).trim();
+
+  if (!best) return { body: content, sigIntro: '' };
+
+  const body = content.slice(0, best.index).trim();
+  // Grab the intro paragraph that follows the signature start marker (up to first blank line)
+  const rest = content.slice(best.index + best.match[0].length).trim();
   const firstBlank = rest.search(/\n\n/);
   const sigIntro = firstBlank > -1 ? rest.slice(0, firstBlank).trim() : rest.trim();
   return { body, sigIntro };

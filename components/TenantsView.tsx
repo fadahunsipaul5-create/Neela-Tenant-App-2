@@ -101,6 +101,22 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     return null;
   };
 
+  const parseEmergencyContact = (raw?: string | null) => {
+    const parts = (raw || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Expected format from application submit:
+    // "Name, Relationship, Phone"
+    return {
+      name: parts[0] || '',
+      relationship: parts[1] || '',
+      phone: parts[2] || '',
+      hasAll: parts.length >= 3,
+    };
+  };
+
   const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
     setIsSaving(true);
     setProcessingAction(newStatus === TenantStatus.DECLINED ? 'decline' : 'update');
@@ -955,7 +971,29 @@ Landlord                            Tenant
                              </div>
                              <div>
                                 <p className="text-xs text-slate-500 font-medium">Emergency Contact</p>
-                                <p className="text-slate-800">{selectedApplicant.applicationData?.emergencyContact || 'N/A'}</p>
+                                {(() => {
+                                  const ec = parseEmergencyContact(selectedApplicant.applicationData?.emergencyContact);
+                                  if (!ec.hasAll) {
+                                    return <p className="text-slate-800">{selectedApplicant.applicationData?.emergencyContact || 'N/A'}</p>;
+                                  }
+
+                                  return (
+                                    <div className="text-slate-800 space-y-1">
+                                      <p>
+                                        <span className="text-xs font-medium text-slate-500">Name: </span>
+                                        {ec.name}
+                                      </p>
+                                      <p>
+                                        <span className="text-xs font-medium text-slate-500">Relationship: </span>
+                                        {ec.relationship}
+                                      </p>
+                                      <p>
+                                        <span className="text-xs font-medium text-slate-500">Phone: </span>
+                                        {ec.phone}
+                                      </p>
+                                    </div>
+                                  );
+                                })()}
                              </div>
                              {selectedApplicant.applicationData?.additionalNotes && (
                                 <div>
@@ -1089,7 +1127,9 @@ Landlord                            Tenant
                              <div className="grid grid-cols-2 gap-4">
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-1">Lease Start</p>
-                                   <p className="text-slate-800">{selectedApplicant.leaseStart || 'Not set'}</p>
+                                  <p className="text-slate-800">
+                                    {selectedApplicant.leaseStart || selectedApplicant.applicationData?.desiredMoveInDate || 'Not set'}
+                                  </p>
                                 </div>
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-1">Lease End</p>
@@ -1951,8 +1991,8 @@ Landlord                            Tenant
                            )}
                         </td>
                         <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-slate-600 font-medium hidden lg:table-cell">
-                           {t.applicationData?.employment?.monthlyIncome 
-                             ? `$${t.applicationData.employment.monthlyIncome.toLocaleString()}/mo`
+                           {t.applicationData?.monthlyIncome || t.applicationData?.employment?.monthlyIncome
+                             ? `$${(t.applicationData?.monthlyIncome || t.applicationData?.employment?.monthlyIncome).toLocaleString()}/mo`
                              : 'N/A'}
                         </td>
                         <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right">

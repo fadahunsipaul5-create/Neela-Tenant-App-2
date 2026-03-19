@@ -100,6 +100,10 @@ class TenantSerializer(serializers.ModelSerializer):
         tenant.photo_id_files = photo_id_file_paths
         tenant.income_verification_files = income_verification_file_paths
         tenant.background_check_files = background_check_file_paths
+        # Persist uploaded document references.
+        # tenant.update_balance() saves only the `balance` field (update_fields=['balance']),
+        # so we must save these JSON fields first.
+        tenant.save(update_fields=['photo_id_files', 'income_verification_files', 'background_check_files'])
         tenant.update_balance()  # Auto-calculate balance
         
         return tenant

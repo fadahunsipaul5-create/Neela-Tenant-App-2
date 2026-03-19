@@ -1042,7 +1042,7 @@ export const ApplicationFormView: React.FC<ApplicationFormViewProps> = ({
                       className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
                       value={formData.currentEmployer}
                       onChange={(e) => setFormData({...formData, currentEmployer: e.target.value})}
-                      placeholder="Company name"
+                      placeholder="Employer name"
                     />
                   </div>
                   
