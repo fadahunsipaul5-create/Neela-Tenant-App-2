@@ -39,8 +39,8 @@ Each occupant and co-applicant 18 years or older must submit a separate applicat
 Property Address: {{property_unit}}
 Anticipated Move-in Date: {{move_in_date}}
 Initial Lease Term Requested: __________ (months)
-Monthly Rent: ${{rent_amount}}
-Security Deposit: ${{deposit_amount}}
+Monthly Rent: {{rent_amount}}
+Security Deposit: {{deposit_amount}}
 
 Property Condition: Applicant is strongly encouraged to view the Property prior to submitting any application. Landlord makes no express or implied warranties as to the Property's condition. Applicant requests Landlord consider the following repairs or treatments should Applicant and Landlord enter into a lease:
 __________________________________________________________________________________
@@ -59,15 +59,15 @@ Home Phone: __________________
 Mobile/Pager: {{tenant_phone}}
 Soc. Sec. No.: __________________
 Driver License No.: __________________ in ______ (state)
-Date of Birth: __________________
+Date of Birth: {{date_of_birth}}
 Height: ______ Weight: ______
 Hair Color: ______ Eye Color: ______
 Marital Status: __________________ Citizenship: ______ (country)
 
 Emergency Contact: (Do not insert the name of an occupant or co-applicant.)
-Name: ___________________________________
+Name: {{emergency_contact_name}}
 Address: ___________________________________
-Phone: __________________ E-mail: __________________
+Phone: {{emergency_contact_phone}} E-mail: {{emergency_contact_email}}
 
 Name all other persons who will occupy the Property:
 Name: ______________________ Relationship: _______________ Age: ______
@@ -99,7 +99,7 @@ Applicant's Current Employer: {{employer}}
 Address: ______________________________________________________________________
 Supervisor's Name: __________________ Phone: __________________ Fax: __________________
 E-mail: __________________
-Start Date: __________________ Gross Monthly Income: ${{monthly_income}} Position: {{job_title}}
+Start Date: __________________ Gross Monthly Income: {{monthly_income}} Position: {{job_title}}
 
 Note: If Applicant is self-employed, Landlord may require one or more previous year's tax return attested by a CPA, attorney, or other tax professional.
 

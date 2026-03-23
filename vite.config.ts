@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         proxy: {
           '/media': {
-            // target: process.env.VITE_API_URL || 'http://127.0.0.1:8000',
-            target: process.env.VITE_API_URL || 'https://neela-backend-96ia.onrender.com',
+            target: process.env.VITE_API_URL || 'http://127.0.0.1:8000',
+            // target: process.env.VITE_API_URL || 'https://neela-backend-96ia.onrender.com',
             changeOrigin: true,
           },
         },

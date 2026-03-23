@@ -1655,6 +1655,13 @@ def sign_lease_by_token(request):
 
     filename = f"signed_lease_{legal_doc.tenant_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     request_obj = request._request if hasattr(request, '_request') else request
+    # Collect non-signature inline field values filled in by the tenant
+    inline_filled = {
+        k: v for k, v in values.items()
+        if (k.startswith('inline_') or k.startswith('checkbox_') or k.startswith('p'))
+        and k not in ('tenant_signature', 'landlord_signature')
+        and v not in (None, '', False)
+    }
     audit = {
         'signed_at': timezone.now().isoformat(),
         'tenant_id': legal_doc.tenant_id,
@@ -1662,6 +1669,8 @@ def sign_lease_by_token(request):
         'user_agent': (request_obj.META.get('HTTP_USER_AGENT') or '')[:500],
         'method': 'token_link',
     }
+    if inline_filled:
+        audit['filled_fields'] = inline_filled
 
     # Save signed PDF
     if hasattr(settings, 'CLOUDINARY_STORAGE') and settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):

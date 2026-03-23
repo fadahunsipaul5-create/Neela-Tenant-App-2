@@ -199,6 +199,103 @@ const SigPad: React.FC<SigPadProps> = ({ label, required, value, onChange }) => 
   );
 };
 
+// ─── Interactive inline field renderer ───────────────────────────────────────
+// Converts blank fields (____) to text inputs and [ ] to checkboxes inline.
+
+const renderLineInteractive = (
+  line: string,
+  keyPrefix: string,
+  vals: Record<string, string | boolean>,
+  updateFn: (id: string, val: string | boolean) => void
+): React.ReactNode => {
+  // Split line by 4+ underscores (blank fields) or unchecked checkbox markers [ ]
+  const tokens = line.split(/(_{4,}|\[ \])/g);
+  if (tokens.length === 1) return <>{tokens[0]}</>;
+
+  return (
+    <>
+      {tokens.map((token, ti) => {
+        const fid = `${keyPrefix}_t${ti}`;
+
+        if (/^_{4,}$/.test(token)) {
+          const v = (vals[fid] as string) ?? '';
+          const w = Math.max(80, token.length * 7);
+          return (
+            <React.Fragment key={ti}>
+              <input
+                type="text"
+                value={v}
+                onChange={(e) => updateFn(fid, e.target.value)}
+                className="no-print border-b border-indigo-400 bg-transparent focus:outline-none focus:border-indigo-600 text-[13px] text-slate-900 inline-block align-baseline leading-none px-0.5"
+                style={{ width: w }}
+                aria-label="fill in field"
+              />
+              <span
+                className="print-only border-b border-black inline-block"
+                style={{ minWidth: w }}
+              >
+                {v}
+              </span>
+            </React.Fragment>
+          );
+        }
+
+        if (token === '[ ]') {
+          const checked = !!vals[fid];
+          return (
+            <React.Fragment key={ti}>
+              <label className="no-print inline-flex items-center cursor-pointer align-middle mx-0.5">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => updateFn(fid, e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-400 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+              <span className="print-only">{checked ? '[x]' : '[ ]'}</span>
+            </React.Fragment>
+          );
+        }
+
+        return <span key={ti}>{token}</span>;
+      })}
+    </>
+  );
+};
+
+const renderInteractiveBody = (
+  content: string,
+  vals: Record<string, string | boolean>,
+  updateFn: (id: string, val: string | boolean) => void
+): React.ReactNode[] => {
+  const paragraphs = content.split(/\n\n+/).filter(Boolean);
+  return paragraphs.map((para, pi) => {
+    const lines = para.split('\n').filter(Boolean);
+    if (!lines.length) return null;
+    const first = lines[0].trim();
+    const isHeader =
+      /^[A-Z][A-Z\s]{2,}$/.test(first) ||
+      /^\d+\.\s+[A-Z]/.test(first);
+    if (isHeader && lines.length === 1) {
+      return (
+        <h3 key={pi} className="font-bold text-slate-900 text-sm uppercase tracking-wide mt-7 mb-1.5 print:text-black">
+          {first}
+        </h3>
+      );
+    }
+    return (
+      <p key={pi} className="text-[13px] text-slate-800 leading-relaxed mb-3 print:text-black">
+        {lines.map((line, li) => (
+          <React.Fragment key={li}>
+            {li > 0 && <br />}
+            {renderLineInteractive(line, `p${pi}l${li}`, vals, updateFn)}
+          </React.Fragment>
+        ))}
+      </p>
+    );
+  }).filter(Boolean) as React.ReactNode[];
+};
+
 // ─── Content renderer ─────────────────────────────────────────────────────────
 // Returns { beforeSig, introText } — content split at the SIGNATURES section.
 function splitAtSignatures(content: string): { body: string; sigIntro: string } {
@@ -237,32 +334,6 @@ function splitAtSignatures(content: string): { body: string; sigIntro: string } 
   const sigIntro = firstBlank > -1 ? rest.slice(0, firstBlank).trim() : rest.trim();
   return { body, sigIntro };
 }
-
-const renderBody = (content: string): React.ReactNode[] => {
-  const paragraphs = content.split(/\n\n+/).filter(Boolean);
-  return paragraphs.map((para, i) => {
-    const lines = para.split('\n').filter(Boolean);
-    if (!lines.length) return null;
-    const first = lines[0].trim();
-    const isHeader =
-      /^[A-Z][A-Z\s]{2,}$/.test(first) ||
-      /^\d+\.\s+[A-Z]/.test(first);
-    if (isHeader && lines.length === 1) {
-      return (
-        <h3 key={i} className="font-bold text-slate-900 text-sm uppercase tracking-wide mt-7 mb-1.5 print:text-black">
-          {first}
-        </h3>
-      );
-    }
-    return (
-      <p key={i} className="text-[13px] text-slate-800 leading-relaxed mb-3 print:text-black">
-        {lines.map((line, j) => (
-          <React.Fragment key={j}>{j > 0 && <br />}{line}</React.Fragment>
-        ))}
-      </p>
-    );
-  }).filter(Boolean) as React.ReactNode[];
-};
 
 // ─── Signature block ──────────────────────────────────────────────────────────
 interface SigBlockProps {
@@ -477,10 +548,21 @@ const LeaseSigningPage: React.FC = () => {
 
         {/* Document */}
         <div className="max-w-3xl mx-auto px-4 py-8 print:px-0 print:py-0">
+          {/* Fill-in guidance banner */}
+          <div className="no-print mb-4 flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+            <svg className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+            </svg>
+            <span>
+              Fields already filled from your application are shown as text. Blank underlined fields and checkboxes
+              (<span className="font-semibold">[ ]</span>) are interactive — click or tap to fill them in before signing.
+            </span>
+          </div>
+
           <div className="lease-paper bg-white rounded-2xl shadow-md border border-slate-200 p-8 md:p-12 print:rounded-none print:shadow-none print:border-none">
 
-            {/* Body of the lease */}
-            {renderBody(body)}
+            {/* Body of the lease — blank fields (____) become inputs, [ ] become checkboxes */}
+            {renderInteractiveBody(body, values, update)}
 
             {/* ── SIGNATURES section ── */}
             <div className="mt-8 pt-6 border-t-2 border-slate-300 print:border-black">

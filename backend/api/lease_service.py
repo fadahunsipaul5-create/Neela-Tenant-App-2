@@ -63,7 +63,13 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
     # Get employment info from application data
     employment = tenant.application_data.get('employment', {}) if tenant.application_data else {}
     application_data = tenant.application_data or {}
-    
+
+    # Parse emergency contact (stored as "Name, Relationship, Phone")
+    ec_full = application_data.get('emergencyContact', '')
+    ec_parts = [p.strip() for p in ec_full.split(',')] if ec_full else []
+    ec_name = ec_parts[0] if len(ec_parts) >= 1 else ''
+    ec_phone = ec_parts[2] if len(ec_parts) >= 3 else ''
+
     # Get other occupants
     other_occupants = application_data.get('otherOccupants', 'None')
     if not other_occupants and application_data.get('hasOtherAdults'):
@@ -94,15 +100,19 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{lease_end_date}}': lease_end.strftime('%m/%d/%Y'),
         '{{lease_start}}': lease_start.strftime('%m/%d/%Y'),
         '{{lease_end}}': lease_end.strftime('%m/%d/%Y'),
-        '{{employer}}': employment.get('employer', '[_Employer_]'),
-        '{{job_title}}': employment.get('jobTitle', '[_JobTitle_]'),
+        '{{employer}}': (
+            application_data.get('currentEmployer') or
+            employment.get('employer') or
+            '__________'
+        ),
+        '{{job_title}}': employment.get('jobTitle') or application_data.get('jobTitle') or '__________',
         '{{monthly_income}}': (
             f"${float(employment.get('monthlyIncome')):,.2f}"
             if employment.get('monthlyIncome') not in (None, '')
             else (
                 f"${float(application_data.get('monthlyIncome')):,.2f}"
                 if application_data.get('monthlyIncome') not in (None, '')
-                else '[_Income_]'
+                else '__________'
             )
         ),
         '{{current_date}}': datetime.now().strftime('%m/%d/%Y'),
@@ -141,22 +151,22 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{bathrooms_desired}}': bathrooms_val,
         
         # Personal Info (Extended)
-        '{{date_of_birth}}': application_data.get('dateOfBirth') or application_data.get('dob') or '[_DOB_]',
-        '{{driver_license}}': application_data.get('driverLicense') or '[_DL_]',
-        '{{dl_state}}': application_data.get('driverLicenseState') or '[_DLState_]',
-        '{{ssn}}': application_data.get('ssn') or application_data.get('ssnLast4') or '[_SSN_]',
-        '{{marital_status}}': application_data.get('maritalStatus') or '[_Marital_]',
-        '{{citizenship}}': application_data.get('citizenship') or '[_Citizen_]',
-        '{{height}}': application_data.get('height') or '[_Height_]',
-        '{{weight}}': application_data.get('weight') or '[_Weight_]',
-        '{{hair_color}}': application_data.get('hairColor') or '[_Hair_]',
-        '{{eye_color}}': application_data.get('eyeColor') or '[_Eye_]',
-        
-        # Emergency Contact
-        '{{emergency_contact_name}}': application_data.get('emergencyContact') or '[_EmergName_]',
-        '{{emergency_contact_phone}}': application_data.get('emergencyContactPhone') or '[_EmergPhone_]',
-        '{{emergency_contact_address}}': application_data.get('emergencyContactAddress') or '[_EmergAddr_]',
-        '{{emergency_contact_email}}': application_data.get('emergencyContactEmail') or '[_EmergEmail_]',
+        '{{date_of_birth}}': application_data.get('dateOfBirth') or application_data.get('dob') or '__________',
+        '{{driver_license}}': application_data.get('driverLicense') or '__________',
+        '{{dl_state}}': application_data.get('driverLicenseState') or '__________',
+        '{{ssn}}': application_data.get('ssn') or application_data.get('ssnLast4') or '__________',
+        '{{marital_status}}': application_data.get('maritalStatus') or '__________',
+        '{{citizenship}}': application_data.get('citizenship') or '__________',
+        '{{height}}': application_data.get('height') or '__________',
+        '{{weight}}': application_data.get('weight') or '__________',
+        '{{hair_color}}': application_data.get('hairColor') or '__________',
+        '{{eye_color}}': application_data.get('eyeColor') or '__________',
+
+        # Emergency Contact (parsed from combined "Name, Relationship, Phone" string)
+        '{{emergency_contact_name}}': ec_name or '__________',
+        '{{emergency_contact_phone}}': ec_phone or '__________',
+        '{{emergency_contact_address}}': application_data.get('emergencyContactAddress') or '__________',
+        '{{emergency_contact_email}}': application_data.get('emergencyContactEmail') or '__________',
         
         # Vehicles
         # If we have a list, we might need to join it or just take the first few
@@ -168,20 +178,20 @@ def fill_lease_template(template_content: str, tenant: Tenant) -> str:
         '{{no_pets_check}}': '[ ]' if application_data.get('pets') else '[_PetN_]',
         
         # Employment (Extended)
-        '{{supervisor_name}}': employment.get('supervisorName') or '[_SupName_]',
-        '{{supervisor_phone}}': employment.get('supervisorPhone') or '[_SupPhone_]',
-        '{{employment_start_date}}': employment.get('startDate') or '[_EmpStart_]',
-        '{{employment_duration}}': employment.get('duration') or '[_EmpDur_]',
+        '{{supervisor_name}}': employment.get('supervisorName') or '__________',
+        '{{supervisor_phone}}': employment.get('supervisorPhone') or '__________',
+        '{{employment_start_date}}': employment.get('startDate') or '__________',
+        '{{employment_duration}}': employment.get('duration') or '__________',
         
         # Rental History
-        '{{previous_address}}': application_data.get('previousAddress') or '[_PrevAddr_]',
-        '{{previous_landlord}}': application_data.get('previousLandlordInfo') or '[_PrevLandlord_]',
-        '{{previous_landlord_phone}}': application_data.get('previousLandlordPhone') or '[_PrevLandlordPhone_]',
-        '{{previous_landlord_email}}': application_data.get('previousLandlordEmail') or '[_PrevLandlordEmail_]',
-        '{{previous_rent}}': application_data.get('previousRent') or '[_PrevRent_]',
-        '{{reason_for_leaving}}': application_data.get('reasonForLeaving') or '[_LeaveReason_]',
-        '{{move_in_date_prev}}': application_data.get('prevMoveInDate') or '[_PrevMoveIn_]',
-        '{{move_out_date_prev}}': application_data.get('prevMoveOutDate') or '[_PrevMoveOut_]',
+        '{{previous_address}}': application_data.get('previousAddress') or '__________',
+        '{{previous_landlord}}': application_data.get('previousLandlordInfo') or '__________',
+        '{{previous_landlord_phone}}': application_data.get('previousLandlordPhone') or '__________',
+        '{{previous_landlord_email}}': application_data.get('previousLandlordEmail') or '__________',
+        '{{previous_rent}}': application_data.get('previousRent') or '__________',
+        '{{reason_for_leaving}}': application_data.get('reasonForLeaving') or '__________',
+        '{{move_in_date_prev}}': application_data.get('prevMoveInDate') or '__________',
+        '{{move_out_date_prev}}': application_data.get('prevMoveOutDate') or '__________',
         
         # Standard Placeholders (if not mapped above)
         '{{bedrooms}}': bedrooms_val,

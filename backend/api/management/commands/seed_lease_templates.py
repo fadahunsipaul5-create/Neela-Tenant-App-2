@@ -7,6 +7,17 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         content = """STANDARD RESIDENTIAL LEASE AGREEMENT
 
+TENANT PROFILE (Pre-Filled from Application)
+Full Name: {{tenant_name}}
+Email: {{tenant_email}}
+Phone: {{tenant_phone}}
+Date of Birth: {{date_of_birth}}
+Current Address: {{tenant_current_address}}
+Employer: {{employer}}
+Monthly Income: {{monthly_income}}
+Emergency Contact: {{emergency_contact_name}} — Phone: {{emergency_contact_phone}}
+Other Occupants: {{occupants}}
+
 I. THE PARTIES. This residential lease agreement ("Agreement"), dated {{current_date}}, by and between:
 LANDLORD: The Landlord is an individual known as {{landlord_name}} of {{landlord_address}}, hereinafter known as the "Landlord", and
 TENANT(S): An individual known as {{tenant_name}}, hereinafter known as the "Tenant(s)", agree to the following:
@@ -158,6 +169,10 @@ NO PETS!!!!!!
 
 LV. ENTIRE AGREEMENT. This Agreement contains all the terms, conditions, covenants, and provisions agreed on by the Landlord, Tenant(s), and any other relevant party to this Agreement, relating to its subject matter, including any attachments or addendums. This Agreement replaces any and all previous discussions, understandings, and oral agreements. The Landlord and Tenant(s) agree to this Agreement and shall be bound until the end of the Lease Term.
 
+AMOUNT DUE AT SIGNING
+Security Deposit: {{deposit_amount}}
+First (1st) Month's Rent: {{rent_amount}}
+
 The parties have agreed and duly executed this Agreement on {{current_date}}.
 
 Landlord's Signature: ___________________________________
@@ -167,10 +182,6 @@ Date: __________________
 Tenant's Signature: ___________________________________
 {{tenant_name}}
 Date: __________________
-
-AMOUNT ($) DUE AT SIGNING
-Security Deposit: {{deposit_amount}}
-First (1st) Month's Rent: {{rent_amount}}
 """
         template, created = LeaseTemplate.objects.get_or_create(
             name='Texas Standard Residential Lease',
