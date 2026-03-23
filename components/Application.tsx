@@ -197,7 +197,8 @@ export const useApplication = (): UseApplicationReturn => {
     // If it's still relative, prepend API base URL
     let imageUrl = property.image || '';
     if (imageUrl && !imageUrl.startsWith('http')) {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const API_BASE = import.meta.env.VITE_API_URL || 'https://neela-backend-96ia.onrender.com';
+      // const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       // Remove /api from the end if present
       const baseUrl = API_BASE.replace(/\/api$/, '');
       // Ensure imageUrl starts with / for proper concatenation

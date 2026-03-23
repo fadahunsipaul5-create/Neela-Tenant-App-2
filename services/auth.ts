@@ -42,7 +42,8 @@ export interface LoginResponse {
   tenant: Tenant | null;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://neela-backend-96ia.onrender.com';
+// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch(`${API_URL}/accounts/login/`, {
