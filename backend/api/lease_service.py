@@ -1,12 +1,11 @@
-"""
-Lease generation and PDF creation service.
-"""
+
 import base64
 import logging
 import re
 from io import BytesIO
 from datetime import datetime, timedelta
 from typing import Any
+import fitz
 
 from django.conf import settings
 
@@ -432,11 +431,6 @@ _PDF_PAGE_HEIGHT = 792
 
 
 def stamp_signed_pdf(pdf_bytes: bytes, fields: list[dict], values: dict[str, Any]) -> bytes:
-    """
-    Stamp checkboxes, text, and signature images onto the PDF at the given
-    normalized (0-1) coordinates. Returns a new PDF as bytes (flattened).
-    """
-    import fitz
 
     if not pdf_bytes or not isinstance(fields, list):
         raise ValueError("pdf_bytes and fields required")
