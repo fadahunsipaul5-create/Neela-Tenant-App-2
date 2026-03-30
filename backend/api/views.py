@@ -24,9 +24,12 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib import colors
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
+from django.http import FileResponse
+from django.core.files.storage import default_storage
 from django.db.models import Sum
 import re
 import cloudinary
+import mimetypes
 
 from api.management.commands.import_properties import (
     extract_unit_from_address,
@@ -36,7 +39,7 @@ import cloudinary.api
 import requests
 logger = logging.getLogger(__name__)
 
-def download_cloudinary_file(resource_path):
+def download_cloudinary_file(resource_path, resource_types=None, formats=None):
     """
     Download a file from Cloudinary using API authentication.
     Handles authenticated delivery and returns file bytes.
@@ -58,52 +61,65 @@ def download_cloudinary_file(resource_path):
         logger.info(f"Attempting to download Cloudinary file: {public_id}")
         
         # Try different delivery types and methods
+        resource_types = resource_types or ['raw']
+        formats = formats or ['pdf']
         delivery_types = ['upload', 'authenticated', 'private']
         
-        for delivery_type in delivery_types:
-            try:
-                # Method 1: Use Cloudinary's private_download_url with API key signing
-                if hasattr(cloudinary.utils, 'private_download_url'):
-                    download_url = cloudinary.utils.private_download_url(
-                        public_id,
-                        format='pdf',
-                        resource_type='raw',
-                        type=delivery_type,
-                        attachment=False
-                    )
-                    
-                    logger.info(f"Trying private download URL ({delivery_type}): {download_url[:100]}...")
-                    response = requests.get(download_url, timeout=30)
-                    
-                    if response.status_code == 200:
-                        logger.info(f"Successfully downloaded file using {delivery_type} delivery")
-                        return response.content
-                    else:
-                        logger.warning(f"Failed with {delivery_type}: HTTP {response.status_code}")
-                        
-            except Exception as e:
-                logger.warning(f"Error with {delivery_type} delivery: {e}")
-                continue
+        for resource_type in resource_types:
+            for file_format in formats:
+                for delivery_type in delivery_types:
+                    try:
+                        # Method 1: Use Cloudinary's private_download_url with API key signing
+                        if hasattr(cloudinary.utils, 'private_download_url'):
+                            # private_download_url requires `format`; skip invalid entries.
+                            if not file_format:
+                                continue
+                            download_url = cloudinary.utils.private_download_url(
+                                public_id,
+                                format=file_format,
+                                resource_type=resource_type,
+                                type=delivery_type,
+                                attachment=False,
+                            )
+                            
+                            logger.info(
+                                f"Trying private download URL ({resource_type}/{file_format or 'auto'}/{delivery_type}): {download_url[:100]}..."
+                            )
+                            response = requests.get(download_url, timeout=30)
+                            
+                            if response.status_code == 200:
+                                logger.info(f"Successfully downloaded file using {resource_type}/{delivery_type}")
+                                return response.content
+                            else:
+                                logger.warning(f"Failed with {resource_type}/{delivery_type}: HTTP {response.status_code}")
+                                
+                    except Exception as e:
+                        logger.warning(f"Error with {resource_type}/{delivery_type}: {e}")
+                        continue
         
         # Method 2: Try using Cloudinary Admin API to get resource details
         try:
             logger.info("Attempting to fetch resource details via Admin API")
-            resource_info = cloudinary.api.resource(
-                public_id,
-                resource_type='raw',
-                type='upload'
-            )
-            
-            if 'secure_url' in resource_info:
-                secure_url = resource_info['secure_url']
-                logger.info(f"Got secure_url from Admin API: {secure_url[:100]}...")
-                response = requests.get(secure_url, timeout=30)
-                
-                if response.status_code == 200:
-                    logger.info("Successfully downloaded file using Admin API secure_url")
-                    return response.content
-                else:
-                    logger.warning(f"Admin API secure_url failed: HTTP {response.status_code}")
+            for resource_type in resource_types:
+                try:
+                    resource_info = cloudinary.api.resource(
+                        public_id,
+                        resource_type=resource_type,
+                        type='upload'
+                    )
+                except Exception:
+                    continue
+
+                if 'secure_url' in resource_info:
+                    secure_url = resource_info['secure_url']
+                    logger.info(f"Got secure_url from Admin API ({resource_type}): {secure_url[:100]}...")
+                    response = requests.get(secure_url, timeout=30)
+                    
+                    if response.status_code == 200:
+                        logger.info("Successfully downloaded file using Admin API secure_url")
+                        return response.content
+                    else:
+                        logger.warning(f"Admin API secure_url failed: HTTP {response.status_code}")
         except Exception as e:
             logger.warning(f"Admin API method failed: {e}")
         
@@ -346,6 +362,75 @@ class TenantViewSet(viewsets.ModelViewSet):
                 {'error': 'Failed to fetch tenant data'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny], url_path='document')
+    def document(self, request, pk=None):
+        """
+        Proxy tenant-uploaded documents through backend so preview/download works
+        even when direct Cloudinary URLs are access-restricted.
+        """
+        tenant = self.get_object()
+        raw_path = (request.query_params.get('path') or '').strip()
+        if not raw_path:
+            return Response({'error': 'path is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        normalized_path = raw_path.lstrip('/').replace('\\', '/')
+        normalized_no_media = re.sub(r'^media/', '', normalized_path, flags=re.IGNORECASE)
+
+        expected_prefix = f'applications/tenant_{tenant.id}/'
+        if not normalized_no_media.startswith(expected_prefix):
+            return Response({'error': 'Invalid document path'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Resolve original uploaded filename (keeps extension for downloads).
+        original_filename = request.query_params.get('filename')
+        if not original_filename:
+            all_docs = []
+            for arr in [tenant.photo_id_files or [], tenant.income_verification_files or [], tenant.background_check_files or []]:
+                if isinstance(arr, list):
+                    all_docs.extend([x for x in arr if isinstance(x, dict)])
+            for doc in all_docs:
+                doc_path = str(doc.get('path') or doc.get('file') or '').lstrip('/').replace('\\', '/')
+                doc_no_media = re.sub(r'^media/', '', doc_path, flags=re.IGNORECASE)
+                if doc_no_media == normalized_no_media and doc.get('filename'):
+                    original_filename = str(doc.get('filename'))
+                    break
+        if not original_filename:
+            original_filename = normalized_no_media.split('/')[-1]
+
+        candidate_paths = [normalized_no_media, f"media/{normalized_no_media}"]
+        file_handle = None
+        try:
+            for candidate in candidate_paths:
+                try:
+                    file_handle = default_storage.open(candidate, 'rb')
+                    normalized_no_media = candidate
+                    break
+                except Exception:
+                    continue
+        except Exception:
+            file_handle = None
+
+        # Cloudinary fallback for private/restricted assets.
+        if file_handle is None:
+            cloudinary_path = f"media/{re.sub(r'^media/', '', normalized_no_media, flags=re.IGNORECASE)}"
+            file_bytes = download_cloudinary_file(
+                cloudinary_path,
+                resource_types=['image', 'raw'],
+                formats=['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+            )
+            if not file_bytes:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+            content_type, _ = mimetypes.guess_type(original_filename)
+            response = HttpResponse(file_bytes, content_type=content_type or 'application/octet-stream')
+            if request.query_params.get('download') == '1':
+                response['Content-Disposition'] = f'attachment; filename="{original_filename}"'
+            return response
+
+        content_type, _ = mimetypes.guess_type(original_filename)
+        response = FileResponse(file_handle, content_type=content_type or 'application/octet-stream')
+        if request.query_params.get('download') == '1':
+            response['Content-Disposition'] = f'attachment; filename="{original_filename}"'
+        return response
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()

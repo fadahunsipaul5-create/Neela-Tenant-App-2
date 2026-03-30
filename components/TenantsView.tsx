@@ -72,7 +72,8 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   });
 
   // Document Preview Modal (Screening & ID)
-  const [documentPreview, setDocumentPreview] = useState<{ url: string; filename: string; isImage: boolean } | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; filename: string; isImage: boolean; isPdf: boolean } | null>(null);
+  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
 
   // Filter Lists
   const residents = tenants.filter(t => t.status !== TenantStatus.APPLICANT && t.status !== TenantStatus.DECLINED);
@@ -90,15 +91,45 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     }
   };
 
-  const getMediaUrl = (path: string) => `${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${path}`;
+  const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000';
+  const getMediaUrl = (rawPath: string) => {
+    if (!rawPath) return '';
+    // Already absolute URL (Cloudinary, signed URL, etc.)
+    if (/^https?:\/\//i.test(rawPath)) return rawPath;
+    // Normalize local media paths and avoid /media/media/... duplicates.
+    const normalized = rawPath
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .replace(/^media\//i, '');
+    return `${API_BASE.replace(/\/+$/, '')}/media/${normalized}`;
+  };
   const isImageFile = (filename: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(filename || '');
+  const isPdfFile = (filenameOrUrl: string) => /\.pdf(\?|#|$)/i.test(filenameOrUrl || '');
   /** Get preview/download URL from file object (path, file, or url). */
   const getFilePreviewUrl = (file: any): string | null => {
     if (!file) return null;
+    if (typeof file.url === 'string' && file.url.trim()) return file.url;
     const path = file.path || file.file;
-    if (path) return getMediaUrl(path);
-    if (file.url) return file.url;
+    if (typeof path === 'string' && path.trim()) return getMediaUrl(path);
     return null;
+  };
+  const getFileDownloadUrl = (file: any): string | null => {
+    const previewUrl = getFilePreviewUrl(file);
+    if (!previewUrl) return null;
+    // Force attachment download for backend proxy links.
+    if (/\/api\/tenants\/\d+\/document\/\?/i.test(previewUrl)) {
+      const separator = previewUrl.includes('?') ? '&' : '?';
+      const filename = encodeURIComponent(file?.filename || 'document');
+      return `${previewUrl}${separator}download=1&filename=${filename}`;
+    }
+    return previewUrl;
+  };
+  const buildDocumentPreview = (file: any, fallbackName: string) => {
+    const url = getFilePreviewUrl(file) || '';
+    const filename = file?.filename || fallbackName;
+    const isImage = isImageFile(filename);
+    const isPdf = isPdfFile(filename) || isPdfFile(url);
+    return { url, filename, isImage, isPdf };
   };
 
   const parseEmergencyContact = (raw?: string | null) => {
@@ -1025,7 +1056,7 @@ Landlord                            Tenant
                                                </div>
                                             </div>
                                             {file.path && (
-                                               <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
                                                </a>
                                             )}
@@ -1052,7 +1083,7 @@ Landlord                            Tenant
                                                </div>
                                             </div>
                                             {file.path && (
-                                               <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
                                                </a>
                                             )}
@@ -1079,7 +1110,7 @@ Landlord                            Tenant
                                                </div>
                                             </div>
                                             {file.path && (
-                                               <a href={`${import.meta.env.VITE_API_URL || 'https://neela-backend.onrender.com'}/media/${file.path}`} target="_blank" rel="noopener noreferrer">
+                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
                                                </a>
                                             )}
@@ -1167,6 +1198,7 @@ Landlord                            Tenant
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                    {selectedApplicant.photoIdFiles.map((file: any, idx: number) => {
                                       const fileUrl = getFilePreviewUrl(file);
+                                      const fileDownloadUrl = getFileDownloadUrl(file);
                                       return (
                                       <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl hover:bg-slate-50/80 bg-white shadow-sm">
                                          <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1183,17 +1215,16 @@ Landlord                            Tenant
                                                <>
                                                  <button
                                                    type="button"
-                                                   onClick={() => setDocumentPreview({
-                                                     url: fileUrl,
-                                                     filename: file.filename || 'Photo ID',
-                                                     isImage: isImageFile(file.filename)
-                                                   })}
+                                                  onClick={() => {
+                                                    setPreviewLoadFailed(false);
+                                                    setDocumentPreview(buildDocumentPreview(file, 'Photo ID'));
+                                                  }}
                                                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
                                                    title="Preview document"
                                                  >
                                                    <Eye className="w-4 h-4" /> Preview
                                                  </button>
-                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
+                                                <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
                                                    <Download className="w-4 h-4" /> Download
                                                  </a>
                                                </>
@@ -1221,6 +1252,7 @@ Landlord                            Tenant
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                    {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => {
                                       const fileUrl = getFilePreviewUrl(file);
+                                      const fileDownloadUrl = getFileDownloadUrl(file);
                                       return (
                                       <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl hover:bg-slate-50/80 bg-white shadow-sm">
                                          <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1237,17 +1269,16 @@ Landlord                            Tenant
                                                <>
                                                  <button
                                                    type="button"
-                                                   onClick={() => setDocumentPreview({
-                                                     url: fileUrl,
-                                                     filename: file.filename || 'Income Document',
-                                                     isImage: isImageFile(file.filename)
-                                                   })}
+                                                  onClick={() => {
+                                                    setPreviewLoadFailed(false);
+                                                    setDocumentPreview(buildDocumentPreview(file, 'Income Document'));
+                                                  }}
                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"
                                                    title="Preview document"
                                                  >
                                                    <Eye className="w-4 h-4" /> Preview
                                                  </button>
-                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
+                                                <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" title="Download">
                                                    <Download className="w-4 h-4" /> Download
                                                  </a>
                                                </>
@@ -1275,6 +1306,7 @@ Landlord                            Tenant
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                    {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => {
                                       const fileUrl = getFilePreviewUrl(file);
+                                      const fileDownloadUrl = getFileDownloadUrl(file);
                                       return (
                                       <div key={idx} className="flex items-center justify-between gap-3 p-4 border border-green-200 bg-green-50/50 rounded-xl hover:bg-green-50 shadow-sm">
                                          <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1291,17 +1323,16 @@ Landlord                            Tenant
                                                <>
                                                  <button
                                                    type="button"
-                                                   onClick={() => setDocumentPreview({
-                                                     url: fileUrl,
-                                                     filename: file.filename || 'Background Check',
-                                                     isImage: isImageFile(file.filename)
-                                                   })}
+                                                  onClick={() => {
+                                                    setPreviewLoadFailed(false);
+                                                    setDocumentPreview(buildDocumentPreview(file, 'Background Check'));
+                                                  }}
                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors shadow-sm"
                                                    title="Preview document"
                                                  >
                                                    <Eye className="w-4 h-4" /> Preview
                                                  </button>
-                                                 <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-800 text-sm font-medium rounded-lg hover:bg-green-100 transition-colors" title="Download">
+                                                <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-800 text-sm font-medium rounded-lg hover:bg-green-100 transition-colors" title="Download">
                                                    <Download className="w-4 h-4" /> Download
                                                  </a>
                                                </>
@@ -2076,12 +2107,39 @@ Landlord                            Tenant
                   alt={documentPreview.filename}
                   className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-md"
                 />
-              ) : (
+              ) : documentPreview.isPdf && !previewLoadFailed ? (
                 <iframe
                   src={documentPreview.url}
                   title={documentPreview.filename}
                   className="w-full min-h-[75vh] border-0 rounded-lg shadow-md bg-white"
+                  onError={() => setPreviewLoadFailed(true)}
                 />
+              ) : (
+                <div className="w-full max-w-xl bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
+                  <p className="text-slate-800 font-semibold mb-1">Preview not available in-app</p>
+                  <p className="text-sm text-slate-500 mb-4">
+                    This file type is best viewed in a new tab or downloaded.
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <a
+                      href={documentPreview.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                    >
+                      Open in new tab
+                    </a>
+                    <a
+                      href={documentPreview.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
               )}
             </div>
           </div>

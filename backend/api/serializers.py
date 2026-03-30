@@ -35,6 +35,48 @@ class TenantSerializer(serializers.ModelSerializer):
             'background_check_files': {'read_only': True},
             'balance': {'read_only': True},  # Balance is auto-calculated
         }
+
+    def _normalize_file_entries(self, tenant_id, entries):
+        """
+        Ensure each uploaded document dict has a usable URL for frontend preview/download.
+        Works for local media storage and Cloudinary storage.
+        """
+        request = self.context.get('request')
+        out = []
+        for item in (entries or []):
+            if not isinstance(item, dict):
+                out.append(item)
+                continue
+
+            entry = dict(item)
+            existing_url = entry.get('url')
+            if existing_url:
+                out.append(entry)
+                continue
+
+            path = entry.get('path') or entry.get('file')
+            if isinstance(path, str) and path.strip():
+                try:
+                    normalized_path = path.lstrip('/')
+                    if request:
+                        url = request.build_absolute_uri(
+                            f"/api/tenants/{tenant_id}/document/?path={normalized_path}"
+                        )
+                    else:
+                        url = f"/api/tenants/{tenant_id}/document/?path={normalized_path}"
+                    entry['url'] = url
+                except Exception:
+                    # Fallback: preserve path and let frontend handle local /media URLs.
+                    pass
+            out.append(entry)
+        return out
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['photo_id_files'] = self._normalize_file_entries(instance.id, rep.get('photo_id_files'))
+        rep['income_verification_files'] = self._normalize_file_entries(instance.id, rep.get('income_verification_files'))
+        rep['background_check_files'] = self._normalize_file_entries(instance.id, rep.get('background_check_files'))
+        return rep
     
     def create(self, validated_data):
         # Extract file uploads
