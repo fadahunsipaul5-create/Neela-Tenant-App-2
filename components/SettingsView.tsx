@@ -39,7 +39,7 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
-    status: 'vacant' as 'vacant' | 'occupied',
+    status: 'vacant' as 'vacant' | 'occupied' | 'coming_soon',
     furnishing_type: '',
     furnishings_breakdown: '',
     image: '',
@@ -61,7 +61,7 @@ const SettingsView: React.FC = () => {
     bedrooms: 2,
     bathrooms: 2,
     square_footage: 1000,
-    status: 'vacant' as 'vacant' | 'occupied',
+    status: 'vacant' as 'vacant' | 'occupied' | 'coming_soon',
     furnishing_type: '',
     furnishings_breakdown: '',
     image: '',
@@ -255,7 +255,7 @@ ________________________ Tenant`);
       bedrooms: property.bedrooms || 2,
       bathrooms: property.bathrooms || 2,
       square_footage: property.square_footage || 1000,
-      status: property.status === 'occupied' ? 'occupied' : 'vacant',
+      status: property.status === 'occupied' || property.status === 'coming_soon' ? property.status : 'vacant',
       furnishing_type: property.furnishingType || '',
       furnishings_breakdown: property.furnishingsBreakdown?.join('\n') || '',
       image: property.image || '',
@@ -430,6 +430,9 @@ ________________________ Tenant`);
                                   <h4 className="font-bold text-slate-800">{prop.name}</h4>
                                   {prop.status === 'occupied' && (
                                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Occupied</span>
+                                  )}
+                                  {prop.status === 'coming_soon' && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Coming Soon</span>
                                   )}
                                 </div>
                                 <p className="text-sm text-slate-500">{prop.address}, {prop.city}, {prop.state} • <span className="font-medium text-indigo-600">{prop.units} Units</span></p>
@@ -872,11 +875,12 @@ ________________________ Tenant`);
                 <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                 <select
                   value={editFormData.status}
-                  onChange={(e) => setEditFormData({...editFormData, status: e.target.value as 'vacant' | 'occupied'})}
+                  onChange={(e) => setEditFormData({...editFormData, status: e.target.value as 'vacant' | 'occupied' | 'coming_soon'})}
                   className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
                 >
                   <option value="vacant">Vacant (Apply button shown)</option>
                   <option value="occupied">Occupied (Apply disabled)</option>
+                  <option value="coming_soon">Coming Soon (Apply disabled)</option>
                 </select>
               </div>
               
@@ -888,13 +892,14 @@ ________________________ Tenant`);
                   className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
                 >
                   <option value="">— Select —</option>
+                  <option value="Unfurnished">Unfurnished</option>
                   <option value="Semi-furnished">Semi-furnished</option>
                   <option value="Fully-furnished">Fully-furnished</option>
                 </select>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishings Breakdown (Optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Property Details / Furnishings Breakdown (Optional)</label>
                 <textarea
                   value={editFormData.furnishings_breakdown}
                   onChange={(e) => setEditFormData({...editFormData, furnishings_breakdown: e.target.value})}
@@ -1122,11 +1127,12 @@ ________________________ Tenant`);
                 <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                 <select
                   value={addFormData.status}
-                  onChange={(e) => setAddFormData({...addFormData, status: e.target.value as 'vacant' | 'occupied'})}
+                  onChange={(e) => setAddFormData({...addFormData, status: e.target.value as 'vacant' | 'occupied' | 'coming_soon'})}
                   className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
                 >
                   <option value="vacant">Vacant (Apply button shown)</option>
                   <option value="occupied">Occupied (Apply disabled)</option>
+                  <option value="coming_soon">Coming Soon (Apply disabled)</option>
                 </select>
               </div>
               
@@ -1138,13 +1144,14 @@ ________________________ Tenant`);
                   className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900"
                 >
                   <option value="">— Select —</option>
+                  <option value="Unfurnished">Unfurnished</option>
                   <option value="Semi-furnished">Semi-furnished</option>
                   <option value="Fully-furnished">Fully-furnished</option>
                 </select>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Furnishings Breakdown (Optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Property Details / Furnishings Breakdown (Optional)</label>
                 <textarea
                   value={addFormData.furnishings_breakdown}
                   onChange={(e) => setAddFormData({...addFormData, furnishings_breakdown: e.target.value})}

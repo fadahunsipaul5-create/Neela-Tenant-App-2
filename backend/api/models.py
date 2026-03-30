@@ -141,8 +141,6 @@ class LegalDocument(models.Model):
     tracking_number = models.CharField(max_length=100, null=True, blank=True)
     # Lease-specific fields
     pdf_file = models.FileField(upload_to='leases/', null=True, blank=True)
-    dropbox_sign_signature_request_id = models.CharField(max_length=255, null=True, blank=True)
-    dropbox_sign_signing_url = models.URLField(null=True, blank=True)
     signed_pdf_url = models.URLField(null=True, blank=True)
     signed_at = models.DateTimeField(null=True, blank=True)
     signing_audit = models.JSONField(null=True, blank=True, help_text="Who signed, when, IP, etc.")
@@ -219,12 +217,13 @@ class Property(models.Model):
     STATUS_CHOICES = [
         ('vacant', 'Vacant'),
         ('occupied', 'Occupied'),
+        ('coming_soon', 'Coming Soon'),
     ]
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default='vacant',
-        help_text="Vacant = available to apply; Occupied = hide Apply button and show label"
+        help_text="Vacant = available to apply; Occupied/Coming Soon = hide Apply button and show label"
     )
     area = models.CharField(
         max_length=120,

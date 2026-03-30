@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Tenant, TenantStatus } from '../types';
 import { api } from '../services/api';
+import { getAuthHeader } from '../services/auth';
 import { 
   Search, UserPlus, MoreVertical, CheckCircle, AlertCircle, Clock, 
   FileText, X, Briefcase, Shield, MessageSquare, Download, ChevronRight, Loader2,
@@ -74,6 +75,9 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   // Document Preview Modal (Screening & ID)
   const [documentPreview, setDocumentPreview] = useState<{ url: string; filename: string; isImage: boolean; isPdf: boolean } | null>(null);
   const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
+  const [documentPreviewBlobUrl, setDocumentPreviewBlobUrl] = useState<string | null>(null);
+  const [documentPreviewBlobLoading, setDocumentPreviewBlobLoading] = useState(false);
+  const documentPreviewBlobUrlRef = useRef<string | null>(null);
 
   // Filter Lists
   const residents = tenants.filter(t => t.status !== TenantStatus.APPLICANT && t.status !== TenantStatus.DECLINED);
@@ -97,10 +101,11 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     // Already absolute URL (Cloudinary, signed URL, etc.)
     if (/^https?:\/\//i.test(rawPath)) return rawPath;
     // Normalize local media paths and avoid /media/media/... duplicates.
-    const normalized = rawPath
+    let normalized = rawPath
       .replace(/\\/g, '/')
-      .replace(/^\/+/, '')
-      .replace(/^media\//i, '');
+      .replace(/^\/+/, '');
+    // Remove one or more leading "media/" segments.
+    normalized = normalized.replace(/^(media\/)+/i, '');
     return `${API_BASE.replace(/\/+$/, '')}/media/${normalized}`;
   };
   const isImageFile = (filename: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(filename || '');
@@ -108,7 +113,10 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
   /** Get preview/download URL from file object (path, file, or url). */
   const getFilePreviewUrl = (file: any): string | null => {
     if (!file) return null;
-    if (typeof file.url === 'string' && file.url.trim()) return file.url;
+    if (typeof file.url === 'string' && file.url.trim()) {
+      // Guard against malformed local links such as /media/media/... from legacy data.
+      return file.url.replace(/\/media\/media\//gi, '/media/');
+    }
     const path = file.path || file.file;
     if (typeof path === 'string' && path.trim()) return getMediaUrl(path);
     return null;
@@ -397,7 +405,11 @@ Landlord                            Tenant
     
     setIsCheckingStatus(true);
     try {
-      const updatedDoc = await api.checkLeaseStatus(idToCheck);
+      const docs = await api.getLegalDocuments(selectedTenant?.id);
+      const updatedDoc = docs.find((d: any) => String(d.id) === String(idToCheck));
+      if (!updatedDoc) {
+        throw new Error('Document not found');
+      }
       setGeneratedLeaseDoc(updatedDoc);
       
       const newStatus = updatedDoc.status || 'Sent';
@@ -412,7 +424,7 @@ Landlord                            Tenant
       console.error('Failed to check lease status:', error);
       // Don't show error message to user on auto-check, only on manual
       if (!docId) {
-        setErrorMessage('Failed to check status with Dropbox Sign');
+        setErrorMessage('Failed to check lease status');
       }
     } finally {
       setIsCheckingStatus(false);
@@ -455,6 +467,66 @@ Landlord                            Tenant
       setLeasePdfBlobUrl(null);
     };
   }, [generatedLeaseDoc?.id, generatedLeaseDoc?.pdfUrl]);
+
+  // Fetch document preview files as blob URLs (avoids iframe/embed issues on direct backend/media URLs)
+  useEffect(() => {
+    if (!documentPreview || (!documentPreview.isPdf && !documentPreview.isImage)) {
+      if (documentPreviewBlobUrlRef.current) {
+        URL.revokeObjectURL(documentPreviewBlobUrlRef.current);
+        documentPreviewBlobUrlRef.current = null;
+      }
+      setDocumentPreviewBlobUrl(null);
+      setDocumentPreviewBlobLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoadFailed(false);
+    setDocumentPreviewBlobLoading(true);
+
+    const headers: Record<string, string> = {};
+    const authHeader = getAuthHeader();
+    if (authHeader) headers['Authorization'] = authHeader;
+
+    fetch(documentPreview.url, {
+      method: 'GET',
+      headers,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch preview file (${response.status})`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        if (documentPreviewBlobUrlRef.current) {
+          URL.revokeObjectURL(documentPreviewBlobUrlRef.current);
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        documentPreviewBlobUrlRef.current = blobUrl;
+        setDocumentPreviewBlobUrl(blobUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDocumentPreviewBlobUrl(null);
+          setPreviewLoadFailed(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDocumentPreviewBlobLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (documentPreviewBlobUrlRef.current) {
+        URL.revokeObjectURL(documentPreviewBlobUrlRef.current);
+        documentPreviewBlobUrlRef.current = null;
+      }
+      setDocumentPreviewBlobUrl(null);
+      setDocumentPreviewBlobLoading(false);
+    };
+  }, [documentPreview?.url, documentPreview?.isPdf, documentPreview?.isImage]);
 
   const openApplicationReview = (applicant: Tenant) => {
     setSelectedApplicant(applicant);
@@ -515,7 +587,7 @@ Landlord                            Tenant
     setEditedLeaseContent('');
   };
 
-  const handleSendDocuSign = async () => {
+  const handleSendLease = async () => {
     if (!generatedLeaseDoc?.id) {
       setErrorMessage('No lease document available. Please generate the lease first.');
       return;
@@ -1388,11 +1460,6 @@ Landlord                            Tenant
                                  Signed {formatDateMMDDYYYY(generatedLeaseDoc.signedAt)}
                                </span>
                              )}
-                             {(generatedLeaseDoc?.dropboxSignSignatureRequestId || generatedLeaseDoc?.docusignEnvelopeId) && (
-                               <span className="text-xs text-slate-500">
-                                 Dropbox Sign: {(generatedLeaseDoc.dropboxSignSignatureRequestId || generatedLeaseDoc.docusignEnvelopeId).substring(0, 8)}...
-                               </span>
-                             )}
                           </div>
                        </div>
 
@@ -1490,7 +1557,7 @@ Landlord                            Tenant
                              <div className="flex-1"></div>
                              {leaseStatus === 'Draft' && !isEditingLease && (
                                <button
-                                  onClick={handleSendDocuSign}
+                                 onClick={handleSendLease}
                                   disabled={isSending}
                                   className="px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
                                >
@@ -2101,15 +2168,20 @@ Landlord                            Tenant
               </div>
             </div>
             <div className="flex-1 overflow-auto p-6 min-h-[480px] flex items-center justify-center bg-slate-200">
-              {documentPreview.isImage ? (
+              {documentPreviewBlobLoading && (documentPreview.isImage || documentPreview.isPdf) ? (
+                <div className="w-full max-w-xl bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
+                  <p className="text-slate-800 font-semibold mb-1">Loading preview...</p>
+                  <p className="text-sm text-slate-500">Please wait while we prepare the file.</p>
+                </div>
+              ) : documentPreview.isImage && documentPreviewBlobUrl ? (
                 <img
-                  src={documentPreview.url}
+                  src={documentPreviewBlobUrl}
                   alt={documentPreview.filename}
                   className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-md"
                 />
-              ) : documentPreview.isPdf && !previewLoadFailed ? (
+              ) : documentPreview.isPdf && !previewLoadFailed && documentPreviewBlobUrl ? (
                 <iframe
-                  src={documentPreview.url}
+                  src={documentPreviewBlobUrl}
                   title={documentPreview.filename}
                   className="w-full min-h-[75vh] border-0 rounded-lg shadow-md bg-white"
                   onError={() => setPreviewLoadFailed(true)}

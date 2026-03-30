@@ -552,7 +552,7 @@ export const api = {
         id: String(item.id), // Ensure ID is always a string
         price: item.price ? parseFloat(item.price) : undefined,
         image: imageUrl,
-        status: (item.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
+        status: (item.status === 'occupied' || item.status === 'coming_soon' ? item.status : 'vacant') as 'vacant' | 'occupied' | 'coming_soon',
         furnishingType: item.furnishing_type || undefined,
         furnishingsBreakdown: item.furnishings_breakdown || [],
         area: item.area || undefined,
@@ -579,7 +579,7 @@ export const api = {
       formData.append('bedrooms', String(propertyData.bedrooms || 2));
       formData.append('bathrooms', String(propertyData.bathrooms || 2));
       formData.append('square_footage', String(propertyData.square_footage || 1000));
-      formData.append('status', propertyData.status === 'occupied' ? 'occupied' : 'vacant');
+      formData.append('status', propertyData.status === 'occupied' || propertyData.status === 'coming_soon' ? propertyData.status : 'vacant');
       if (propertyData.furnishingType) formData.append('furnishing_type', propertyData.furnishingType);
       if (propertyData.furnishingsBreakdown?.length) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
       formData.append('image', imageFile);
@@ -599,7 +599,7 @@ export const api = {
         bedrooms: propertyData.bedrooms || 2,
         bathrooms: propertyData.bathrooms || 2,
         square_footage: propertyData.square_footage || 1000,
-        status: propertyData.status === 'occupied' ? 'occupied' : 'vacant',
+        status: propertyData.status === 'occupied' || propertyData.status === 'coming_soon' ? propertyData.status : 'vacant',
         furnishing_type: propertyData.furnishingType || null,
         furnishings_breakdown: propertyData.furnishingsBreakdown || [],
         image_url: propertyData.image || null, // Use image_url for URL input
@@ -631,7 +631,7 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
-      status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
+      status: (data.status === 'occupied' || data.status === 'coming_soon' ? data.status : 'vacant') as 'vacant' | 'occupied' | 'coming_soon',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
       area: data.area || undefined,
@@ -659,7 +659,7 @@ export const api = {
       if (propertyData.square_footage !== undefined) formData.append('square_footage', String(propertyData.square_footage));
       if (propertyData.furnishingType !== undefined) formData.append('furnishing_type', propertyData.furnishingType);
       if (propertyData.furnishingsBreakdown !== undefined) formData.append('furnishings_breakdown', JSON.stringify(propertyData.furnishingsBreakdown));
-      if (propertyData.status !== undefined) formData.append('status', propertyData.status === 'occupied' ? 'occupied' : 'vacant');
+      if (propertyData.status !== undefined) formData.append('status', propertyData.status === 'occupied' || propertyData.status === 'coming_soon' ? propertyData.status : 'vacant');
       formData.append('image', imageFile);
       formData.append('image_url', ''); // Clear URL when uploading file
       body = formData;
@@ -677,7 +677,7 @@ export const api = {
       if (propertyData.bedrooms !== undefined) jsonData.bedrooms = propertyData.bedrooms;
       if (propertyData.bathrooms !== undefined) jsonData.bathrooms = propertyData.bathrooms;
       if (propertyData.square_footage !== undefined) jsonData.square_footage = propertyData.square_footage;
-      if (propertyData.status !== undefined) jsonData.status = propertyData.status === 'occupied' ? 'occupied' : 'vacant';
+      if (propertyData.status !== undefined) jsonData.status = propertyData.status === 'occupied' || propertyData.status === 'coming_soon' ? propertyData.status : 'vacant';
       if (propertyData.image !== undefined) {
         jsonData.image_url = propertyData.image || null; // Use image_url for URL input
       }
@@ -711,7 +711,7 @@ export const api = {
       id: String(data.id),
       price: data.price ? parseFloat(data.price) : undefined,
       image: imageUrl,
-      status: (data.status === 'occupied' ? 'occupied' : 'vacant') as 'vacant' | 'occupied',
+      status: (data.status === 'occupied' || data.status === 'coming_soon' ? data.status : 'vacant') as 'vacant' | 'occupied' | 'coming_soon',
       furnishingType: data.furnishing_type || undefined,
       furnishingsBreakdown: data.furnishings_breakdown || [],
       area: data.area || undefined,
@@ -804,58 +804,6 @@ export const api = {
     return await response.json();
   },
 
-  // Send lease via Dropbox Sign
-  sendLeaseDocuSign: async (legalDocumentId: string, createDraft: boolean = false): Promise<any> => {
-    const response = await fetchWithAuth(
-      `${API_URL}/legal-documents/${legalDocumentId}/send_dropbox_sign/`,
-      {
-        method: 'POST',
-        headers: getHeaders(true, true),
-        body: JSON.stringify({ create_draft: createDraft }),
-      }
-    );
-    if (!response.ok) {
-      let error: any = { detail: 'Failed to send lease via Dropbox Sign' };
-      try {
-        error = await response.json();
-      } catch {
-        // keep default (e.g. 503 from Render with HTML body)
-      }
-      throw new Error(error.error || error.detail || error.message || 'Failed to send lease via Dropbox Sign');
-    }
-    return await response.json();
-  },
-
-  // Check lease status (Dropbox Sign)
-  checkLeaseStatus: async (legalDocumentId: string): Promise<any> => {
-    const response = await fetchWithAuth(
-      `${API_URL}/legal-documents/${legalDocumentId}/check_status/`,
-      {
-        method: 'POST',
-        headers: getHeaders(false, true),
-      }
-    );
-    if (!response.ok) {
-      let error: any = { detail: 'Failed to check lease status' };
-      try {
-        error = await response.json();
-      } catch {
-        // keep default
-      }
-      throw new Error(error.detail || error.message || 'Failed to check lease status');
-    }
-    const data = await response.json();
-    return {
-      ...data,
-      id: String(data.id),
-      tenantId: String(data.tenant),
-      pdfUrl: data.pdf_url,
-      dropboxSignSignatureRequestId: data.dropbox_sign_signature_request_id ?? data.docusign_envelope_id,
-      dropboxSignSigningUrl: data.dropbox_sign_signing_url ?? data.docusign_signing_url,
-      signedPdfUrl: data.signed_pdf_url,
-      signedAt: data.signed_at,
-    };
-  },
 
   // Get legal documents for a tenant (uses auth and same API base URL)
   getLegalDocuments: async (tenantId?: string): Promise<any[]> => {
@@ -873,8 +821,6 @@ export const api = {
       id: String(item.id),
       tenantId: String(item.tenant),
       pdfUrl: item.pdf_url,
-      dropboxSignSignatureRequestId: item.dropbox_sign_signature_request_id ?? item.docusign_envelope_id,
-      dropboxSignSigningUrl: item.dropbox_sign_signing_url ?? item.docusign_signing_url,
       signedPdfUrl: item.signed_pdf_url,
       signedAt: item.signed_at,
     }));

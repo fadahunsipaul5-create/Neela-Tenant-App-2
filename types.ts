@@ -161,11 +161,9 @@ export interface LegalDocument {
   generatedContent: string;
   createdAt: string;
   status: 'Draft' | 'Sent' | 'Delivered' | 'Filed' | 'Signed';
-  deliveryMethod?: 'Email' | 'Certified Mail' | 'Hand Delivered' | 'Portal' | 'Dropbox Sign';
+  deliveryMethod?: 'Email' | 'Certified Mail' | 'Hand Delivered' | 'Portal' | 'In-House';
   trackingNumber?: string;
   pdfUrl?: string;
-  dropboxSignSignatureRequestId?: string;
-  dropboxSignSigningUrl?: string;
   signedPdfUrl?: string;
   signedAt?: string;
 }
@@ -225,12 +223,12 @@ export interface Listing {
   image: string;
   description: string;
   amenities: string[];
-  status?: 'vacant' | 'occupied';
+  status?: 'vacant' | 'occupied' | 'coming_soon';
   furnishingType?: string;
   furnishingsBreakdown?: string[];
 }
 
-export type PropertyStatus = 'vacant' | 'occupied';
+export type PropertyStatus = 'vacant' | 'occupied' | 'coming_soon';
 
 export interface Property {
   id: string;

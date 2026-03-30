@@ -55,6 +55,8 @@ const ListingCard: React.FC<{
   driveMin?: number;
 }> = ({ listing, handleApply, onViewDetails, distanceKm, driveMin }) => {
   const isOccupied = listing.status === 'occupied';
+  const isComingSoon = listing.status === 'coming_soon';
+  const isUnavailable = isOccupied || isComingSoon;
   const furnishingLabel = listing.furnishingType || (listing.furnishingsBreakdown && listing.furnishingsBreakdown.length > 0 ? 'Furnished' : null) || 'Unfurnished';
   return (
   <div className="bg-white rounded-2xl shadow-lg shadow-slate-500/10 border-2 border-slate-200/60 overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 flex flex-col transform hover:-translate-y-1 group">
@@ -101,21 +103,23 @@ const ListingCard: React.FC<{
       </div>
 
       <div className="mt-auto pt-5 border-t-2 border-slate-100">
-        {isOccupied && (
-          <p className="text-xs font-semibold text-rose-600 mb-3 text-right tracking-wide">Occupied</p>
+        {isUnavailable && (
+          <p className={`text-xs font-semibold mb-3 text-right tracking-wide ${isComingSoon ? 'text-amber-600' : 'text-rose-600'}`}>
+            {isComingSoon ? 'Coming Soon' : 'Occupied'}
+          </p>
         )}
         <button 
-          onClick={() => !isOccupied && handleApply(listing)}
-          disabled={isOccupied}
+          onClick={() => !isUnavailable && handleApply(listing)}
+          disabled={isUnavailable}
           className={`w-full py-3.5 font-bold rounded-xl transition-all duration-300 flex justify-center items-center gap-2 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 ${
-            isOccupied
+            isUnavailable
               ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
               : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white hover:shadow-xl hover:shadow-indigo-500/30 transform hover:-translate-y-0.5'
           }`}
-          aria-label={isOccupied ? `${listing.title} is occupied` : `Apply for ${listing.title}`}
+          aria-label={isUnavailable ? `${listing.title} is ${isComingSoon ? 'coming soon' : 'occupied'}` : `Apply for ${listing.title}`}
         >
-          <span>{isOccupied ? 'Unavailable' : 'Apply Now'}</span>
-          {!isOccupied && <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">→</span>}
+          <span>{isUnavailable ? 'Unavailable' : 'Apply Now'}</span>
+          {!isUnavailable && <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">→</span>}
         </button>
       </div>
     </div>
@@ -277,7 +281,8 @@ export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handl
         [property.address, property.city, property.state].some(s => s && String(s).toLowerCase().includes(q))
       );
     }
-    list.sort((a, b) => (a.listing.status === 'occupied' ? 1 : 0) - (b.listing.status === 'occupied' ? 1 : 0));
+    const availabilityRank = (status?: string) => (status === 'vacant' ? 0 : status === 'coming_soon' ? 1 : 2);
+    list.sort((a, b) => availabilityRank(a.listing.status) - availabilityRank(b.listing.status));
     if (appliedNear && Object.keys(distanceMap).length > 0) {
       list.sort((a, b) => {
         const da = distanceMap[String(a.property.id)]?.distanceKm ?? Infinity;
@@ -295,9 +300,10 @@ export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handl
       if (!byArea.has(area)) byArea.set(area, []);
       byArea.get(area)!.push(item);
     }
-    // Within each group: vacant/available first, then occupied
+    // Within each group: vacant first, then coming soon, then occupied
     const vacantFirst = (a: typeof filteredListings[0], b: typeof filteredListings[0]) =>
-      (a.listing.status === 'occupied' ? 1 : 0) - (b.listing.status === 'occupied' ? 1 : 0);
+      (a.listing.status === 'vacant' ? 0 : a.listing.status === 'coming_soon' ? 1 : 2) -
+      (b.listing.status === 'vacant' ? 0 : b.listing.status === 'coming_soon' ? 1 : 2);
     for (const arr of byArea.values()) arr.sort(vacantFirst);
     // Order: Avenue Q, Sherman St, Avenue H, 70th Street, Wooding St, Bella Jess Dr, Magnolia Dr, Westlock Dr, then Other
     const order = [...LISTING_AREAS, 'Other'];
