@@ -353,13 +353,12 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     };
   }, [view, leaseDocument?.id]);
 
-  // Fetch signing metadata for in-house e-sign when lease is draft (not signed, no Dropbox URL)
+  // Fetch signing metadata for in-house e-sign when lease is draft.
   useEffect(() => {
     if (
       view !== 'lease_signing' ||
       !leaseDocument?.id ||
-      leaseDocument?.status === 'Signed' ||
-      leaseDocument?.dropboxSignSigningUrl
+      leaseDocument?.status === 'Signed'
     ) {
       setLeaseSigningMetadata(null);
       return;
@@ -380,7 +379,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       cancelled = true;
       setLeaseSigningMetadata(null);
     };
-  }, [view, leaseDocument?.id, leaseDocument?.status, leaseDocument?.dropboxSignSigningUrl]);
+  }, [view, leaseDocument?.id, leaseDocument?.status]);
 
   const refreshLeaseDocument = async () => {
     const tenantIdToUse = currentTenant?.id || tenantId;
@@ -700,7 +699,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                         <p className="text-gray-600">Loading PDF...</p>
                       </div>
                     </div>
-                  ) : loadingSigningMetadata && leaseDocument?.status !== 'Signed' && !leaseDocument?.dropboxSignSigningUrl ? (
+                  ) : loadingSigningMetadata && leaseDocument?.status !== 'Signed' ? (
                     <div className="flex items-center justify-center min-h-[800px]">
                       <div className="text-center">
                         <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />

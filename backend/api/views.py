@@ -5,11 +5,6 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import *
 from .serializers import *
 from .lease_service import generate_lease_pdf, save_lease_document, stamp_signed_pdf
-from .dropbox_sign_service import (
-    is_dropbox_sign_configured,
-    get_dropbox_sign_config_status,
-    create_signature_request,
-)
 from .email_service import *
 from accounts.user_service import *
 from django.utils import timezone
@@ -1056,9 +1051,6 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
             # Save document
             legal_doc = save_lease_document(tenant, pdf_buffer, filled_content)
             
-            # Note: Email will be sent when Dropbox Sign request is created (in send_dropbox_sign action)
-            # Do not send email here - wait until envelope is successfully created
-            
             # Serialize and return
             serializer = self.get_serializer(legal_doc)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -1173,7 +1165,7 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='send_lease_inhouse', permission_classes=[IsAuthenticated])
     def send_lease_inhouse(self, request, pk=None):
         """
-        Send a one-time signing link to the tenant via email (in-house flow, no Dropbox).
+        Send a one-time signing link to the tenant via email (in-house flow).
         Creates/reuses a LeaseSigningToken and emails the tenant a link to sign in-app.
         """
         try:
@@ -1216,157 +1208,6 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(legal_doc)
         return Response({**serializer.data, 'signing_token': str(signing_token.token)}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], url_path='send_docusign')
-    def send_docusign(self, request, pk=None):
-        """Alias for send_dropbox_sign (backward compatibility)."""
-        return self.send_dropbox_sign(request, pk)
-
-    @action(detail=True, methods=['post'], url_path='send_dropbox_sign')
-    def send_dropbox_sign(self, request, pk=None):
-        """
-        Send lease document via Dropbox Sign for e-signature.
-        """
-        try:
-            legal_doc = self.get_object()
-
-            if not legal_doc.pdf_file:
-                return Response(
-                    {'error': 'No PDF file available. Please generate the lease first.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not is_dropbox_sign_configured():
-                config_status = get_dropbox_sign_config_status()
-                error_message = 'Dropbox Sign is not configured. Set DROPBOX_SIGN_API_KEY.'
-                if config_status.get('missing_keys'):
-                    error_message += ' Missing: ' + ', '.join(config_status['missing_keys'])
-                if settings.DEBUG:
-                    return Response(
-                        {'error': error_message, 'missing_keys': config_status.get('missing_keys', [])},
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE
-                    )
-                return Response({'error': error_message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-            # Get PDF URL
-            request_obj = request._request if hasattr(request, '_request') else request
-            pdf_url = request_obj.build_absolute_uri(legal_doc.pdf_file.url) if legal_doc.pdf_file else None
-            
-            # Get PDF content directly to avoid download issues
-            pdf_content = None
-            try:
-                if legal_doc.pdf_file:
-                    try:
-                        # First try standard Django storage read
-                        legal_doc.pdf_file.open('rb')
-                        pdf_content = legal_doc.pdf_file.read()
-                        legal_doc.pdf_file.close()
-                    except Exception as read_error:
-                        logger.warning(f"Standard file read failed, attempting Cloudinary fallback: {read_error}")
-                        # If that fails (e.g. 401 on Cloudinary URL), try using Cloudinary API or signed URL
-                        if 'cloudinary' in str(legal_doc.pdf_file.storage.__class__).lower():
-                            import cloudinary
-                            import cloudinary.utils
-                            
-                            # Ensure global config is set (django-cloudinary-storage might not set the global cloudinary config object)
-                            if not cloudinary.config().api_secret:
-                                cloudinary.config(
-                                    cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
-                                    api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
-                                    api_secret=settings.CLOUDINARY_STORAGE['API_SECRET']
-                                )
-                            
-                            # Debugging: Check if API secret is set
-                            config = cloudinary.config()
-                            if not config.api_secret:
-                                logger.error("Cloudinary API Secret is MISSING in global config!")
-                            else:
-                                logger.info(f"Cloudinary API Secret is present (length: {len(config.api_secret)})")
-
-                            # Generate a signed URL for the resource
-                            resource_path = legal_doc.pdf_file.name
-                            
-                            logger.info(f"Original resource path from DB: {resource_path}")
-                            
-                            # Clean up path - remove extension for ID logic if needed, but for raw/upload we usually want it
-                            # If DB path is 'media/leases/foo.pdf', that is the public_id
-                            
-                            pdf_content = None
-                            
-                            # HELPER: Try to fetch content from a URL
-                            # Use improved Cloudinary download helper
-                            logger.info(f"Downloading file from Cloudinary: {resource_path}")
-                            pdf_content = download_cloudinary_file(resource_path)
-                            
-                            if not pdf_content:
-                                logger.error("All retrieval attempts failed for Cloudinary file.")
-                                logger.error("Cloudinary retrieval failed; refusing to fall back to pdf_file.url for Dropbox Sign.")
-                            else:
-                                logger.info(f"Successfully downloaded {len(pdf_content)} bytes from Cloudinary")
-                        else:
-                            raise read_error
-
-            except Exception as e:
-                logger.warning(f"Could not read PDF file directly: {e}")
-            
-            if not pdf_content:
-                return Response(
-                    {'error': 'Could not retrieve PDF bytes from storage (Cloudinary access control).'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            try:
-                logger.info(f"Creating Dropbox Sign signature request for legal document {legal_doc.id}")
-                landlord_email = getattr(settings, 'LANDLORD_EMAIL', None) or 'admin@example.com'
-                landlord_name = getattr(settings, 'LANDLORD_NAME', None) or 'Landlord'
-
-                result = create_signature_request(
-                    tenant_email=legal_doc.tenant.email,
-                    tenant_name=legal_doc.tenant.name,
-                    pdf_content=pdf_content,
-                    document_name=f"Lease Agreement - {legal_doc.tenant.name}",
-                    landlord_email=landlord_email,
-                    landlord_name=landlord_name,
-                )
-
-                if not result:
-                    return Response(
-                        {'error': 'Failed to create Dropbox Sign signature request. Check server logs.'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
-            except Exception as e:
-                logger.error(f"Error creating Dropbox Sign request: {e}", exc_info=True)
-                return Response(
-                    {'error': f'Failed to create Dropbox Sign request: {str(e)}'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            legal_doc.dropbox_sign_signature_request_id = result.get('signature_request_id')
-            legal_doc.dropbox_sign_signing_url = result.get('signing_url')
-            legal_doc.status = 'Sent'
-            legal_doc.delivery_method = 'Dropbox Sign'
-            legal_doc.save()
-
-            legal_doc.tenant.lease_status = 'Sent'
-            legal_doc.tenant.save()
-
-            try:
-                from .email_service import send_lease_dropbox_sign_notification
-                task = send_lease_dropbox_sign_notification.delay(legal_doc.id)
-                logger.info(f"Dropbox Sign notification email task submitted: {task.id}")
-            except Exception as e:
-                logger.warning(f"Celery failed, sending Dropbox Sign notification synchronously: {e}")
-                send_lease_dropbox_sign_notification(legal_doc.id)
-
-            serializer = self.get_serializer(legal_doc)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Unexpected error sending lease via Dropbox Sign: {e}", exc_info=True)
-            return Response(
-                {'error': f'Failed to send lease via Dropbox Sign: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
     @action(
         detail=True,
         methods=['post'],
@@ -1378,7 +1219,7 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
         Send an existing LegalDocument PDF to the tenant as a legal notice email.
 
         This is used by the Legal Compliance Center to ensure the email attachment
-        matches the preview/template the admin generated (no Dropbox/DocuSign flow).
+        matches the preview/template the admin generated.
         """
         from .email_service import send_notice_to_tenant
 
@@ -1470,57 +1311,11 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
 
         return HttpResponse(pdf_bytes, content_type="application/pdf")
 
-    @action(detail=True, methods=['get', 'post'])
-    def check_status(self, request, pk=None):
-        """
-        Check Dropbox Sign signature request status and update local status.
-        """
-        from .lease_service import process_dropbox_sign_status_update
-
-        legal_doc = self.get_object()
-
-        if not legal_doc.dropbox_sign_signature_request_id:
-            return Response({'status': legal_doc.status, 'message': 'No signature request ID found'})
-
-        try:
-            result = process_dropbox_sign_status_update(legal_doc)
-            
-            if 'errors' in result:
-                logger.warning(f"Partial errors during status update: {result['errors']}")
-                
-            serializer = self.get_serializer(legal_doc)
-            data = serializer.data
-            data.update({
-                'update_result': result
-            })
-            
-            return Response(data)
-            
-        except Exception as e:
-            logger.error(f"Error checking Dropbox Sign status: {e}", exc_info=True)
-            return Response(
-                {'error': f'Failed to check status: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
     def perform_update(self, serializer):
         old_instance = self.get_object()
-        old_signing_url = old_instance.dropbox_sign_signing_url
         old_signed_at = old_instance.signed_at
-
         legal_doc = serializer.save()
-        new_signing_url = legal_doc.dropbox_sign_signing_url
         new_signed_at = legal_doc.signed_at
-
-        if not old_signing_url and new_signing_url:
-            try:
-                from .email_service import send_lease_dropbox_sign_notification
-                send_lease_dropbox_sign_notification.delay(legal_doc.id)
-                logger.info("Dropbox Sign notification task submitted")
-            except Exception as e:
-                logger.warning(f"Celery failed, sending Dropbox Sign notification synchronously: {e}")
-                from .email_service import send_lease_dropbox_sign_notification
-                send_lease_dropbox_sign_notification(legal_doc.id)
         
         # If lease is signed (signed_at is set), send confirmation
         if not old_signed_at and new_signed_at:

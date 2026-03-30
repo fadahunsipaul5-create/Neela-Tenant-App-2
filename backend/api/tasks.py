@@ -2,9 +2,6 @@ from celery import shared_task
 from django.core.mail import send_mail
 from django.conf import settings
 import logging
-from .models import LegalDocument
-from .lease_service import process_dropbox_sign_status_update
-from .dropbox_sign_service import is_dropbox_sign_configured
 
 logger = logging.getLogger(__name__)
 
@@ -21,42 +18,6 @@ def send_test_email():
         logger.info(f"Email sent successfully, result={result}")
     except Exception as e:
         logger.error(f"Email sending failed: {e}")
-
-
-@shared_task
-def check_dropbox_sign_statuses():
-    """
-    Periodic task to check status of all 'Sent' Dropbox Sign signature requests.
-    """
-    if not is_dropbox_sign_configured():
-        logger.warning("Dropbox Sign not configured, skipping status check task")
-        return "Dropbox Sign not configured"
-
-    sent_docs = LegalDocument.objects.filter(
-        status='Sent',
-        delivery_method='Dropbox Sign'
-    ).exclude(dropbox_sign_signature_request_id__isnull=True)
-
-    count = sent_docs.count()
-    if count == 0:
-        return "No sent signature requests to check"
-
-    logger.info(f"Checking status for {count} Dropbox Sign signature requests")
-
-    updated_count = 0
-    errors_count = 0
-
-    for doc in sent_docs:
-        try:
-            result = process_dropbox_sign_status_update(doc)
-            if result.get('updated'):
-                updated_count += 1
-                logger.info(f"Updated document {doc.id} status to {result.get('status')}")
-        except Exception as e:
-            errors_count += 1
-            logger.error(f"Error checking document {doc.id}: {e}")
-
-    return f"Checked {count} signature requests. Updated: {updated_count}. Errors: {errors_count}"
 
 
 @shared_task
@@ -81,7 +42,7 @@ def check_lease_renewals():
         # Find tenants whose lease ends on target_date
         expiring_tenants = Tenant.objects.filter(
             lease_end=target_date,
-            lease_status='Active'  # Only active leases
+            status='Active'  # Only active residents
         )
         
         for tenant in expiring_tenants:

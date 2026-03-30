@@ -325,11 +325,11 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   // Property filters (dashboard Properties section)
   const [filterBedrooms, setFilterBedrooms] = useState<number | ''>('');
   const [filterBathrooms, setFilterBathrooms] = useState<number | ''>('');
-  const [filterStatus, setFilterStatus] = useState<'' | 'occupied' | 'vacant'>('');
+  const [filterStatus, setFilterStatus] = useState<'' | 'occupied' | 'vacant' | 'coming_soon'>('');
   const [filterArea, setFilterArea] = useState('');
   const [appliedFilterBedrooms, setAppliedFilterBedrooms] = useState<number | ''>('');
   const [appliedFilterBathrooms, setAppliedFilterBathrooms] = useState<number | ''>('');
-  const [appliedFilterStatus, setAppliedFilterStatus] = useState<'' | 'occupied' | 'vacant'>('');
+  const [appliedFilterStatus, setAppliedFilterStatus] = useState<'' | 'occupied' | 'vacant' | 'coming_soon'>('');
   const [appliedFilterArea, setAppliedFilterArea] = useState('');
   const DASHBOARD_PROPERTIES_PAGE_SIZE = 6;
   const [dashboardPropertiesToShow, setDashboardPropertiesToShow] = useState(DASHBOARD_PROPERTIES_PAGE_SIZE);
@@ -1008,12 +1008,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             </select>
             <select
               value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value as '' | 'occupied' | 'vacant')}
+              onChange={e => setFilterStatus(e.target.value as '' | 'occupied' | 'vacant' | 'coming_soon')}
               className="text-sm rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
             >
               <option value="">Status: Any</option>
               <option value="vacant">Vacant</option>
               <option value="occupied">Occupied</option>
+              <option value="coming_soon">Coming Soon</option>
             </select>
             <select
               value={filterArea}
@@ -1100,8 +1101,8 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                     </p>
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${prop.status === 'occupied' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {prop.status === 'occupied' ? 'Occupied' : 'Vacant'}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${prop.status === 'occupied' ? 'bg-rose-100 text-rose-700' : prop.status === 'coming_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {prop.status === 'occupied' ? 'Occupied' : prop.status === 'coming_soon' ? 'Coming Soon' : 'Vacant'}
                         </span>
                         <span className="text-sm text-slate-500">
                           Occupancy: <span className="font-semibold text-slate-700">{calculatePropertyOccupancy(prop)}%</span>
@@ -1283,8 +1284,8 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                 <div>
                   <h3 className="text-lg sm:text-xl font-bold text-slate-800">{selectedProperty.name}</h3>
                   <p className="text-xs sm:text-sm text-slate-500">Property Details</p>
-                  <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProperty.status === 'occupied' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {selectedProperty.status === 'occupied' ? 'Occupied' : 'Vacant'}
+                  <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProperty.status === 'occupied' ? 'bg-rose-100 text-rose-700' : selectedProperty.status === 'coming_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {selectedProperty.status === 'occupied' ? 'Occupied' : selectedProperty.status === 'coming_soon' ? 'Coming Soon' : 'Vacant'}
                   </span>
                 </div>
               </div>

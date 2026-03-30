@@ -248,15 +248,6 @@ else:
     EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
     EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
     DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-# Dropbox Sign (e-signature for leases)
-DROPBOX_SIGN_API_KEY = os.environ.get('DROPBOX_SIGN_API_KEY', '').strip()
-DROPBOX_SIGN_CLIENT_ID = os.environ.get('DROPBOX_SIGN_CLIENT_ID', '').strip() or None
-DROPBOX_SIGN_TEST_MODE = os.environ.get('DROPBOX_SIGN_TEST_MODE', 'True').strip().lower() not in ('false', '0', 'no')
-DROPBOX_SIGN_REDIRECT_URI = os.environ.get(
-    'DROPBOX_SIGN_REDIRECT_URI',
-    f"https://{RENDER_EXTERNAL_HOSTNAME}/dropbox-sign/callback/" if RENDER_EXTERNAL_HOSTNAME else "http://localhost:8000/dropbox-sign/callback/"
-)
-
 # Landlord/Admin contact (used for lease placeholders, signing, emails)
 LANDLORD_EMAIL = os.environ.get('LANDLORD_EMAIL', '').strip() or None
 LANDLORD_NAME = os.environ.get('LANDLORD_NAME', '').strip() or None
@@ -270,12 +261,7 @@ PROPERTY_DEFAULT_CITY_STATE_ZIP = os.environ.get('PROPERTY_DEFAULT_CITY_STATE_ZI
 # Admin notification emails (proof of payment, applications, etc.)
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').strip() or None
 
-# Log Dropbox Sign configuration at startup
 logger = logging.getLogger(__name__)
-if DROPBOX_SIGN_API_KEY:
-    logger.info("Dropbox Sign configured (API key present).")
-else:
-    logger.warning("Dropbox Sign not configured. Set DROPBOX_SIGN_API_KEY for e-signature.")
 
 # Celery Configuration
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')

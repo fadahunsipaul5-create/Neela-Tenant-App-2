@@ -55,10 +55,6 @@ def debug_task(self):
 from celery.schedules import crontab
 
 app.conf.beat_schedule = {
-    'check-dropbox-sign-statuses-every-15-minutes': {
-        'task': 'api.tasks.check_dropbox_sign_statuses',
-        'schedule': crontab(minute='*/15'),  # Run every 15 minutes
-    },
     'check-lease-renewals-daily': {
         'task': 'api.tasks.check_lease_renewals',
         'schedule': crontab(hour=9, minute=0),  # Run daily at 9 AM

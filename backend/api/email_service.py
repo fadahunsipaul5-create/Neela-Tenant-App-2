@@ -1204,76 +1204,6 @@ def send_lease_ready_for_signing(legal_document_id, token=None):
     _send_lease_ready_for_signing(legal_document_id, token=token)
 
 
-def _send_lease_dropbox_sign_notification(legal_document_id):
-    """
-    Internal function to send email to tenant when Dropbox Sign request is sent.
-    """
-    from .models import LegalDocument
-
-    try:
-        legal_doc = LegalDocument.objects.select_related('tenant').get(id=legal_document_id)
-    except LegalDocument.DoesNotExist:
-        logger.error(f"Legal document with ID {legal_document_id} not found for Dropbox Sign notification.")
-        return
-
-    if not legal_doc.tenant.email:
-        logger.warning(f"Tenant {legal_doc.tenant.id} has no email address for Dropbox Sign notification.")
-        return
-
-    signing_url = getattr(legal_doc, 'dropbox_sign_signing_url', None)
-    if not signing_url:
-        logger.warning(f"Legal document {legal_doc.id} has no Dropbox Sign signing URL.")
-        return
-
-    subject = f'Sign Your Lease Agreement - {legal_doc.tenant.property_unit}'
-
-    context = {
-        'tenant_name': legal_doc.tenant.name,
-        'signing_url': signing_url,
-    }
-
-    html_message = render_to_string('emails/lease_dropbox_sign_sent.html', context)
-    plain_message = f"""
-    Sign Your Lease Agreement
-
-    Dear {legal_doc.tenant.name},
-
-    Your lease agreement has been sent to you via Dropbox Sign for electronic signature.
-
-    Please click the link below to review and sign your lease:
-    {signing_url}
-
-    Please complete the signing process as soon as possible.
-
-    Best regards,
-    Neela Property Management Team
-    """
-
-    send_email_with_logging(
-        subject=subject,
-        message=plain_message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[legal_doc.tenant.email],
-        html_message=html_message,
-        email_type=f"Dropbox Sign notification email (document {legal_doc.id})"
-    )
-
-
-@shared_task
-def send_lease_dropbox_sign_notification(legal_document_id):
-    """
-    Celery task to send email to tenant when Dropbox Sign request is sent.
-    """
-    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
-    logger.info(f"Celery task executing: send_lease_dropbox_sign_notification for document {legal_document_id}, using email backend: {email_backend}")
-    _send_lease_dropbox_sign_notification(legal_document_id)
-
-
-def send_lease_docusign_notification(legal_document_id):
-    """Backward-compat alias: sends Dropbox Sign notification."""
-    _send_lease_dropbox_sign_notification(legal_document_id)
-
-
 def _send_lease_signed_confirmation(legal_document_id):
     """
     Internal function to send email to tenant and manager when lease is signed.
@@ -1410,7 +1340,7 @@ def _send_landlord_lease_ready_to_sign(legal_document_id: int):
         logger.warning("LANDLORD_EMAIL not configured; cannot send landlord signing notification.")
         return
 
-    subject = f"Tenant Signed Lease — Please Sign (Dropbox Sign) — {legal_doc.tenant.property_unit}"
+    subject = f"Tenant Signed Lease — Finalize Landlord Signature — {legal_doc.tenant.property_unit}"
 
     message = f"""
     Tenant Signed Lease — Landlord Signature Required
@@ -1422,7 +1352,7 @@ def _send_landlord_lease_ready_to_sign(legal_document_id: int):
         Tenant: {legal_doc.tenant.name}
         Property Unit: {legal_doc.tenant.property_unit}
         
-    Please sign the lease in Dropbox Sign (check your email for the signing link).
+    Please complete the landlord signature step for this lease in your internal workflow.
         
     Thanks,
     Neela Property Management Team
