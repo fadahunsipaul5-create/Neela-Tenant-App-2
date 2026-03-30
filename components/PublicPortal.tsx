@@ -676,16 +676,16 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
               </div>
             </div>
             <div className="flex-1 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col md:flex-row">
-              <div className="flex-1 bg-gray-50 p-8 overflow-y-auto border-r border-gray-200 max-h-[800px]">
+              <div className="flex-1 bg-gray-50 p-4 sm:p-6 lg:p-8 overflow-y-auto border-r border-gray-200 max-h-[calc(100vh-220px)]">
                   {loadingLease ? (
-                    <div className="flex items-center justify-center min-h-[800px]">
+                    <div className="flex items-center justify-center min-h-[45vh] md:min-h-[55vh]">
                       <div className="text-center">
                       <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
                       <p className="text-gray-600">Loading lease document...</p>
                       </div>
                     </div>
                   ) : leaseError ? (
-                    <div className="flex items-center justify-center min-h-[800px]">
+                    <div className="flex items-center justify-center min-h-[45vh] md:min-h-[55vh]">
                     <div className="text-center bg-red-50 border border-red-200 rounded-xl p-8 max-w-md">
                       <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-4" />
                       <p className="text-red-800 font-medium mb-2">Unable to Load Lease</p>
@@ -693,21 +693,21 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       </div>
                     </div>
                   ) : loadingPdfBlob && leaseDocument?.id ? (
-                    <div className="flex items-center justify-center min-h-[800px]">
+                    <div className="flex items-center justify-center min-h-[45vh] md:min-h-[55vh]">
                       <div className="text-center">
                         <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
                         <p className="text-gray-600">Loading PDF...</p>
                       </div>
                     </div>
                   ) : loadingSigningMetadata && leaseDocument?.status !== 'Signed' ? (
-                    <div className="flex items-center justify-center min-h-[800px]">
+                    <div className="flex items-center justify-center min-h-[45vh] md:min-h-[55vh]">
                       <div className="text-center">
                         <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-4" />
                         <p className="text-gray-600">Preparing signing form...</p>
                       </div>
                     </div>
                   ) : leaseSigningMetadata && (pdfBlobUrl || leaseSigningMetadata.pdfUrl) ? (
-                    <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px] p-4">
+                    <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[45vh] md:min-h-[55vh] p-3 sm:p-4">
                       <LeaseSigningOverlay
                         metadata={leaseSigningMetadata}
                         pdfUrlOverride={pdfBlobUrl}
@@ -715,15 +715,15 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                       />
                     </div>
                   ) : pdfBlobUrl && leaseDocument?.id ? (
-                  <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px]">
+                  <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[45vh] md:min-h-[55vh]">
                       <iframe
                         src={pdfBlobUrl}
-                        className="w-full h-[800px] border-0"
+                        className="w-full h-[45vh] md:h-[55vh] lg:h-[65vh] border-0"
                         title="Lease Agreement PDF"
                       />
                     </div>
                   ) : (
-                  <div className="bg-white shadow-lg rounded-xl min-h-[800px] p-12 max-w-3xl mx-auto text-gray-800">
+                  <div className="bg-white shadow-lg rounded-xl min-h-[45vh] md:min-h-[55vh] p-5 sm:p-8 lg:p-12 max-w-3xl mx-auto text-gray-800">
                       <h1 className="text-2xl font-bold serif mb-2 text-center">RESIDENTIAL LEASE AGREEMENT</h1>
                     <p className="text-center text-gray-500 mb-8">Texas Property Code</p>
                     <div className="space-y-6 font-serif text-sm leading-relaxed text-gray-800">
@@ -737,7 +737,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
                     </div>
                   )}
                </div>
-              <div className="w-full md:w-96 bg-white p-8 flex flex-col border-t md:border-t-0">
+              <div className="w-full md:w-96 bg-white p-5 sm:p-6 md:p-8 flex flex-col border-t md:border-t-0">
                 <h3 className="font-bold text-gray-900 text-lg mb-6">Action Required</h3>
                   {leaseDocument?.status === 'Signed' ? (
                     <>

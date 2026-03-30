@@ -339,9 +339,9 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                        </div>
                     )}
                  </div>
-                 <div className="flex-1 bg-slate-100 p-8 overflow-y-auto">
+                 <div className="flex-1 bg-slate-100 p-4 sm:p-6 lg:p-8 overflow-y-auto">
                     {generatedDoc ? (
-                       <div className="bg-white shadow-lg min-h-[600px] p-12 max-w-[800px] mx-auto text-slate-900 font-serif leading-relaxed whitespace-pre-wrap">
+                       <div className="bg-white shadow-lg min-h-[45vh] lg:min-h-[600px] p-5 sm:p-8 lg:p-12 max-w-[800px] mx-auto text-slate-900 font-serif leading-relaxed whitespace-pre-wrap">
                           {generatedDoc}
                        </div>
                     ) : (
@@ -370,7 +370,8 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                     <Download className="w-4 h-4 mr-2" /> Export CSV
                  </button>
               </div>
-              <table className="w-full text-sm text-left">
+             <div className="overflow-x-auto">
+             <table className="w-full min-w-[760px] text-sm text-left">
                  <thead className="bg-white text-slate-500 border-b border-slate-100">
                     <tr>
                        <th className="px-6 py-4 font-medium">Date</th>
@@ -407,7 +408,8 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
                        </tr>
                     ))}
                  </tbody>
-              </table>
+             </table>
+             </div>
               {history.length === 0 && (
                  <div className="p-12 text-center text-slate-400">No history available. Generate a notice first.</div>
               )}
@@ -416,7 +418,7 @@ const LegalComplianceView: React.FC<LegalComplianceProps> = ({ tenants }) => {
 
         {/* 3. TEMPLATES TAB */}
         {activeTab === 'templates' && (
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[55vh] lg:min-h-[600px]">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                  <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800">Saved Templates</h3>

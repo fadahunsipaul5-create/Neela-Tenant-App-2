@@ -965,7 +965,12 @@ class LegalDocumentViewSet(viewsets.ModelViewSet):
 
         tenant = legal_doc.tenant
         tenant.lease_status = 'Signed'
-        tenant.save(update_fields=['lease_status'])
+        # Auto-activate resident once signing is completed (tenant-only or tenant+landlord flow).
+        if tenant.status != 'Active':
+            tenant.status = 'Active'
+            tenant.save(update_fields=['lease_status', 'status'])
+        else:
+            tenant.save(update_fields=['lease_status'])
 
         # Send confirmation emails to tenant and admin
         try:
@@ -1591,7 +1596,12 @@ def sign_lease_by_token(request):
     # Update tenant lease status
     tenant = legal_doc.tenant
     tenant.lease_status = 'Signed'
-    tenant.save(update_fields=['lease_status'])
+    # Auto-activate resident once signing is completed (tenant-only or tenant+landlord flow).
+    if tenant.status != 'Active':
+        tenant.status = 'Active'
+        tenant.save(update_fields=['lease_status', 'status'])
+    else:
+        tenant.save(update_fields=['lease_status'])
 
     # Send confirmation emails
     try:

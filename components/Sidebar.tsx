@@ -33,9 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isMobileMenu
   return (
     <aside 
       className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white transition-transform duration-300 ease-in-out shadow-2xl shadow-black/20
+        fixed inset-y-0 left-0 z-50 w-[85vw] max-w-64 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white transition-transform duration-300 ease-in-out shadow-2xl shadow-black/20
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0 md:static md:inset-auto flex flex-col border-r border-slate-800/50
+        md:w-64 md:translate-x-0 md:static md:inset-auto flex flex-col border-r border-slate-800/50
       `}
       role="navigation"
       aria-label="Main navigation"
