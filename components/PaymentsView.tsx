@@ -449,8 +449,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="border-b border-slate-200">
-        <nav className="-mb-px flex space-x-8">
+      <div className="border-b border-slate-200 overflow-x-auto">
+        <nav className="-mb-px flex space-x-4 sm:space-x-6 lg:space-x-8 min-w-max pr-2">
           {[
             { id: 'overview', label: 'Overview' },
             { id: 'invoices', label: 'Invoices' },
@@ -610,7 +610,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     </select>
                  </div>
               </div>
-              <table className="w-full text-sm text-left">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm text-left">
                  <thead className="bg-white text-slate-500 border-b border-slate-100">
                     <tr>
                        <th className="px-6 py-3 font-medium">Invoice ID</th>
@@ -651,6 +652,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     ))}
                  </tbody>
               </table>
+              </div>
            </div>
         )}
 
@@ -660,7 +662,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                <div className="p-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="font-bold text-slate-800">Payment Ledger</h3>
                </div>
-               <table className="w-full text-sm text-left">
+               <div className="overflow-x-auto">
+               <table className="w-full min-w-[700px] text-sm text-left">
                  <thead className="bg-white text-slate-500 border-b border-slate-100">
                     <tr>
                        <th className="px-6 py-3 font-medium">Date</th>
@@ -688,12 +691,13 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     ))}
                  </tbody>
               </table>
+              </div>
            </div>
         )}
 
         {/* 4. PENDING PROOF TAB */}
         {activeTab === 'pending-proof' && (
-           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
                <div className="p-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="font-bold text-slate-800">Payments with Proof Awaiting Confirmation</h3>
                   <p className="text-sm text-slate-600 mt-1">Review proof of payment and confirm to update tenant balance.</p>
@@ -703,7 +707,8 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                    No pending payments with proof. Tenants will appear here after they upload proof of payment.
                  </div>
                ) : (
-               <table className="w-full text-sm text-left">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm text-left">
                  <thead className="bg-white text-slate-500 border-b border-slate-100">
                     <tr>
                        <th className="px-6 py-3 font-medium">Date</th>
@@ -767,6 +772,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     ))}
                  </tbody>
               </table>
+              </div>
                )}
            </div>
         )}

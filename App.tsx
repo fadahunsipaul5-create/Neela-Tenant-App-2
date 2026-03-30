@@ -15,6 +15,7 @@ import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
+  const adminPagePadding = 'px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:px-10';
   const location = useLocation();
   const navigate = useNavigate();
   // Check if we're on a password reset page - Vercel deployment trigger
@@ -279,7 +280,7 @@ const App: React.FC = () => {
     // Check authentication for admin views
     if (activeTab !== 'public-portal' && !isAuthenticated()) {
       return (
-        <div className="flex items-center justify-center h-full min-h-[600px] px-4">
+        <div className="flex items-center justify-center h-full min-h-[60vh] sm:min-h-[520px] px-4">
           <div className="text-center bg-white/90 backdrop-blur-md rounded-3xl p-10 max-w-md w-full shadow-2xl shadow-indigo-500/10 border border-slate-200/60">
             <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 flex items-center justify-center shadow-lg shadow-blue-500/10">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-blue-600 shadow-md"></div>
@@ -300,7 +301,7 @@ const App: React.FC = () => {
 
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-full min-h-[600px] px-4">
+        <div className="flex items-center justify-center h-full min-h-[60vh] sm:min-h-[520px] px-4">
           <div className="text-center">
             <div className="relative mx-auto mb-8">
               <div className="w-16 h-16 border-[4px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -449,7 +450,7 @@ const App: React.FC = () => {
         />
       )}
 
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 md:h-screen overflow-hidden">
         {/* Top Bar (Mobile Only) - Only show in Admin Mode */}
         {!isPublic && (
           <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-4 py-3 sm:p-5 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
@@ -468,7 +469,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {isPublic ? (
             <PublicPortal 
               onAdminLogin={handleAdminLogin} 
@@ -476,7 +477,7 @@ const App: React.FC = () => {
               onMaintenanceCreated={refreshMaintenance}
             />
           ) : (
-            <div className="p-6 md:p-10">
+            <div className={adminPagePadding}>
               <div className="max-w-7xl mx-auto">
                 {renderAdminContent()}
               </div>

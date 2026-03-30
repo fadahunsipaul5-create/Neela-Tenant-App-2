@@ -156,6 +156,15 @@ const TenantsView: React.FC<TenantsProps> = ({ tenants, initialTab = 'residents'
     };
   };
 
+  const addOneYearToDateString = (rawDate?: string | null) => {
+    if (!rawDate) return '';
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const nextYear = new Date(parsed);
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    return nextYear.toISOString().split('T')[0];
+  };
+
   const handleStatusChange = async (tenantId: string, newStatus: TenantStatus) => {
     setIsSaving(true);
     setProcessingAction(newStatus === TenantStatus.DECLINED ? 'decline' : 'update');
@@ -785,7 +794,7 @@ Landlord                            Tenant
       {/* APPLICATION REVIEW MODAL */}
       {selectedApplicant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-5xl h-[96vh] sm:h-[92vh] lg:h-[88vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-slate-50">
               <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -814,7 +823,7 @@ Landlord                            Tenant
             {/* Modal Body */}
             <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
               {/* Sidebar Tabs */}
-              <div className="w-full sm:w-48 lg:w-64 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-3 sm:p-4 flex flex-row sm:flex-col gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
+              <div className="w-full sm:w-44 md:w-48 lg:w-64 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 p-2.5 sm:p-4 flex flex-row sm:flex-col gap-2 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto">
                  {[
                    { id: 'overview', label: 'Application Details', shortLabel: 'Details', icon: FileText },
                    { id: 'screening', label: 'Screening & ID', shortLabel: 'Screening', icon: Shield },
@@ -825,7 +834,7 @@ Landlord                            Tenant
                       key={tab.id}
                       onClick={() => setApplicantModalTab(tab.id as any)}
                       className={`
-                        flex items-center sm:w-full px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 sm:flex-shrink
+                        flex items-center sm:w-full px-2.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 sm:flex-shrink
                         ${applicantModalTab === tab.id 
                           ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
                           : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}
@@ -1116,8 +1125,11 @@ Landlord                            Tenant
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-2">Photo IDs</p>
                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {selectedApplicant.photoIdFiles.map((file: any, idx: number) => (
-                                         <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                                     {selectedApplicant.photoIdFiles.map((file: any, idx: number) => {
+                                        const fileUrl = getFilePreviewUrl(file);
+                                        const fileDownloadUrl = getFileDownloadUrl(file);
+                                        return (
+                                        <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
                                             <div className="flex items-center gap-3">
                                                <div className="p-2 bg-slate-100 rounded text-slate-500">
                                                   <FileText className="w-4 h-4" />
@@ -1127,13 +1139,13 @@ Landlord                            Tenant
                                                   <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                                </div>
                                             </div>
-                                            {file.path && (
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                           {fileUrl && (
+                                              <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
                                                </a>
                                             )}
                                          </div>
-                                      ))}
+                                     ); })}
                                    </div>
                                 </div>
                              ) : null}
@@ -1143,8 +1155,11 @@ Landlord                            Tenant
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-2">Income Verification</p>
                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => (
-                                         <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                                     {selectedApplicant.incomeVerificationFiles.map((file: any, idx: number) => {
+                                        const fileUrl = getFilePreviewUrl(file);
+                                        const fileDownloadUrl = getFileDownloadUrl(file);
+                                        return (
+                                        <div key={idx} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
                                             <div className="flex items-center gap-3">
                                                <div className="p-2 bg-slate-100 rounded text-slate-500">
                                                   <FileText className="w-4 h-4" />
@@ -1154,13 +1169,13 @@ Landlord                            Tenant
                                                   <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                                </div>
                                             </div>
-                                            {file.path && (
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                           {fileUrl && (
+                                              <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
                                                </a>
                                             )}
                                          </div>
-                                      ))}
+                                     ); })}
                                    </div>
                                 </div>
                              ) : null}
@@ -1170,8 +1185,11 @@ Landlord                            Tenant
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-2">Background Check Report</p>
                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => (
-                                         <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
+                                     {selectedApplicant.backgroundCheckFiles.map((file: any, idx: number) => {
+                                        const fileUrl = getFilePreviewUrl(file);
+                                        const fileDownloadUrl = getFileDownloadUrl(file);
+                                        return (
+                                        <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
                                             <div className="flex items-center gap-3">
                                                <div className="p-2 bg-green-200 rounded text-green-700">
                                                   <FileText className="w-4 h-4" />
@@ -1181,13 +1199,13 @@ Landlord                            Tenant
                                                   <p className="text-xs text-slate-500">{file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}</p>
                                                </div>
                                             </div>
-                                            {file.path && (
-                                               <a href={getMediaUrl(file.path)} target="_blank" rel="noopener noreferrer">
+                                           {fileUrl && (
+                                              <a href={fileDownloadUrl || fileUrl} target="_blank" rel="noopener noreferrer">
                                                   <Download className="w-4 h-4 text-green-600 hover:text-green-800" />
                                                </a>
                                             )}
                                          </div>
-                                      ))}
+                                     ); })}
                                    </div>
                                 </div>
                              ) : null}
@@ -1236,7 +1254,9 @@ Landlord                            Tenant
                                 </div>
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-1">Lease End</p>
-                                   <p className="text-slate-800">{selectedApplicant.leaseEnd || 'Not set'}</p>
+                                   <p className="text-slate-800">
+                                     {selectedApplicant.leaseEnd || addOneYearToDateString(selectedApplicant.leaseStart || selectedApplicant.applicationData?.desiredMoveInDate) || 'Not set'}
+                                   </p>
                                 </div>
                                 <div>
                                    <p className="text-xs text-slate-500 font-medium mb-1">Rent Amount</p>
@@ -1991,9 +2011,9 @@ Landlord                            Tenant
           )}
         </div>
 
-        <div className="overflow-x-auto -mx-2 sm:mx-0">
+        <div className="overflow-x-auto -mx-2 sm:mx-0 pb-1">
           <div className="inline-block min-w-full align-middle px-2 sm:px-0">
-            <table className="w-full text-xs sm:text-sm text-left">
+            <table className="w-full min-w-[880px] text-xs sm:text-sm text-left">
               <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                 <tr>
                   <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">{activeTab === 'residents' ? 'Tenant' : 'Applicant'}</th>

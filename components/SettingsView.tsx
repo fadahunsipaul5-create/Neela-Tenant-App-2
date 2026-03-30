@@ -389,7 +389,7 @@ ________________________ Tenant`);
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[65vh] lg:min-h-[600px] flex flex-col">
         {/* Tabs */}
         <div className="flex border-b border-slate-200 overflow-x-auto">
           <TabButton id="properties" label="Properties & Units" icon={Building2} />
@@ -398,7 +398,7 @@ ________________________ Tenant`);
           <TabButton id="branding" label="Branding & Look" icon={Palette} />
         </div>
 
-        <div className="p-6 flex-1 bg-slate-50/50">
+        <div className="p-4 sm:p-6 flex-1 bg-slate-50/50">
           
           {/* 1. PROPERTIES TAB */}
           {activeTab === 'properties' && (
@@ -551,7 +551,7 @@ ________________________ Tenant`);
               </div>
 
               {/* Lease Template Editor */}
-              <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm flex flex-col h-[600px]">
+              <div className="bg-white p-4 sm:p-6 rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[55vh] lg:min-h-[600px]">
                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-emerald-50 text-emerald-600 rounded">
