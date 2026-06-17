@@ -6,10 +6,16 @@ from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class User(AbstractUser):
+    ROLE_CHOICES = [
+        ('tenant', 'Tenant'),
+        ('property_manager', 'Property Manager'),
+    ]
+
     username = None
     email = models.EmailField(_('Email Address'), unique=True, blank=False, null=False)
     first_name = models.CharField(_('First Name'), max_length=150, blank=False, null=False)
     last_name = models.CharField(_('Last Name'), max_length=150, blank=False, null=False)
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, default='tenant')
     is_verified = models.BooleanField(default=False)
     date_joined = models.DateTimeField(verbose_name='Date Joined', auto_now_add=True)
     last_login = models.DateTimeField(verbose_name='Last Login', auto_now_add=True)

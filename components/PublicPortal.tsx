@@ -8,12 +8,14 @@ import { useAuth, LoginModal, CheckStatusView, checkAuthOnMount } from './Auth';
 import { usePayments, PaymentModal, renderPaymentInstructions, PaymentSubTab, PaymentMethod } from './Payments';
 import { useApplication, ApplicationFormView } from './Application';
 import { Listings } from './Listings';
+import ShortStayPortal, { ShortStayPromoPopup } from './ShortStayPortal';
 import { StatusTracker, StatusTrackerView } from './Status';
 import { OnboardingTour } from './OnboardingTour';
 import LeaseSigningOverlay from './LeaseSigningOverlay';
 import type { LeaseSigningMetadata } from '../types';
 import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
 import { formatDateMMDDYYYY } from '../utils/date';
+import NeelaLogo from './NeelaLogo';
 import { 
   MapPin, BedDouble, Bath, Maximize, Check, ArrowLeft, 
   FileText, Save, Send, User, FileSignature, Download, 
@@ -26,7 +28,7 @@ import {
   TrendingUp, Shield as ShieldIcon, Award, Target, Globe
 } from 'lucide-react';
 
-type PortalView = 'listings' | 'application' | 'dashboard' | 'lease_signing' | 'status_check' | 'status_tracker';
+type PortalView = 'listings' | 'application' | 'dashboard' | 'lease_signing' | 'status_check' | 'status_tracker' | 'short_stay';
 type UserStatus = 'guest' | 'applicant_pending' | 'applicant_approved' | 'resident';
 type ResidentTab = 'overview' | 'payments' | 'maintenance' | 'documents';
 type LoginType = 'admin' | 'tenant' | null;
@@ -41,6 +43,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const [view, setView] = useState<PortalView>('listings');
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [activeTab, setActiveTab] = useState<ResidentTab>('overview');
+  const [showShortStayPromo, setShowShortStayPromo] = useState(false);
 
   const {
     loginType,
@@ -427,6 +430,23 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
     };
   }, [currentTenant?.id, tenantId, activeTab]);
 
+  useEffect(() => {
+    if (view !== 'listings') return;
+    if (sessionStorage.getItem('short_stay_promo_dismissed') === '1') return;
+    const timer = setTimeout(() => setShowShortStayPromo(true), 1200);
+    return () => clearTimeout(timer);
+  }, [view]);
+
+  const dismissShortStayPromo = () => {
+    sessionStorage.setItem('short_stay_promo_dismissed', '1');
+    setShowShortStayPromo(false);
+  };
+
+  const openShortStay = () => {
+    dismissShortStayPromo();
+    setView('short_stay');
+  };
+
   const handleApply = (listing: Listing) => {
     handleApplyFromHook(listing, setView);
   };
@@ -571,21 +591,13 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="h-16 sm:h-20 flex items-center justify-between">
         <div 
-            className="flex items-center gap-2 sm:gap-4 cursor-pointer group" 
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0" 
           onClick={() => { setView('listings'); setUserStatus('guest'); }}
         >
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 blur-xl rounded-2xl"></div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 relative">
-                N
-                <div className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full border-2 border-white shadow-sm"></div>
-              </div>
-            </div>
-           <div className="flex flex-col">
-              <span className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-800 bg-clip-text text-transparent leading-none tracking-tight">
-                Neela Capital
-              </span>
-              <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-0.5 sm:mt-1 hidden sm:block">Resident Portal</span>
+            <NeelaLogo variant="mark" size="sm" className="sm:hidden" />
+            <NeelaLogo variant="full" size="sm" className="hidden sm:block rounded-xl shadow-md group-hover:shadow-lg transition-shadow" />
+           <div className="flex flex-col min-w-0 hidden md:flex">
+              <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.2em] mt-0.5">Resident Portal</span>
            </div>
         </div>
           <div className="flex items-center gap-2 sm:gap-4">
@@ -779,7 +791,16 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
             setLoginType={setLoginType}
             handleApply={handleApply}
             propertyToListing={propertyToListing}
+            onExploreShortStay={openShortStay}
           />
+        )}
+
+        {view === 'short_stay' && (
+          <ShortStayPortal onBack={() => setView('listings')} />
+        )}
+
+        {showShortStayPromo && view === 'listings' && (
+          <ShortStayPromoPopup onExplore={openShortStay} onDismiss={dismissShortStayPromo} />
         )}
 
         {view === 'check_status' && (

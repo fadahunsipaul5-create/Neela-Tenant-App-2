@@ -21,10 +21,12 @@ from django.core.files.base import ContentFile
 from django.http import HttpResponse
 from django.http import FileResponse
 from django.core.files.storage import default_storage
-from django.db.models import Sum
+from django.db.models import Sum, Q
 import re
 import cloudinary
 import mimetypes
+from decimal import Decimal
+from collections import defaultdict
 
 from api.management.commands.import_properties import (
     extract_unit_from_address,
@@ -32,7 +34,7 @@ from api.management.commands.import_properties import (
 )
 import cloudinary.api
 import requests
-logger = logging.getLogger(__name__)
+from .permissions import is_admin_user, is_property_manager, filter_properties_for_user, get_manager_property_ids
 
 def download_cloudinary_file(resource_path, resource_types=None, formats=None):
     """
@@ -531,6 +533,286 @@ class PaymentViewSet(viewsets.ModelViewSet):
             'message': f'Receipt email sent to {payment.tenant.name}' if receipt_email_sent else 'Receipt email could not be sent.',
             'receipt_email_sent': receipt_email_sent,
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='income-statement')
+    def income_statement(self, request):
+        """Live P&L / income statement by property, unit, and portfolio."""
+        year = timezone.now().year
+        try:
+            if request.query_params.get('year'):
+                year = int(request.query_params.get('year'))
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid year'}, status=status.HTTP_400_BAD_REQUEST)
+
+        admin_view = is_admin_user(request.user)
+        properties_qs = filter_properties_for_user(
+            Property.objects.select_related('financials').prefetch_related('property_units'),
+            request.user,
+        )
+        properties = list(properties_qs)
+
+        def normalize(text):
+            return re.sub(r'[^a-z0-9]+', '', (text or '').lower())
+
+        property_aliases = []
+        for p in properties:
+            aliases = [normalize(p.name), normalize(p.address)]
+            aliases = [a for a in aliases if a]
+            property_aliases.append((p.id, aliases))
+
+        def match_property_id(unit_text):
+            token = normalize(unit_text)
+            if not token:
+                return None
+            for prop_id, aliases in property_aliases:
+                if any(alias and alias in token for alias in aliases):
+                    return prop_id
+            return None
+
+        unit_rows_by_property = defaultdict(list)
+        for prop in properties:
+            for unit in prop.property_units.all():
+                unit_rows_by_property[prop.id].append(unit)
+
+        rent_income_by_property = defaultdict(lambda: Decimal('0'))
+        rent_income_by_unit = defaultdict(lambda: Decimal('0'))
+        payments_qs = Payment.objects.select_related('tenant').filter(
+            status='Paid',
+            date__year=year,
+            type='Rent',
+        )
+        for pay in payments_qs:
+            prop_id = match_property_id(pay.tenant.property_unit if pay.tenant else '')
+            if prop_id and prop_id in {p.id for p in properties}:
+                rent_income_by_property[prop_id] += pay.amount or Decimal('0')
+                unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
+                for unit in unit_rows_by_property.get(prop_id, []):
+                    if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
+                        rent_income_by_unit[unit.id] += pay.amount or Decimal('0')
+                        break
+
+        short_stay_by_property = defaultdict(lambda: Decimal('0'))
+        short_stays_qs = ShortStayBooking.objects.filter(
+            status='confirmed',
+            check_in__year=year,
+            property_id__in=[p.id for p in properties],
+        )
+        for booking in short_stays_qs:
+            short_stay_by_property[booking.property_id] += booking.total_amount or Decimal('0')
+
+        expenses_by_property = defaultdict(lambda: Decimal('0'))
+        expenses_by_category = defaultdict(lambda: Decimal('0'))
+        expenses_by_unit = defaultdict(lambda: Decimal('0'))
+        expenses_qs = OperatingExpense.objects.select_related('property', 'unit').filter(
+            date__year=year,
+            property_id__in=[p.id for p in properties] + [None],
+        )
+        if not admin_view:
+            expenses_qs = expenses_qs.exclude(visibility='admin_only')
+        for exp in expenses_qs:
+            amount = exp.amount or Decimal('0')
+            if exp.property_id and exp.property_id not in {p.id for p in properties}:
+                continue
+            expenses_by_category[exp.category] += amount
+            if exp.unit_id:
+                expenses_by_unit[exp.unit_id] += amount
+            if exp.property_id:
+                expenses_by_property[exp.property_id] += amount
+            else:
+                expenses_by_property['portfolio'] += amount
+
+        property_rows = []
+        unit_detail_rows = []
+        total_rent = Decimal('0')
+        total_short = Decimal('0')
+        total_expenses = Decimal('0')
+        for p in properties:
+            rent = rent_income_by_property[p.id]
+            short = short_stay_by_property[p.id]
+            expenses = expenses_by_property[p.id]
+            income = rent + short
+            net = income - expenses
+            total_rent += rent
+            total_short += short
+            total_expenses += expenses
+
+            image_url = None
+            if p.image:
+                image_url = request.build_absolute_uri(p.image.url)
+            elif p.image_url:
+                image_url = p.image_url
+
+            financials_data = None
+            if admin_view:
+                fin = getattr(p, 'financials', None)
+                if fin:
+                    financials_data = {
+                        'purchase_price': float(fin.purchase_price or 0),
+                        'down_payment': float(fin.down_payment or 0),
+                        'closing_cost': float(fin.closing_cost or 0),
+                        'loan_amount': float(fin.loan_amount or 0),
+                        'interest_rate': float(fin.interest_rate or 0),
+                        'loan_term_years': fin.loan_term_years,
+                        'monthly_mortgage_payment': float(fin.monthly_mortgage_payment or 0),
+                        'land_value': float(fin.land_value or 0),
+                        'annual_depreciation_years': float(fin.annual_depreciation_years or 27.5),
+                        'escrow_notes': fin.escrow_notes or '',
+                    }
+
+            units = []
+            for unit in unit_rows_by_property.get(p.id, []):
+                unit_income = rent_income_by_unit[unit.id]
+                unit_expenses = expenses_by_unit[unit.id]
+                unit_detail = {
+                    'unit_id': unit.id,
+                    'property_id': p.id,
+                    'label': unit.label,
+                    'monthly_rent': float(unit.monthly_rent or 0),
+                    'status': unit.status,
+                    'rent_income': float(unit_income),
+                    'total_expenses': float(unit_expenses),
+                    'net_income': float(unit_income - unit_expenses),
+                }
+                units.append(unit_detail)
+                unit_detail_rows.append(unit_detail)
+
+            property_rows.append({
+                'property_id': p.id,
+                'property_name': p.name,
+                'address': p.address,
+                'city': p.city,
+                'state': p.state,
+                'units_count': p.units,
+                'image_url': image_url,
+                'rent_income': float(rent),
+                'short_stay_income': float(short),
+                'total_income': float(income),
+                'total_expenses': float(expenses),
+                'net_income': float(net),
+                'units': units,
+                'financials': financials_data,
+            })
+
+        portfolio_expenses = total_expenses + expenses_by_property['portfolio']
+        portfolio_income = total_rent + total_short
+        portfolio_net = portfolio_income - portfolio_expenses
+
+        monthly = []
+        for month in range(1, 13):
+            month_rent = (Payment.objects.filter(
+                status='Paid',
+                type='Rent',
+                date__year=year,
+                date__month=month,
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0'))
+            month_short = (ShortStayBooking.objects.filter(
+                status='confirmed',
+                check_in__year=year,
+                check_in__month=month,
+                property_id__in=[p.id for p in properties],
+            ).aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
+            month_exp_qs = OperatingExpense.objects.filter(
+                date__year=year,
+                date__month=month,
+                property_id__in=[p.id for p in properties] + [None],
+            )
+            if not admin_view:
+                month_exp_qs = month_exp_qs.exclude(visibility='admin_only')
+            month_exp = month_exp_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            monthly.append({
+                'month': month,
+                'income': float(month_rent + month_short),
+                'expenses': float(month_exp),
+                'net': float((month_rent + month_short) - month_exp),
+            })
+
+        return Response({
+            'year': year,
+            'is_admin_view': admin_view,
+            'portfolio': {
+                'rent_income': float(total_rent),
+                'short_stay_income': float(total_short),
+                'total_income': float(portfolio_income),
+                'total_expenses': float(portfolio_expenses),
+                'net_income': float(portfolio_net),
+            },
+            'by_property': property_rows,
+            'by_unit': unit_detail_rows,
+            'expenses_by_category': {k: float(v) for k, v in expenses_by_category.items()},
+            'monthly': monthly,
+        })
+
+
+class OperatingExpenseViewSet(viewsets.ModelViewSet):
+    serializer_class = OperatingExpenseSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = OperatingExpense.objects.select_related('property', 'unit', 'created_by').all()
+        qs = qs.filter(
+            Q(property__isnull=True)
+            | Q(property__in=filter_properties_for_user(Property.objects.all(), self.request.user))
+        )
+        if not is_admin_user(self.request.user):
+            qs = qs.exclude(visibility='admin_only')
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class PropertyUnitViewSet(viewsets.ModelViewSet):
+    serializer_class = PropertyUnitSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        property_ids = filter_properties_for_user(Property.objects.all(), self.request.user)
+        return PropertyUnit.objects.select_related('property').filter(property__in=property_ids)
+
+    def perform_create(self, serializer):
+        prop = serializer.validated_data['property']
+        allowed = filter_properties_for_user(Property.objects.filter(id=prop.id), self.request.user)
+        if not allowed.exists() and not is_admin_user(self.request.user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot add units to this property.')
+        serializer.save()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def manager_me(request):
+    """Current property manager profile and assigned properties."""
+    user = request.user
+    if is_admin_user(user):
+        return Response({
+            'role': 'admin',
+            'managed_property_ids': list(Property.objects.values_list('id', flat=True)),
+        })
+    if not is_property_manager(user):
+        return Response({'error': 'Not a property manager'}, status=status.HTTP_403_FORBIDDEN)
+    profile = getattr(user, 'manager_profile', None)
+    if not profile:
+        return Response({
+            'role': 'property_manager',
+            'managed_property_ids': [],
+            'phone': '',
+        })
+    return Response({
+        'role': 'property_manager',
+        'managed_property_ids': list(profile.properties.values_list('id', flat=True)),
+        'phone': profile.phone,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+        },
+    })
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
@@ -1371,6 +1653,312 @@ class PropertyViewSet(viewsets.ModelViewSet):
             item["name"] = name
             item["address"] = address
         return Response(data)
+
+
+class ShortStayBookingViewSet(viewsets.ModelViewSet):
+    queryset = ShortStayBooking.objects.select_related('property').all()
+    serializer_class = ShortStayBookingSerializer
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
+
+    def get_permissions(self):
+        if self.action in ('create', 'check_availability', 'quote', 'booked_dates', 'validate_pin', 'guest_session'):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        proof_files = request.FILES.getlist('proof_of_payment_files_upload')
+        id_files = request.FILES.getlist('guest_id_files_upload')
+        if proof_files:
+            if hasattr(data, 'setlist'):
+                data.setlist('proof_of_payment_files_upload', proof_files)
+            else:
+                data['proof_of_payment_files_upload'] = proof_files
+        if id_files:
+            if hasattr(data, 'setlist'):
+                data.setlist('guest_id_files_upload', id_files)
+            else:
+                data['guest_id_files_upload'] = id_files
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+
+        if booking.proof_of_payment_files:
+            try:
+                send_short_stay_proof_notification_to_admin.delay(booking.id)
+            except Exception as e:
+                logger.warning(f"Queued short-stay proof notification failed, skipping sync send: {e}")
+
+        headers = self.get_success_headers(serializer.data)
+        return Response({
+            'id': booking.id,
+            'status': booking.status,
+            'guest_name': booking.guest_name,
+            'property': booking.property_id,
+            'check_in': booking.check_in,
+            'check_out': booking.check_out,
+            'total_amount': str(booking.total_amount),
+        }, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_update(self, serializer):
+        booking = serializer.save()
+        if booking.status == 'confirmed':
+            logger.info(f"Short-stay booking {booking.id} confirmed (PIN: {booking.access_pin or 'pending'})")
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+        patch_keys = {k for k in request.data.keys() if k not in ('csrfmiddlewaretoken',)}
+        if patch_keys <= {'status', 'notes'}:
+            return Response({
+                'id': booking.id,
+                'status': booking.status,
+                'access_pin': booking.access_pin or '',
+                'notes': booking.notes or '',
+            })
+        return Response(self.get_serializer(booking).data)
+
+    @action(detail=False, methods=['get'], url_path='validate-pin')
+    def validate_pin(self, request):
+        pin = (request.query_params.get('pin') or '').strip()
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            return Response({'error': 'Enter a valid 4-digit code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .guest_portal import build_guest_property_payload, build_guest_reservation_payload
+
+        booking = ShortStayBooking.objects.filter(
+            access_pin=pin,
+            status='confirmed',
+        ).select_related('property').first()
+
+        if not booking:
+            return Response({'error': 'Invalid or expired code.'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'source': 'django',
+            'reservation': build_guest_reservation_payload(booking),
+            'property': build_guest_property_payload(booking.property, booking),
+        })
+
+    @action(detail=False, methods=['get'], url_path='guest-session')
+    def guest_session(self, request):
+        reservation_id = (request.query_params.get('reservation_id') or '').strip()
+        if not reservation_id.startswith('ss-'):
+            return Response({'error': 'Invalid session id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .guest_portal import build_guest_property_payload, build_guest_reservation_payload
+
+        try:
+            booking_id = int(reservation_id.replace('ss-', ''))
+        except ValueError:
+            return Response({'error': 'Invalid session id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        booking = ShortStayBooking.objects.filter(
+            id=booking_id,
+            status='confirmed',
+        ).select_related('property').first()
+
+        if not booking:
+            return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'source': 'django',
+            'reservation': build_guest_reservation_payload(booking),
+            'property': build_guest_property_payload(booking.property, booking),
+        })
+
+    @action(detail=False, methods=['get'], url_path='check-availability')
+    def check_availability(self, request):
+        property_id = request.query_params.get('property_id')
+        check_in = request.query_params.get('check_in')
+        check_out = request.query_params.get('check_out')
+        if not all([property_id, check_in, check_out]):
+            return Response(
+                {'error': 'property_id, check_in, and check_out are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            property_obj = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response({'error': 'Property not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from datetime import datetime as dt
+        try:
+            ci = dt.strptime(check_in, '%Y-%m-%d').date()
+            co = dt.strptime(check_out, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if co <= ci:
+            return Response({'available': False, 'reason': 'Check-out must be after check-in.'})
+
+        from .serializers import check_short_stay_availability
+        available, reason = check_short_stay_availability(property_obj, ci, co)
+        return Response({'available': available, 'reason': reason if not available else ''})
+
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny], url_path='document')
+    def document(self, request, pk=None):
+        booking = self.get_object()
+        raw_path = (request.query_params.get('path') or '').strip()
+        if not raw_path:
+            return Response({'error': 'path is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        normalized_path = raw_path.lstrip('/').replace('\\', '/')
+        normalized_no_media = re.sub(r'^media/', '', normalized_path, flags=re.IGNORECASE)
+        expected_prefix = f'short_stays/booking_{booking.id}/'
+        if not normalized_no_media.startswith(expected_prefix):
+            return Response({'error': 'Invalid document path'}, status=status.HTTP_403_FORBIDDEN)
+
+        original_filename = request.query_params.get('filename')
+        if not original_filename:
+            all_docs = []
+            for arr in [booking.proof_of_payment_files or [], booking.guest_id_files or []]:
+                if isinstance(arr, list):
+                    all_docs.extend([x for x in arr if isinstance(x, dict)])
+            for doc in all_docs:
+                doc_path = str(doc.get('path') or doc.get('file') or '').lstrip('/').replace('\\', '/')
+                doc_no_media = re.sub(r'^media/', '', doc_path, flags=re.IGNORECASE)
+                if doc_no_media == normalized_no_media and doc.get('filename'):
+                    original_filename = str(doc.get('filename'))
+                    break
+        if not original_filename:
+            original_filename = normalized_no_media.split('/')[-1]
+
+        candidate_paths = [normalized_no_media, f"media/{normalized_no_media}"]
+        file_handle = None
+        for candidate in candidate_paths:
+            try:
+                file_handle = default_storage.open(candidate, 'rb')
+                normalized_no_media = candidate
+                break
+            except Exception:
+                continue
+
+        if not file_handle:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        content_type, _ = mimetypes.guess_type(original_filename)
+        response = FileResponse(file_handle, content_type=content_type or 'application/octet-stream')
+        disposition = 'inline' if request.query_params.get('download') != '1' else 'attachment'
+        response['Content-Disposition'] = f'{disposition}; filename="{original_filename}"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='booked-dates')
+    def booked_dates(self, request):
+        property_id = request.query_params.get('property_id')
+        if not property_id:
+            return Response({'error': 'property_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        bookings = ShortStayBooking.objects.filter(
+            property_id=property_id,
+            status__in=['pending_payment', 'proof_submitted', 'confirmed'],
+        ).values('id', 'check_in', 'check_out', 'status', 'guest_name')
+        blocks = ShortStayBlockedDate.objects.filter(property_id=property_id).values(
+            'id', 'start_date', 'end_date', 'reason'
+        )
+        return Response({
+            'bookings': [
+                {
+                    'id': b['id'],
+                    'check_in': b['check_in'].isoformat(),
+                    'check_out': b['check_out'].isoformat(),
+                    'status': b['status'],
+                    'guest_name': b['guest_name'],
+                }
+                for b in bookings
+            ],
+            'blocked': [
+                {
+                    'id': b['id'],
+                    'start_date': b['start_date'].isoformat(),
+                    'end_date': b['end_date'].isoformat(),
+                    'reason': b['reason'] or '',
+                }
+                for b in blocks
+            ],
+        })
+
+    @action(detail=False, methods=['get'], url_path='quote')
+    def quote(self, request):
+        property_id = request.query_params.get('property_id')
+        check_in = request.query_params.get('check_in')
+        check_out = request.query_params.get('check_out')
+        if not all([property_id, check_in, check_out]):
+            return Response(
+                {'error': 'property_id, check_in, and check_out are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            property_obj = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response({'error': 'Property not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from datetime import datetime as dt
+        from .serializers import calculate_short_stay_quote, check_short_stay_availability
+
+        try:
+            ci = dt.strptime(check_in, '%Y-%m-%d').date()
+            co = dt.strptime(check_out, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if co <= ci:
+            return Response({
+                'error': 'Check-out must be after check-in.',
+                'available': False,
+            })
+
+        nights = (co - ci).days
+        try:
+            num_guests = max(1, int(request.query_params.get('num_guests', 1)))
+        except (TypeError, ValueError):
+            num_guests = 1
+
+        try:
+            quote_data = calculate_short_stay_quote(property_obj, nights, num_guests)
+            available, conflict_reason = check_short_stay_availability(property_obj, ci, co)
+        except Exception as e:
+            logger.exception('Short-stay quote failed')
+            return Response(
+                {'error': f'Could not calculate quote: {e}', 'available': False},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'available': available,
+            'conflict_reason': conflict_reason if not available else '',
+            'nights': quote_data['nights'],
+            'nightly_rate': float(quote_data['nightly_rate']),
+            'lodging_subtotal': float(quote_data['lodging_subtotal']),
+            'discount_percent': float(quote_data['discount_percent']),
+            'discount_amount': float(quote_data['discount_amount']),
+            'cleaning_fee': float(quote_data['cleaning_fee']),
+            'num_guests': quote_data['num_guests'],
+            'included_guests': quote_data['included_guests'],
+            'extra_guests': quote_data['extra_guests'],
+            'extra_guest_fee_per_night': float(quote_data['extra_guest_fee_per_night']),
+            'extra_guest_fee': float(quote_data['extra_guest_fee']),
+            'subtotal': float(quote_data['lodging_subtotal']),
+            'total_amount': float(quote_data['total_amount']),
+            'max_guests': property_obj.get_short_stay_max_guests(),
+            'check_in_time': property_obj.get_short_stay_check_in_time(),
+            'check_out_time': property_obj.get_short_stay_check_out_time(),
+        })
+
+
+class ShortStayBlockedDateViewSet(viewsets.ModelViewSet):
+    queryset = ShortStayBlockedDate.objects.select_related('property').all()
+    serializer_class = ShortStayBlockedDateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        property_id = self.request.query_params.get('property_id')
+        if property_id:
+            qs = qs.filter(property_id=property_id)
+        return qs
 
 
 class EmailTestViewSet(viewsets.ViewSet):

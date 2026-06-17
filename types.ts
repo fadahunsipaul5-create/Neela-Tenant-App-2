@@ -246,8 +246,142 @@ export interface Property {
   furnishingType?: string;
   furnishingsBreakdown?: string[];
   area?: string;
+  shortStayEnabled?: boolean;
+  shortStayNightlyRate?: number;
+  shortStayMaxGuests?: number;
+  effectiveNightlyRate?: number;
+  effectiveMaxGuests?: number;
+  effectiveCleaningFee?: number;
+  effectiveCheckInTime?: string;
+  effectiveCheckOutTime?: string;
+  shortStayCheckInTime?: string;
+  shortStayCheckOutTime?: string;
+  shortStayCleaningFee?: number;
+  shortStayListingTitle?: string;
+  shortStayListingDescription?: string;
+  shortStayListingArea?: string;
+  shortStayListingLocation?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface OperatingExpense {
+  id: string;
+  property?: string | null;
+  propertyName?: string;
+  unit?: string | null;
+  unitLabel?: string;
+  amount: number;
+  category: 'utilities' | 'maintenance' | 'taxes' | 'insurance' | 'management' | 'cleaning' | 'hoa' | 'advertising' | 'legal' | 'supplies' | 'transportation' | 'bank_charges' | 'mortgage_interest' | 'mortgage_principal' | 'depreciation' | 'other';
+  visibility?: 'operating' | 'admin_only';
+  date: string;
+  notes?: string;
+  createdByName?: string;
+  createdAt?: string;
+}
+
+export interface PropertyFinancials {
+  purchasePrice: number;
+  downPayment: number;
+  closingCost: number;
+  loanAmount: number;
+  interestRate: number;
+  loanTermYears?: number | null;
+  monthlyMortgagePayment: number;
+  landValue: number;
+  annualDepreciationYears: number;
+  escrowNotes?: string;
+}
+
+export interface IncomeStatementUnitRow {
+  unitId: string;
+  propertyId: string;
+  label: string;
+  monthlyRent: number;
+  status: string;
+  rentIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+}
+
+export interface IncomeStatementRow {
+  propertyId: string;
+  propertyName: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  unitsCount?: number;
+  imageUrl?: string | null;
+  rentIncome: number;
+  shortStayIncome: number;
+  totalIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+  units?: IncomeStatementUnitRow[];
+  financials?: PropertyFinancials | null;
+}
+
+export interface IncomeStatementSummary {
+  year: number;
+  isAdminView?: boolean;
+  portfolio: {
+    rentIncome: number;
+    shortStayIncome: number;
+    totalIncome: number;
+    totalExpenses: number;
+    netIncome: number;
+  };
+  byProperty: IncomeStatementRow[];
+  byUnit?: IncomeStatementUnitRow[];
+  expensesByCategory: Record<string, number>;
+  monthly: { month: number; income: number; expenses: number; net: number }[];
+}
+
+export interface PropertyUnit {
+  id: string;
+  property: string;
+  propertyName?: string;
+  label: string;
+  monthlyRent: number;
+  status: 'occupied' | 'vacant' | 'coming_soon';
+  sortOrder?: number;
+}
+
+export type ShortStayBookingStatus = 'pending_payment' | 'proof_submitted' | 'confirmed' | 'cancelled';
+
+export interface ShortStayBooking {
+  id: string;
+  property: string;
+  propertyName?: string;
+  propertyAddress?: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  checkIn: string;
+  checkOut: string;
+  numGuests: number;
+  nights: number;
+  nightlyRate: number;
+  discountPercent: number;
+  cleaningFee?: number;
+  totalAmount: number;
+  paymentMethod: string;
+  status: ShortStayBookingStatus;
+  proofOfPaymentFiles?: { filename: string; path: string; size?: number; url?: string }[];
+  guestIdFiles?: { filename: string; path: string; size?: number; url?: string }[];
+  notes?: string;
+  accessPin?: string;
+  createdAt?: string;
+}
+
+export interface ShortStayBlockedDate {
+  id: string;
+  property: string;
+  propertyName?: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+  createdAt?: string;
 }
 
 export interface ApplicationForm {

@@ -34,6 +34,13 @@ env/
 venv/
 .env
 .env.local
+# Markdown docs (keep only README.md in git)
+*.md
+!README.md
+
+# Local spreadsheets (not for version control)
+*.xlsx
+*.xls
 .env.development.local
 .env.test.local
 .env.production.local   
@@ -41,3 +48,6 @@ venv/
 sqlite3.db
 sqlite3.db-journal
 db.sqlite3
+
+# Neela Guest app (separate project)
+neelaguest-main/

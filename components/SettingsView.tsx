@@ -120,7 +120,7 @@ ________________________ Tenant`);
   const [branding, setBranding] = useState({
     companyName: 'Neela Capital Investment',
     primaryColor: '#4f46e5',
-    logoUrl: '',
+    logoUrl: '/neela-logo.webp',
   });
 
   // Fetch properties on mount

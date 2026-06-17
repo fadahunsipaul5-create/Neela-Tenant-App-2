@@ -8,14 +8,17 @@ import LegalComplianceView from './components/LegalComplianceView';
 import PublicPortal from './components/PublicPortal';
 import SettingsView from './components/SettingsView';
 import PaymentsView from './components/PaymentsView';
+import ShortStaysView from './components/ShortStaysView';
+import IncomeStatementView from './components/IncomeStatementView';
 import PasswordReset from './components/PasswordReset';
 import { Menu } from 'lucide-react';
+import NeelaLogo from './components/NeelaLogo';
 import { api } from './services/api';
 import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
-  const adminPagePadding = 'px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 lg:px-8 lg:py-8 xl:px-10';
+  const adminPagePadding = 'px-3 py-4 sm:px-4 sm:py-5 md:px-4 md:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-8';
   const location = useLocation();
   const navigate = useNavigate();
   // Check if we're on a password reset page - Vercel deployment trigger
@@ -340,6 +343,10 @@ const App: React.FC = () => {
             onTenantsChange={refreshTenants} 
           />
         );
+      case 'short-stays':
+        return <ShortStaysView />;
+      case 'income-statement':
+        return <IncomeStatementView properties={properties} />;
       case 'maintenance':
         return <MaintenanceView requests={maintenance} tenants={tenants} onMaintenanceChange={refreshMaintenance} />;
       case 'legal':
@@ -409,13 +416,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50/30 to-blue-50/30">
         <div className="text-center px-4">
           <div className="flex items-center justify-center gap-4 sm:gap-6 mb-8">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 blur-xl rounded-2xl"></div>
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl sm:text-3xl shadow-lg relative">
-                N
-                <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full border-2 border-white shadow-sm"></div>
-              </div>
-            </div>
+            <NeelaLogo variant="full" size="lg" className="rounded-xl shadow-lg" />
             <div className="relative">
               <div className="w-16 h-16 border-[4px] border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center">
@@ -435,7 +436,7 @@ const App: React.FC = () => {
       {/* Overlay for mobile menu */}
       {isMobileMenuOpen && !isPublic && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-300"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden animate-in fade-in duration-300"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -450,13 +451,13 @@ const App: React.FC = () => {
         />
       )}
 
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 md:h-screen overflow-hidden">
-        {/* Top Bar (Mobile Only) - Only show in Admin Mode */}
+      <main className="flex-1 flex flex-col min-w-0 w-full min-h-screen lg:min-h-0 lg:h-screen overflow-hidden">
+        {/* Top Bar — tablets & small laptops use drawer; sidebar fixed from lg up */}
         {!isPublic && (
-          <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-4 py-3 sm:p-5 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
+          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <div className="w-9 h-9 flex-shrink-0 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-xl shadow-md shadow-blue-500/20"></div>
-              <span className="font-bold text-slate-900 text-base sm:text-lg md:text-xl tracking-tight truncate">Neela Capital Investment</span>
+              <NeelaLogo variant="mark" size="sm" />
+              <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate hidden sm:inline">Neela Capital</span>
             </div>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
@@ -478,7 +479,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className={adminPagePadding}>
-              <div className="max-w-7xl mx-auto">
+              <div className="max-w-7xl mx-auto w-full min-w-0">
                 {renderAdminContent()}
               </div>
             </div>

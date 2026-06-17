@@ -14,6 +14,7 @@ export interface User {
   is_verified: boolean;
   is_staff: boolean;
   is_superuser: boolean;
+  role?: 'tenant' | 'property_manager';
 }
 
 export interface Tenant {

@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import TenantLoginPage from './components/TenantLoginPage';
 import AdminLoginPage from './components/AdminLoginPage';
+import PropertyManagerLoginPage from './components/PropertyManagerLoginPage';
+import PropertyManagerView from './components/PropertyManagerView';
 import LeaseSigningPage from './components/LeaseSigningPage';
 
 const rootElement = document.getElementById('root');
@@ -18,6 +20,8 @@ root.render(
       <Routes>
         <Route path="/tenant" element={<TenantLoginPage />} />
         <Route path="/admin" element={<AdminLoginPage />} />
+        <Route path="/manager/login" element={<PropertyManagerLoginPage />} />
+        <Route path="/manager" element={<PropertyManagerView />} />
         <Route path="/sign-lease" element={<LeaseSigningPage />} />
         <Route path="*" element={<App />} />
       </Routes>

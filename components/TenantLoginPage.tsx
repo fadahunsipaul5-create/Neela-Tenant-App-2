@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, isAuthenticated } from '../services/auth';
-import { Mail, Lock, Building2, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import NeelaLogo from './NeelaLogo';
 
 const TenantLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -59,10 +60,8 @@ const TenantLoginPage: React.FC = () => {
         </Link>
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-indigo-500/10 border border-slate-200/60 overflow-hidden">
           <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-50 via-indigo-100 to-blue-50 text-indigo-600 shadow-lg shadow-indigo-500/20">
-                <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
+            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:items-center">
+              <NeelaLogo variant="full" size="md" className="rounded-xl shadow-md" />
               <div>
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">
                   Tenant Portal Login

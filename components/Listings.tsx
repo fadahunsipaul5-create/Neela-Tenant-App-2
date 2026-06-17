@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import {
   MapPin, BedDouble, Bath, Maximize, Building2, Loader2, Clock, Minus, Plus, X
 } from 'lucide-react';
+import { FloatingPillSwitch } from './FloatingPillSwitch';
 
 const QUICK_LOCATIONS = ['Downtown Houston', 'Houston Airport', 'Galleria', 'University of Houston'];
 
@@ -45,6 +46,7 @@ interface ListingsProps {
   setLoginType: (type: 'admin' | 'tenant' | null) => void;
   handleApply: (listing: Listing) => void;
   propertyToListing: (property: Property) => Listing;
+  onExploreShortStay?: () => void;
 }
 
 const ListingCard: React.FC<{
@@ -135,7 +137,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handleApply, propertyToListing }) => {
+export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handleApply, propertyToListing, onExploreShortStay }) => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
   const [detailsListing, setDetailsListing] = useState<Listing | null>(null);
@@ -329,15 +331,19 @@ export const Listings: React.FC<ListingsProps> = ({ setView, setLoginType, handl
                  <button onClick={() => setView('check_status')} className="px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-2xl shadow-emerald-500/30 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
                     <Clock className="w-5 h-5" /> Check Application Status
                  </button>
-                 <button onClick={() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth' })} className="px-8 py-4 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold rounded-xl border-2 border-white/30 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-white/30">
-                   Browse Listings
-                 </button>
               </div>
           </div>
         </div>
       </div>
 
-      <div id="listings" className="max-w-7xl mx-auto px-6 md:px-10 w-full pt-16">
+      <FloatingPillSwitch
+        mode="rentals"
+        onSelectRentals={() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth' })}
+        onSelectShortStay={() => onExploreShortStay?.()}
+        className="sticky top-4 z-30 -mt-7 mb-2 px-4"
+      />
+
+      <div id="listings" className="max-w-7xl mx-auto px-6 md:px-10 w-full pt-10">
           <h2 className="text-4xl font-bold text-slate-900 mb-10 tracking-tight">Available Properties</h2>
 
           {/* Filter */}

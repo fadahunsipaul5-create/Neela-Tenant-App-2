@@ -5,6 +5,7 @@ import { login, getCurrentUser, isAuthenticated, User as AuthUser, refreshTokenI
 import { 
   Loader2, X, AlertCircle, Mail, Phone, Lock, Key, Building2, UserCheck, Eye, EyeOff, ArrowLeft
 } from 'lucide-react';
+import NeelaLogo from './NeelaLogo';
 
 type LoginType = 'admin' | 'tenant' | null;
 
@@ -39,10 +40,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       />
       <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl shadow-indigo-500/10 w-full max-w-md overflow-hidden animate-slideInUp border border-slate-200/60">
         <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
-            <div className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg flex-shrink-0 ${loginType === 'admin' ? 'bg-gradient-to-br from-red-50 via-red-100 to-red-50 text-red-600 shadow-red-500/20' : 'bg-gradient-to-br from-indigo-50 via-indigo-100 to-blue-50 text-indigo-600 shadow-indigo-500/20'}`}>
-              {loginType === 'admin' ? <Key className="w-5 h-5 sm:w-6 sm:h-6" /> : <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />}
-            </div>
+          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto min-w-0">
+            <NeelaLogo variant="mark" size="sm" className="sm:hidden flex-shrink-0" />
+            <NeelaLogo variant="full" size="sm" className="hidden sm:block rounded-xl shadow-md flex-shrink-0" />
             <div className="min-w-0 flex-1">
               <h3 id="login-modal-title" className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">
                 {loginType === 'admin' ? 'Admin Portal Login' : 'Tenant Portal Login'}

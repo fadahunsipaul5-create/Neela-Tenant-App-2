@@ -1,9 +1,21 @@
-import { Tenant, Payment, MaintenanceRequest, Listing, Property, LeaseSigningMetadata } from '../types';
+import { Tenant, Payment, MaintenanceRequest, Listing, Property, LeaseSigningMetadata, ShortStayBooking, ShortStayBlockedDate, OperatingExpense, IncomeStatementSummary } from '../types';
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// const BASE_URL = import.meta.env.VITE_API_URL || 'https://neela-backend-96ia.onrender.com';
+// In dev, use Vite proxy (/api → backend) unless VITE_API_URL is set explicitly.
+const BASE_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV ? '' : 'http://localhost:8000');
 const API_URL = `${BASE_URL}/api`;
+
+function parseApiErrorBody(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object') return fallback;
+  const err = data as Record<string, unknown>;
+  if (typeof err.error === 'string') return err.error;
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail) && err.detail.length > 0) return String(err.detail[0]);
+  const firstField = Object.values(err).find((v) => Array.isArray(v) && v.length > 0);
+  if (Array.isArray(firstField)) return String(firstField[0]);
+  return fallback;
+}
 
 // Track if we're currently refreshing to avoid multiple simultaneous refresh attempts
 let isRefreshing = false;
@@ -94,6 +106,21 @@ const fetchWithAuth = async (
 };
 
 export const api = {
+  mapOperatingExpense: (item: any): OperatingExpense => ({
+    id: String(item.id),
+    property: item.property != null ? String(item.property) : null,
+    propertyName: item.property_name || '',
+    unit: item.unit != null ? String(item.unit) : null,
+    unitLabel: item.unit_label || '',
+    amount: parseFloat(item.amount),
+    category: item.category,
+    visibility: item.visibility,
+    date: item.date,
+    notes: item.notes || '',
+    createdByName: item.created_by_name || '',
+    createdAt: item.created_at,
+  }),
+
   getTenants: async (): Promise<Tenant[]> => {
     const response = await fetchWithAuth(`${API_URL}/tenants/`, {
       headers: getHeaders(false, true),
@@ -232,6 +259,123 @@ export const api = {
       const error = await response.json().catch(() => ({ detail: 'Failed to delete payment' }));
       throw new Error(error.detail || error.message || 'Failed to delete payment');
     }
+  },
+
+  getIncomeStatement: async (year?: number): Promise<IncomeStatementSummary> => {
+    const params = new URLSearchParams();
+    if (year) params.set('year', String(year));
+    const query = params.toString();
+    const response = await fetchWithAuth(`${API_URL}/payments/income-statement/${query ? `?${query}` : ''}`, {
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error('Failed to fetch income statement');
+    const data = await response.json();
+    return {
+      year: data.year,
+      isAdminView: data.is_admin_view !== false,
+      portfolio: {
+        rentIncome: parseFloat(data.portfolio?.rent_income || 0),
+        shortStayIncome: parseFloat(data.portfolio?.short_stay_income || 0),
+        totalIncome: parseFloat(data.portfolio?.total_income || 0),
+        totalExpenses: parseFloat(data.portfolio?.total_expenses || 0),
+        netIncome: parseFloat(data.portfolio?.net_income || 0),
+      },
+      byProperty: (data.by_property || []).map((row: any) => ({
+        propertyId: String(row.property_id),
+        propertyName: row.property_name,
+        address: row.address,
+        city: row.city,
+        state: row.state,
+        unitsCount: row.units_count,
+        imageUrl: row.image_url,
+        rentIncome: parseFloat(row.rent_income || 0),
+        shortStayIncome: parseFloat(row.short_stay_income || 0),
+        totalIncome: parseFloat(row.total_income || 0),
+        totalExpenses: parseFloat(row.total_expenses || 0),
+        netIncome: parseFloat(row.net_income || 0),
+        units: (row.units || []).map((u: any) => ({
+          unitId: String(u.unit_id),
+          propertyId: String(u.property_id),
+          label: u.label,
+          monthlyRent: parseFloat(u.monthly_rent || 0),
+          status: u.status,
+          rentIncome: parseFloat(u.rent_income || 0),
+          totalExpenses: parseFloat(u.total_expenses || 0),
+          netIncome: parseFloat(u.net_income || 0),
+        })),
+        financials: row.financials ? {
+          purchasePrice: row.financials.purchase_price || 0,
+          downPayment: row.financials.down_payment || 0,
+          closingCost: row.financials.closing_cost || 0,
+          loanAmount: row.financials.loan_amount || 0,
+          interestRate: row.financials.interest_rate || 0,
+          loanTermYears: row.financials.loan_term_years,
+          monthlyMortgagePayment: row.financials.monthly_mortgage_payment || 0,
+          landValue: row.financials.land_value || 0,
+          annualDepreciationYears: row.financials.annual_depreciation_years || 27.5,
+          escrowNotes: row.financials.escrow_notes || '',
+        } : null,
+      })),
+      byUnit: (data.by_unit || []).map((u: any) => ({
+        unitId: String(u.unit_id),
+        propertyId: String(u.property_id),
+        label: u.label,
+        monthlyRent: parseFloat(u.monthly_rent || 0),
+        status: u.status,
+        rentIncome: parseFloat(u.rent_income || 0),
+        totalExpenses: parseFloat(u.total_expenses || 0),
+        netIncome: parseFloat(u.net_income || 0),
+      })),
+      expensesByCategory: Object.entries(data.expenses_by_category || {}).reduce((acc, [k, v]) => {
+        acc[k] = parseFloat(String(v || 0));
+        return acc;
+      }, {} as Record<string, number>),
+      monthly: (data.monthly || []).map((m: any) => ({
+        month: Number(m.month),
+        income: parseFloat(m.income || 0),
+        expenses: parseFloat(m.expenses || 0),
+        net: parseFloat(m.net || 0),
+      })),
+    };
+  },
+
+  getOperatingExpenses: async (): Promise<OperatingExpense[]> => {
+    const response = await fetchWithAuth(`${API_URL}/operating-expenses/`, {
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error('Failed to fetch operating expenses');
+    const data = await response.json();
+    return data.map((item: any) => api.mapOperatingExpense(item));
+  },
+
+  createOperatingExpense: async (payload: {
+    property?: string;
+    unit?: string;
+    amount: number;
+    category: OperatingExpense['category'];
+    date: string;
+    notes?: string;
+    visibility?: OperatingExpense['visibility'];
+  }): Promise<OperatingExpense> => {
+    const response = await fetchWithAuth(`${API_URL}/operating-expenses/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        property: payload.property || null,
+        unit: payload.unit || null,
+        amount: payload.amount,
+        category: payload.category,
+        date: payload.date,
+        notes: payload.notes || '',
+        visibility: payload.visibility || 'operating',
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(parseApiErrorBody(err, 'Failed to create expense'));
+    }
+    const data = await response.json();
+    return api.mapOperatingExpense(data);
   },
 
   sendPaymentReceipt: async (paymentId: string): Promise<{ status: string; message: string; receipt_email_sent?: boolean }> => {
@@ -556,6 +700,21 @@ export const api = {
         furnishingType: item.furnishing_type || undefined,
         furnishingsBreakdown: item.furnishings_breakdown || [],
         area: item.area || undefined,
+        shortStayEnabled: item.short_stay_enabled !== false,
+        shortStayNightlyRate: item.short_stay_nightly_rate != null ? parseFloat(item.short_stay_nightly_rate) : undefined,
+        shortStayMaxGuests: item.short_stay_max_guests ?? undefined,
+        effectiveNightlyRate: item.effective_nightly_rate != null ? parseFloat(item.effective_nightly_rate) : undefined,
+        effectiveMaxGuests: item.effective_max_guests ?? undefined,
+        effectiveCleaningFee: item.effective_cleaning_fee != null ? parseFloat(item.effective_cleaning_fee) : undefined,
+        shortStayCheckInTime: item.effective_check_in_time || item.short_stay_check_in_time || undefined,
+        shortStayCheckOutTime: item.effective_check_out_time || item.short_stay_check_out_time || undefined,
+        effectiveCheckInTime: item.effective_check_in_time || undefined,
+        effectiveCheckOutTime: item.effective_check_out_time || undefined,
+        shortStayCleaningFee: item.short_stay_cleaning_fee != null ? parseFloat(item.short_stay_cleaning_fee) : 75,
+        shortStayListingTitle: item.guest_listing_title || item.short_stay_listing_title || undefined,
+        shortStayListingDescription: item.guest_listing_description || item.short_stay_listing_description || undefined,
+        shortStayListingArea: item.guest_listing_area || item.short_stay_listing_area || undefined,
+        shortStayListingLocation: item.guest_listing_location || undefined,
         createdAt: item.created_at,
         updatedAt: item.updated_at,
       };
@@ -683,6 +842,12 @@ export const api = {
       }
       if (propertyData.furnishingType !== undefined) jsonData.furnishing_type = propertyData.furnishingType;
       if (propertyData.furnishingsBreakdown !== undefined) jsonData.furnishings_breakdown = propertyData.furnishingsBreakdown;
+      if (propertyData.shortStayEnabled !== undefined) jsonData.short_stay_enabled = propertyData.shortStayEnabled;
+      if (propertyData.shortStayNightlyRate !== undefined) jsonData.short_stay_nightly_rate = propertyData.shortStayNightlyRate;
+      if (propertyData.shortStayMaxGuests !== undefined) jsonData.short_stay_max_guests = propertyData.shortStayMaxGuests;
+      if (propertyData.shortStayCheckInTime !== undefined) jsonData.short_stay_check_in_time = propertyData.shortStayCheckInTime;
+      if (propertyData.shortStayCheckOutTime !== undefined) jsonData.short_stay_check_out_time = propertyData.shortStayCheckOutTime;
+      if (propertyData.shortStayCleaningFee !== undefined) jsonData.short_stay_cleaning_fee = propertyData.shortStayCleaningFee;
       body = JSON.stringify(jsonData);
       headers = {
         'Content-Type': 'application/json',
@@ -1020,5 +1185,294 @@ export const api = {
       throw new Error(error.error || error.detail || 'Failed to send message');
     }
     return await response.json();
+  },
+
+  mapShortStayBooking: (item: any): ShortStayBooking => ({
+    id: String(item.id),
+    property: String(item.property),
+    propertyName: item.property_name,
+    propertyAddress: item.property_address,
+    guestName: item.guest_name,
+    guestEmail: item.guest_email,
+    guestPhone: item.guest_phone,
+    checkIn: item.check_in,
+    checkOut: item.check_out,
+    numGuests: item.num_guests,
+    nights: item.nights,
+    nightlyRate: parseFloat(item.nightly_rate),
+    discountPercent: parseFloat(item.discount_percent),
+    cleaningFee: item.cleaning_fee != null ? parseFloat(item.cleaning_fee) : undefined,
+    totalAmount: parseFloat(item.total_amount),
+    paymentMethod: item.payment_method || '',
+    status: item.status,
+    proofOfPaymentFiles: item.proof_of_payment_files || [],
+    guestIdFiles: item.guest_id_files || [],
+    notes: item.notes || '',
+    accessPin: item.access_pin || '',
+    createdAt: item.created_at,
+  }),
+
+  getShortStayDocumentUrl: (bookingId: string, path: string, filename?: string, download = false) => {
+    const base = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000';
+    const params = new URLSearchParams({ path });
+    if (filename) params.set('filename', filename);
+    if (download) params.set('download', '1');
+    return `${base.replace(/\/+$/, '')}/api/short-stay-bookings/${bookingId}/document/?${params}`;
+  },
+
+  getShortStayBookings: async (): Promise<ShortStayBooking[]> => {
+    const response = await fetchWithAuth(`${API_URL}/short-stay-bookings/`, {
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error('Failed to fetch short-stay bookings');
+    const data = await response.json();
+    return data.map((item: any) => api.mapShortStayBooking(item));
+  },
+
+  createShortStayBooking: async (payload: {
+    propertyId: string;
+    guestName: string;
+    guestEmail: string;
+    guestPhone: string;
+    checkIn: string;
+    checkOut: string;
+    numGuests: number;
+    paymentMethod: string;
+    notes?: string;
+    proofFiles?: File[];
+    idFiles?: File[];
+  }): Promise<ShortStayBooking> => {
+    const formData = new FormData();
+    formData.append('property', payload.propertyId);
+    formData.append('guest_name', payload.guestName);
+    formData.append('guest_email', payload.guestEmail);
+    formData.append('guest_phone', payload.guestPhone);
+    formData.append('check_in', payload.checkIn);
+    formData.append('check_out', payload.checkOut);
+    formData.append('num_guests', String(payload.numGuests));
+    formData.append('payment_method', payload.paymentMethod);
+    if (payload.notes) formData.append('notes', payload.notes);
+    payload.proofFiles?.forEach((file) => formData.append('proof_of_payment_files_upload', file));
+    payload.idFiles?.forEach((file) => formData.append('guest_id_files_upload', file));
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/short-stay-bookings/`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new Error('Submission timed out — try smaller photos or check your connection.');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to submit booking' }));
+      const msg = typeof error === 'object'
+        ? (error.detail || error.error || Object.values(error).flat().join(' '))
+        : 'Failed to submit booking';
+      throw new Error(String(msg));
+    }
+    const data = await response.json();
+    if (data.property_name != null) {
+      return api.mapShortStayBooking(data);
+    }
+    return {
+      id: String(data.id),
+      property: String(data.property),
+      guestName: data.guest_name || '',
+      guestEmail: '',
+      guestPhone: '',
+      checkIn: data.check_in,
+      checkOut: data.check_out,
+      numGuests: 0,
+      nights: 0,
+      nightlyRate: 0,
+      discountPercent: 0,
+      totalAmount: parseFloat(data.total_amount) || 0,
+      paymentMethod: '',
+      status: data.status,
+      proofOfPaymentFiles: [],
+      guestIdFiles: [],
+      notes: '',
+      accessPin: '',
+      createdAt: '',
+    };
+  },
+
+  updateShortStayBooking: async (id: string, updates: { status?: string; notes?: string }): Promise<ShortStayBooking> => {
+    const response = await fetchWithAuth(`${API_URL}/short-stay-bookings/${id}/`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.status?.[0] || err.detail || err.error || 'Failed to update booking');
+    }
+    const data = await response.json();
+    if (data.property_name != null) {
+      return api.mapShortStayBooking(data);
+    }
+    return {
+      id: String(data.id),
+      status: data.status,
+      accessPin: data.access_pin || '',
+      notes: data.notes || '',
+    } as ShortStayBooking;
+  },
+
+  checkShortStayAvailability: async (propertyId: string, checkIn: string, checkOut: string): Promise<boolean> => {
+    const params = new URLSearchParams({ property_id: propertyId, check_in: checkIn, check_out: checkOut });
+    const response = await fetch(`${API_URL}/short-stay-bookings/check-availability/?${params}`);
+    if (!response.ok) throw new Error('Failed to check availability');
+    const data = await response.json();
+    return !!data.available;
+  },
+
+  getShortStayQuote: async (
+    propertyId: string,
+    checkIn: string,
+    checkOut: string,
+    numGuests = 1,
+    signal?: AbortSignal,
+  ) => {
+    const params = new URLSearchParams({
+      property_id: propertyId,
+      check_in: checkIn,
+      check_out: checkOut,
+      num_guests: String(numGuests),
+    });
+    const timeoutMs = 20000;
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+    const onExternalAbort = () => timeoutController.abort();
+    signal?.addEventListener('abort', onExternalAbort);
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/short-stay-bookings/quote/?${params}`, {
+        signal: timeoutController.signal,
+      });
+    } catch (e) {
+      if (signal?.aborted) {
+        throw new Error('Quote request cancelled');
+      }
+      if (timeoutController.signal.aborted) {
+        throw new Error('Quote request timed out. Make sure the backend is running (py manage.py runserver).');
+      }
+      throw new Error('Could not reach the server. Start the backend at http://127.0.0.1:8000');
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onExternalAbort);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    const data = isJson ? await response.json().catch(() => null) : null;
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(
+          'Short-stay quote API not found. Run the backend locally or deploy the latest backend code.',
+        );
+      }
+      const message = parseApiErrorBody(data, 'Failed to get quote');
+      throw new Error(message);
+    }
+
+    if (!data) {
+      throw new Error('Invalid response from quote service');
+    }
+    return data;
+  },
+
+  getShortStayBookedDates: async (propertyId: string): Promise<{
+    bookings: { id?: number; checkIn: string; checkOut: string; status: string; guestName?: string }[];
+    blocked: { id: number; startDate: string; endDate: string; reason: string }[];
+  }> => {
+    const params = new URLSearchParams({ property_id: propertyId });
+    const response = await fetch(`${API_URL}/short-stay-bookings/booked-dates/?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch booked dates');
+    const data = await response.json();
+    return {
+      bookings: (data.bookings || []).map((b: any) => ({
+        id: b.id,
+        checkIn: b.check_in,
+        checkOut: b.check_out,
+        status: b.status,
+        guestName: b.guest_name,
+      })),
+      blocked: (data.blocked || []).map((b: any) => ({
+        id: b.id,
+        startDate: b.start_date,
+        endDate: b.end_date,
+        reason: b.reason || '',
+      })),
+    };
+  },
+
+  getShortStayBlocks: async (propertyId?: string): Promise<ShortStayBlockedDate[]> => {
+    const params = propertyId ? `?property_id=${propertyId}` : '';
+    const response = await fetchWithAuth(`${API_URL}/short-stay-blocks/${params}`, {
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error('Failed to fetch blocked dates');
+    const data = await response.json();
+    return data.map((item: any) => ({
+      id: String(item.id),
+      property: String(item.property),
+      propertyName: item.property_name,
+      startDate: item.start_date,
+      endDate: item.end_date,
+      reason: item.reason || '',
+      createdAt: item.created_at,
+    }));
+  },
+
+  createShortStayBlock: async (payload: {
+    propertyId: string;
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }): Promise<ShortStayBlockedDate> => {
+    const response = await fetchWithAuth(`${API_URL}/short-stay-blocks/`, {
+      method: 'POST',
+      headers: getHeaders(true, true),
+      body: JSON.stringify({
+        property: payload.propertyId,
+        start_date: payload.startDate,
+        end_date: payload.endDate,
+        reason: payload.reason || '',
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.end_date?.[0] || err.detail || 'Failed to block dates');
+    }
+    const item = await response.json();
+    return {
+      id: String(item.id),
+      property: String(item.property),
+      propertyName: item.property_name,
+      startDate: item.start_date,
+      endDate: item.end_date,
+      reason: item.reason || '',
+      createdAt: item.created_at,
+    };
+  },
+
+  deleteShortStayBlock: async (id: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_URL}/short-stay-blocks/${id}/`, {
+      method: 'DELETE',
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error('Failed to remove blocked dates');
   },
 };

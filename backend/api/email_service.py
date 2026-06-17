@@ -1874,3 +1874,148 @@ def send_proof_of_payment_notification_to_admin(payment_id):
     _send_proof_of_payment_notification_to_admin(payment_id)
 
 
+# ==================== Short Stay Proof Admin Notification ====================
+
+def _send_short_stay_proof_notification_to_admin(booking_id):
+    from .models import ShortStayBooking
+
+    try:
+        booking = ShortStayBooking.objects.select_related('property').get(id=booking_id)
+    except ShortStayBooking.DoesNotExist:
+        logger.error(f"ShortStayBooking {booking_id} not found for admin notification.")
+        return
+
+    admin_emails = get_admin_emails()
+    if not admin_emails:
+        logger.warning("No admin emails configured for short-stay proof notification.")
+        return
+
+    subject = f'Short Stay Booking — Proof Uploaded: {booking.guest_name}'
+    plain_message = f"""
+New short-stay booking with proof of payment uploaded.
+
+Guest: {booking.guest_name}
+Email: {booking.guest_email}
+Phone: {booking.guest_phone}
+Property: {booking.property.name}
+Dates: {booking.check_in} to {booking.check_out} ({booking.nights} nights)
+Guests: {booking.num_guests}
+Total: ${booking.total_amount}
+Payment method: {booking.payment_method or 'Not specified'}
+
+Please review and confirm in the admin Short Stays section.
+"""
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=admin_emails,
+        html_message=plain_message.replace('\n', '<br>'),
+        email_type=f"short stay proof admin notification (booking {booking.id})"
+    )
+
+
+@shared_task
+def send_short_stay_proof_notification_to_admin(booking_id):
+    email_backend = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info(f"Celery task executing: send_short_stay_proof_notification_to_admin for booking {booking_id}, using email backend: {email_backend}")
+    _send_short_stay_proof_notification_to_admin(booking_id)
+
+
+# ==================== Short Stay Guest Confirmation (access PIN) ====================
+
+def _send_short_stay_confirmation_to_guest(booking_id):
+    from .models import ShortStayBooking
+    from .guest_portal import build_guest_property_payload
+
+    try:
+        booking = ShortStayBooking.objects.select_related('property').get(id=booking_id)
+    except ShortStayBooking.DoesNotExist:
+        logger.error(f"ShortStayBooking {booking_id} not found for guest confirmation email.")
+        return
+
+    if booking.status != 'confirmed' or not booking.access_pin:
+        logger.warning(f"Booking {booking_id} not confirmed or missing PIN; skipping guest email.")
+        return
+
+    guest_portal_url = getattr(
+        settings, 'NEELAGUEST_URL',
+        getattr(settings, 'FRONTEND_URL', 'http://localhost:3000'),
+    ).rstrip('/')
+
+    prop = booking.property
+    check_in_time = prop.get_short_stay_check_in_time()
+    check_out_time = prop.get_short_stay_check_out_time()
+    wifi = build_guest_property_payload(prop, booking)
+
+    subject = f'Your stay is confirmed — access code inside ({prop.name})'
+    plain_message = f"""
+Hi {booking.guest_name},
+
+Your short stay at {prop.name} is confirmed!
+
+Property: {prop.name}
+Address: {prop.address}, {prop.city}, {prop.state}
+Check-in: {booking.check_in} (from {check_in_time})
+Check-out: {booking.check_out} (by {check_out_time})
+Guests: {booking.num_guests}
+
+YOUR ACCESS CODE: {booking.access_pin}
+
+At the property, open the guest portal on the iPad or your phone and enter this 4-digit code to access WiFi, house rules, local guide, and more.
+
+Guest portal: {guest_portal_url}
+
+WiFi network: {wifi['wifi_name']}
+WiFi password: {wifi['wifi_password']}
+
+We hope you enjoy your stay!
+— Neela Capital Investments
+"""
+
+    html_message = f"""
+<div style="font-family: Georgia, serif; max-width: 560px; margin: 0 auto; color: #1a2332;">
+  <div style="background: linear-gradient(135deg, #037582, #0496a6); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
+    <p style="color: rgba(255,255,255,0.8); margin: 0 0 8px; font-size: 14px; letter-spacing: 2px;">NEELA CAPITAL</p>
+    <h1 style="color: white; margin: 0; font-size: 28px; font-weight: normal;">Your stay is confirmed</h1>
+  </div>
+  <div style="background: #faf8f5; padding: 32px; border-radius: 0 0 16px 16px; border: 1px solid #e8e4df;">
+    <p style="font-size: 16px;">Hi <strong>{booking.guest_name}</strong>,</p>
+    <p>You're all set for your stay at <strong>{prop.name}</strong>.</p>
+    <table style="width: 100%; font-size: 14px; margin: 20px 0;">
+      <tr><td style="color: #666; padding: 4px 0;">Address</td><td>{prop.address}, {prop.city}</td></tr>
+      <tr><td style="color: #666; padding: 4px 0;">Check-in</td><td>{booking.check_in} · from {check_in_time}</td></tr>
+      <tr><td style="color: #666; padding: 4px 0;">Check-out</td><td>{booking.check_out} · by {check_out_time}</td></tr>
+      <tr><td style="color: #666; padding: 4px 0;">Guests</td><td>{booking.num_guests}</td></tr>
+    </table>
+    <div style="text-align: center; margin: 28px 0; padding: 24px; background: white; border-radius: 12px; border: 2px dashed #0496a6;">
+      <p style="margin: 0 0 8px; font-size: 13px; color: #666; letter-spacing: 1px;">YOUR ACCESS CODE</p>
+      <p style="margin: 0; font-size: 42px; font-weight: bold; letter-spacing: 12px; color: #0496a6;">{booking.access_pin}</p>
+      <p style="margin: 12px 0 0; font-size: 13px; color: #888;">Enter this on the in-home guest portal</p>
+    </div>
+    <p style="text-align: center;">
+      <a href="{guest_portal_url}" style="display: inline-block; background: #0496a6; color: white; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: bold;">Open Guest Portal</a>
+    </p>
+    <div style="margin-top: 24px; padding: 16px; background: white; border-radius: 10px; font-size: 14px;">
+      <p style="margin: 0 0 8px; font-weight: bold;">WiFi</p>
+      <p style="margin: 0;">Network: <strong>{wifi['wifi_name']}</strong><br>Password: <strong>{wifi['wifi_password']}</strong></p>
+    </div>
+  </div>
+</div>
+"""
+
+    send_email_with_logging(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.guest_email],
+        html_message=html_message,
+        email_type=f"short stay guest confirmation (booking {booking.id})",
+    )
+
+
+@shared_task
+def send_short_stay_confirmation_to_guest(booking_id):
+    logger.info(f"Sending short-stay confirmation email for booking {booking_id}")
+    _send_short_stay_confirmation_to_guest(booking_id)
+
