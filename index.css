@@ -101,24 +101,38 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-/* Logo pill — warm charcoal (works with mix-blend-screen, no white box) */
+/* Logo pill — indigo/violet gradient (mix-blend-screen removes baked-in black) */
 .logo-surface {
-  background: linear-gradient(145deg, #1c1917 0%, #292524 45%, #1f1d1b 100%);
-  box-shadow:
-    0 4px 14px rgba(28, 25, 23, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #1d4ed8 100%);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28);
 }
 
 .logo-glow {
-  background: linear-gradient(145deg, rgba(41, 37, 36, 0.45), rgba(68, 64, 60, 0.2));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.4), rgba(139, 92, 246, 0.25), rgba(37, 99, 235, 0.35));
+}
+
+.logo-surface .logo-img {
+  display: block;
+  mix-blend-mode: screen;
+  object-fit: contain;
+  transform: scale(1.14);
+  transform-origin: center center;
+  margin: -2px -4px;
+}
+
+.logo-surface--mark .logo-img {
+  transform: scale(1.2);
+  transform-origin: left center;
+  margin: -2px 0;
 }
 
 /* Sidebar refinements */
 .sidebar-logo-strip {
   background: linear-gradient(
-    180deg,
-    #0f0f0f 0%,
-    #171717 100%
+    135deg,
+    rgba(30, 27, 75, 0.95) 0%,
+    rgba(49, 46, 129, 0.9) 50%,
+    rgba(30, 58, 138, 0.85) 100%
   );
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }

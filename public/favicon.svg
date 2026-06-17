@@ -1,26 +1,14 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#4338ca;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
     </linearGradient>
-    <linearGradient id="dotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#34d399;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#14b8a6;stop-opacity:1" />
-    </linearGradient>
-    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
-      <feOffset dx="0" dy="2" result="offsetblur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.3"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
-  <rect width="32" height="32" rx="7" fill="url(#bgGradient)" filter="url(#shadow)"/>
-  <text x="16" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle" letter-spacing="-0.5">N</text>
-  <circle cx="25" cy="7" r="3.5" fill="url(#dotGradient)" stroke="white" stroke-width="1.2"/>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Neela mark: three pillars -->
+  <rect x="7" y="9" width="4" height="14" rx="0.5" fill="#a8a29e" opacity="0.9"/>
+  <rect x="13" y="7" width="4" height="16" rx="0.5" fill="#d6d3d1"/>
+  <rect x="19" y="5" width="4" height="18" rx="0.5" fill="#ffffff"/>
 </svg>

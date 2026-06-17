@@ -590,7 +590,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
   const LandingHeader = () => (
     <header className="bg-gradient-to-b from-white via-white to-gray-50/50 backdrop-blur-xl border-b border-gray-200/30 sticky top-0 z-50 shadow-lg">
       <div className="w-full pl-2 pr-3 sm:pl-3 sm:pr-5 lg:pl-4 lg:pr-8">
-        <div className="h-16 sm:h-20 flex items-center justify-between gap-3">
+        <div className="h-14 sm:h-16 flex items-center justify-between gap-3">
         <div 
             className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink-0" 
           onClick={() => { setView('listings'); setUserStatus('guest'); }}
