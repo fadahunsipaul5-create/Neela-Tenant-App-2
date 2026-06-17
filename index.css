@@ -353,15 +353,23 @@
   display: block;
   mix-blend-mode: screen;
   object-fit: contain;
-  transform: scale(1.14);
+  transform: scale(1.12);
   transform-origin: center center;
-  margin: -2px -4px;
 }
 
-.logo-surface--mark .logo-img {
-  transform: scale(1.2);
+.logo-surface--full .logo-img {
+  transform: scale(1.1);
+  margin: -1px -2px;
+  height: auto;
+  width: auto;
+}
+
+.logo-surface--mark .logo-img--mark {
+  width: 220%;
+  max-width: none;
+  transform: scale(1.15);
   transform-origin: left center;
-  margin: -2px 0;
+  margin-left: -1px;
 }
 
 /* Sidebar refinements */
@@ -373,4 +381,89 @@
     rgba(30, 58, 138, 0.85) 100%
   );
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-logo-strip .logo-surface--full {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar-logo-strip .logo-surface--full .logo-img {
+  transform: scale(1.08);
+  margin: 0;
+}
+
+/* ── Admin / manager responsive ── */
+@media (max-width: 639px) {
+  .dash-hero {
+    padding: 1.15rem !important;
+    border-radius: 1.1rem;
+  }
+
+  .dash-hero h1 {
+    font-size: 1.65rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .dash-stat {
+    padding: 1rem 1.1rem;
+  }
+
+  .dash-stat .text-3xl,
+  .dash-stat .sm\:text-4xl {
+    font-size: 1.65rem !important;
+  }
+
+  .dash-panel {
+    padding: 1rem !important;
+    border-radius: 1.1rem;
+  }
+
+  .dash-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .dash-action {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .dash-action-icon {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .dash-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dash-filter-bar select,
+  .dash-filter-bar button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1023px) {
+  .dash-hero .flex.flex-wrap.gap-2 {
+    gap: 0.35rem;
+  }
+
+  .dash-hero button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Prevent horizontal scroll on admin content */
+.admin-content-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.safe-area-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
 }

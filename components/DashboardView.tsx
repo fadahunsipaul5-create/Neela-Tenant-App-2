@@ -654,54 +654,54 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   })();
 
   return (
-    <div className="dashboard-mesh space-y-7 sm:space-y-9 pb-8 animate-fade-in">
+    <div className="dashboard-mesh space-y-5 sm:space-y-7 lg:space-y-9 pb-6 sm:pb-8 animate-fade-in w-full min-w-0 overflow-x-hidden">
       {/* Hero */}
-      <div className="dash-hero p-6 sm:p-8 lg:p-10">
+      <div className="dash-hero p-4 sm:p-6 md:p-8 lg:p-10 rounded-2xl sm:rounded-3xl">
         <div className="dash-hero-grid" aria-hidden />
-        <div className="relative z-[1] flex flex-col xl:flex-row xl:items-end justify-between gap-6">
-          <div className="space-y-4 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-indigo-200 text-xs font-semibold backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5 text-violet-300" />
-              {todayLabel}
+        <div className="relative z-[1] flex flex-col lg:flex-row lg:items-end justify-between gap-5 sm:gap-6">
+          <div className="space-y-3 sm:space-y-4 max-w-2xl min-w-0">
+            <div className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/10 border border-white/15 text-indigo-200 text-[10px] sm:text-xs font-semibold backdrop-blur-sm max-w-full">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-violet-300 flex-shrink-0" />
+              <span className="truncate">{todayLabel}</span>
             </div>
-            <div>
-              <p className="text-indigo-200/90 text-sm font-medium mb-1">{greeting}</p>
-              <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-white tracking-tight leading-[1.1]">
+            <div className="min-w-0">
+              <p className="text-indigo-200/90 text-xs sm:text-sm font-medium mb-1">{greeting}</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.75rem] font-bold text-white tracking-tight leading-[1.12]">
                 Manager Dashboard
               </h1>
-              <p className="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed max-w-lg">
+              <p className="mt-2 sm:mt-3 text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-lg">
                 Revenue, occupancy, maintenance & portfolio — everything you need to run properties beautifully.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/25 text-emerald-200 text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/25 text-emerald-200 text-[10px] sm:text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
                 {properties.length} Properties
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-slate-200 text-xs font-semibold">
-                <Users className="w-3.5 h-3.5" />
-                {tenants.filter(t => t.status === TenantStatus.ACTIVE).length} Active Tenants
+              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/10 border border-white/15 text-slate-200 text-[10px] sm:text-xs font-semibold">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
+                {tenants.filter(t => t.status === TenantStatus.ACTIVE).length} Active
               </span>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 xl:flex-shrink-0">
+          <div className="flex flex-col gap-2.5 sm:gap-3 w-full lg:w-auto lg:flex-shrink-0">
             <button
               onClick={onReviewApplications}
-              className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 ${
+              className={`w-full lg:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-300 ${
                 newApplications > 0
                   ? 'bg-white text-indigo-900 shadow-xl shadow-black/20 hover:shadow-2xl hover:-translate-y-0.5'
                   : 'bg-white/10 text-white border border-white/20 hover:bg-white/15'
               }`}
             >
               {newApplications > 0 ? (
-                <span className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  {newApplications} New Application{newApplications !== 1 ? 's' : ''}
+                <span className="flex items-center justify-center gap-2">
+                  <FileText className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{newApplications} New Application{newApplications !== 1 ? 's' : ''}</span>
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  All Applications Reviewed
+                <span className="flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">All Applications Reviewed</span>
                 </span>
               )}
             </button>
@@ -710,7 +710,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       </div>
 
       {/* Stats bento */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 dash-stagger">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 dash-stagger">
         <div className="dash-stat dash-stat--revenue">
           <div className="relative z-[1] flex items-start justify-between mb-5">
             <div className="dash-stat-icon"><DollarSign className="w-5 h-5" /></div>
@@ -773,7 +773,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       {/* Quick actions */}
       <div>
         <p className="dash-section-label mb-4 px-0.5">Quick Actions</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 dash-stagger">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 dash-stagger">
           {quickActions.map((action, index) => (
             <a
               key={index}
@@ -786,17 +786,17 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                 else if (action.label === 'Create Ticket' && onNavigateToMaintenance) onNavigateToMaintenance();
                 else window.location.hash = action.href.replace('#', '');
               }}
-              className="dash-action group cursor-pointer"
+              className="dash-action group cursor-pointer min-w-0"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
                 <div className="dash-action-icon flex-shrink-0" style={{ background: action.gradient }}>
-                  <action.icon className="w-5 h-5" />
+                  <action.icon className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-800 text-sm truncate">{action.label}</p>
-                  <p className="text-[11px] text-slate-400 truncate hidden sm:block">{action.sub}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-800 text-xs sm:text-sm truncate leading-tight">{action.label}</p>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 truncate hidden sm:block">{action.sub}</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all ml-auto flex-shrink-0 hidden sm:block" />
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-all ml-auto flex-shrink-0 hidden md:block" />
               </div>
             </a>
           ))}
@@ -804,8 +804,8 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5">
-        <div className="lg:col-span-3 dash-panel p-5 sm:p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5 min-w-0">
+        <div className="lg:col-span-3 dash-panel p-4 sm:p-5 md:p-6 min-w-0 overflow-hidden">
           <div className="dash-panel-header">
             <div>
               <h3 className="text-lg font-bold text-slate-900">Revenue Overview</h3>
@@ -815,7 +815,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
               <TrendingUp className="w-3.5 h-3.5" /> Live
             </div>
           </div>
-          <div className="h-64 sm:h-72">
+          <div className="h-52 sm:h-64 md:h-72 min-w-0 overflow-x-auto">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={revenueData} margin={{ top: 12, right: 8, left: -8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
@@ -839,7 +839,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
         </div>
 
-        <div className="lg:col-span-2 dash-panel p-5 sm:p-6">
+        <div className="lg:col-span-2 dash-panel p-4 sm:p-5 md:p-6 min-w-0 overflow-hidden">
           <div className="dash-panel-header">
             <div>
               <h3 className="text-lg font-bold text-slate-900">Maintenance</h3>

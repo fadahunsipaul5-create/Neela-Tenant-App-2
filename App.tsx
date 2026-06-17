@@ -18,7 +18,7 @@ import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
-  const adminPagePadding = 'px-3 py-4 sm:px-4 sm:py-5 md:px-4 md:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-8';
+  const adminPagePadding = 'px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-8';
   const location = useLocation();
   const navigate = useNavigate();
   // Check if we're on a password reset page - Vercel deployment trigger
@@ -454,15 +454,22 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 w-full min-h-screen lg:min-h-0 lg:h-screen overflow-hidden">
         {/* Top Bar — tablets & small laptops use drawer; sidebar fixed from lg up */}
         {!isPublic && (
-          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <NeelaLogo variant="mark" size="sm" />
-              <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate hidden sm:inline">Neela Capital</span>
-            </div>
+          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5 safe-area-top">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 text-left rounded-lg hover:bg-slate-50/80 active:bg-slate-100 py-1 pr-2 -ml-1 transition-colors"
+              aria-label="Open menu"
+            >
+              <NeelaLogo variant="full" size="md" className="pointer-events-none shrink-0" />
+              <span className="font-semibold text-slate-800 text-xs sm:text-sm tracking-tight truncate hidden min-[400px]:inline">
+                Manager Portal
+              </span>
+            </button>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
-              className="p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              aria-label="Open mobile menu"
+              className="p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 flex-shrink-0"
+              aria-label="Open navigation menu"
               aria-expanded={isMobileMenuOpen}
             >
               <Menu className="w-6 h-6" />
@@ -479,7 +486,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className={adminPagePadding}>
-              <div className="max-w-7xl mx-auto w-full min-w-0">
+              <div className="admin-content-wrap max-w-7xl mx-auto w-full min-w-0">
                 {renderAdminContent()}
               </div>
             </div>
