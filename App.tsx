@@ -416,7 +416,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50/30 to-blue-50/30">
         <div className="text-center px-4">
           <div className="flex items-center justify-center gap-4 sm:gap-6 mb-8">
-            <NeelaLogo variant="full" size="lg" className="rounded-xl shadow-lg" />
+            <NeelaLogo variant="full" size="lg" showGlow />
             <div className="relative">
               <div className="w-16 h-16 border-[4px] border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center">

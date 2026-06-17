@@ -9,6 +9,7 @@ import { usePayments, PaymentModal, renderPaymentInstructions, PaymentSubTab, Pa
 import { useApplication, ApplicationFormView } from './Application';
 import { Listings } from './Listings';
 import ShortStayPortal, { ShortStayPromoPopup } from './ShortStayPortal';
+import NeelaLogo from './NeelaLogo';
 import { StatusTracker, StatusTrackerView } from './Status';
 import { OnboardingTour } from './OnboardingTour';
 import LeaseSigningOverlay from './LeaseSigningOverlay';
@@ -595,7 +596,7 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
           onClick={() => { setView('listings'); setUserStatus('guest'); }}
         >
             <NeelaLogo variant="mark" size="sm" className="sm:hidden" />
-            <NeelaLogo variant="full" size="sm" className="hidden sm:block rounded-xl shadow-md group-hover:shadow-lg transition-shadow" />
+            <NeelaLogo variant="full" size="sm" showGlow className="hidden sm:block group-hover:scale-[1.02] transition-transform duration-300" />
            <div className="flex flex-col min-w-0 hidden md:flex">
               <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.2em] mt-0.5">Resident Portal</span>
            </div>

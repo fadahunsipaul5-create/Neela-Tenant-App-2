@@ -22,37 +22,67 @@ export interface NeelaLogoProps {
   variant?: 'full' | 'mark';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  showGlow?: boolean;
 }
 
+/**
+ * Logo ships with a baked-in black background. mix-blend-screen on a brand
+ * gradient removes the black box without using white behind the white lettering.
+ */
 const NeelaLogo: React.FC<NeelaLogoProps> = ({
   variant = 'full',
   size = 'md',
   className = '',
+  showGlow = false,
 }) => {
+  const img = (
+    <img
+      src={NEELA_LOGO_SRC}
+      alt={variant === 'mark' ? '' : NEELA_BRAND_NAME}
+      className={`${HEIGHT[size]} w-auto object-contain mix-blend-screen`}
+      draggable={false}
+    />
+  );
+
   if (variant === 'mark') {
     return (
-      <div
-        className={`overflow-hidden rounded-lg bg-black flex-shrink-0 ${MARK_WIDTH[size]} ${HEIGHT[size]} ${className}`}
-        aria-hidden
-      >
-        <img
-          src={NEELA_LOGO_SRC}
-          alt=""
-          className={`${HEIGHT[size]} w-auto max-w-none object-left object-contain`}
-          style={{ width: '220%' }}
-          draggable={false}
-        />
+      <div className={`relative inline-flex shrink-0 ${className}`}>
+        {showGlow && (
+          <div
+            className="absolute -inset-1 rounded-xl bg-gradient-to-br from-indigo-500/40 via-violet-500/30 to-blue-600/40 blur-md"
+            aria-hidden
+          />
+        )}
+        <div
+          className={`relative overflow-hidden rounded-lg bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-700 flex-shrink-0 ring-1 ring-white/10 ${MARK_WIDTH[size]} ${HEIGHT[size]}`}
+          aria-hidden={variant === 'mark'}
+        >
+          <div className="absolute inset-0 flex items-center justify-start pl-0.5">
+            <img
+              src={NEELA_LOGO_SRC}
+              alt=""
+              className={`${HEIGHT[size]} w-auto max-w-none object-left object-contain mix-blend-screen`}
+              style={{ width: '220%' }}
+              draggable={false}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <img
-      src={NEELA_LOGO_SRC}
-      alt={NEELA_BRAND_NAME}
-      className={`${HEIGHT[size]} w-auto max-w-full object-contain bg-black rounded-lg ${className}`}
-      draggable={false}
-    />
+    <div className={`relative inline-flex shrink-0 ${className}`}>
+      {showGlow && (
+        <div
+          className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500/40 via-violet-500/30 to-blue-600/40 blur-md"
+          aria-hidden
+        />
+      )}
+      <div className="relative rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-700 px-2.5 py-1.5 shadow-lg shadow-indigo-500/25 ring-1 ring-white/10">
+        {img}
+      </div>
+    </div>
   );
 };
 
