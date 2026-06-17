@@ -10,6 +10,7 @@ import SettingsView from './components/SettingsView';
 import PaymentsView from './components/PaymentsView';
 import PasswordReset from './components/PasswordReset';
 import { Menu } from 'lucide-react';
+import BrandLogo from './components/BrandLogo';
 import { api } from './services/api';
 import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
@@ -409,13 +410,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50/30 to-blue-50/30">
         <div className="text-center px-4">
           <div className="flex items-center justify-center gap-4 sm:gap-6 mb-8">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 blur-xl rounded-2xl"></div>
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-2xl sm:text-3xl shadow-lg relative">
-                N
-                <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full border-2 border-white shadow-sm"></div>
-              </div>
-            </div>
+            <BrandLogo size="lg" />
             <div className="relative">
               <div className="w-16 h-16 border-[4px] border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center">
@@ -455,8 +450,8 @@ const App: React.FC = () => {
         {!isPublic && (
           <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-4 py-3 sm:p-5 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <div className="w-9 h-9 flex-shrink-0 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-xl shadow-md shadow-blue-500/20"></div>
-              <span className="font-bold text-slate-900 text-base sm:text-lg md:text-xl tracking-tight truncate">Neela Capital Investment</span>
+              <BrandLogo size="xs" showGlow={false} />
+              <span className="font-bold text-slate-900 text-base sm:text-lg tracking-tight truncate">Neela Capital</span>
             </div>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 

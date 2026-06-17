@@ -8,6 +8,7 @@ import { useAuth, LoginModal, CheckStatusView, checkAuthOnMount } from './Auth';
 import { usePayments, PaymentModal, renderPaymentInstructions, PaymentSubTab, PaymentMethod } from './Payments';
 import { useApplication, ApplicationFormView } from './Application';
 import { Listings } from './Listings';
+import BrandLogo from './BrandLogo';
 import { StatusTracker, StatusTrackerView } from './Status';
 import { OnboardingTour } from './OnboardingTour';
 import LeaseSigningOverlay from './LeaseSigningOverlay';
@@ -574,18 +575,9 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
             className="flex items-center gap-2 sm:gap-4 cursor-pointer group" 
           onClick={() => { setView('listings'); setUserStatus('guest'); }}
         >
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 blur-xl rounded-2xl"></div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 relative">
-                N
-                <div className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full border-2 border-white shadow-sm"></div>
-              </div>
-            </div>
-           <div className="flex flex-col">
-              <span className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-800 bg-clip-text text-transparent leading-none tracking-tight">
-                Neela Capital
-              </span>
-              <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-0.5 sm:mt-1 hidden sm:block">Resident Portal</span>
+            <BrandLogo size="sm" className="group-hover:scale-[1.02] transition-transform duration-300" />
+           <div className="flex flex-col hidden sm:flex">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-[0.2em] mt-0.5">Resident Portal</span>
            </div>
         </div>
           <div className="flex items-center gap-2 sm:gap-4">

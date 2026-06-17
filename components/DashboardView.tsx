@@ -264,7 +264,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize } from 'lucide-react';
+import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize, Wrench } from 'lucide-react';
 import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property } from '../types';
 import Modal from './Modal';
 import { api } from '../services/api';
@@ -640,53 +640,64 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
 
   const COLORS = ['#ef4444', '#f59e0b', '#10b981'];
 
+  const todayLabel = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
   return (
-    <div className="space-y-6 sm:space-y-8 lg:space-y-10 animate-fade-in px-2 sm:px-0">
-      {/* Welcome Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-6 pb-4 sm:pb-6 border-b-2 border-slate-100">
-        <div className="w-full lg:w-auto">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-slate-900 via-indigo-900 to-purple-900 bg-clip-text text-transparent tracking-tight mb-2 sm:mb-3">
-            Dashboard Overview
-          </h1>
-          <p className="text-slate-600 text-sm sm:text-base lg:text-lg font-medium leading-relaxed">Welcome back! Here's what's happening with your properties today.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
-          <div className="hidden sm:flex items-center gap-2 text-xs sm:text-sm text-slate-600 bg-gradient-to-r from-slate-50 to-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full border-2 border-slate-200 shadow-sm font-semibold">
-            <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-lg shadow-emerald-500/50"></div>
-            <span className="hidden md:inline">Last updated: Just now</span>
-            <span className="md:hidden">Just now</span>
+    <div className="dashboard-mesh space-y-6 sm:space-y-8 animate-fade-in px-1 sm:px-0 pb-4">
+      {/* Hero */}
+      <div className="glass-card-strong rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-8 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-200/40 via-violet-100/20 to-transparent rounded-full blur-3xl pointer-events-none" aria-hidden />
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 sm:gap-6 relative">
+          <div className="space-y-2 sm:space-y-3">
+            <p className="text-xs sm:text-sm font-semibold uppercase tracking-widest text-indigo-500/80">{todayLabel}</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-[2.25rem] font-bold text-slate-900 tracking-tight leading-tight">
+              Property Manager
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-blue-600">
+                Dashboard
+              </span>
+            </h1>
+            <p className="text-slate-500 text-sm sm:text-base max-w-xl leading-relaxed">
+              Your portfolio at a glance — revenue, occupancy, maintenance, and properties in one place.
+            </p>
           </div>
-          <button 
-            onClick={onReviewApplications}
-            className={`relative px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 lg:py-4 rounded-xl font-bold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 ${
-              newApplications > 0 
-                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl shadow-blue-500/30 hover:shadow-2xl group' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-            aria-label={newApplications > 0 ? `Review ${newApplications} new applications` : 'No new applications'}
-          >
-            {newApplications > 0 ? (
-              <span className="flex items-center gap-2 sm:gap-3">
-                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Review Applications ({newApplications})</span>
-                <span className="sm:hidden">Review ({newApplications})</span>
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                  HURRY!
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-emerald-700 bg-emerald-50/80 px-4 py-2.5 rounded-full border border-emerald-100 font-medium">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              Live sync
+            </div>
+            <button 
+              onClick={onReviewApplications}
+              className={`px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 ${
+                newApplications > 0 
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              aria-label={newApplications > 0 ? `Review ${newApplications} new applications` : 'No new applications'}
+            >
+              {newApplications > 0 ? (
+                <span className="flex items-center justify-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Review Applications ({newApplications})
                 </span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">No New Applications</span>
-                <span className="sm:hidden">No New</span>
-              </span>
-            )}
-          </button>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  No New Applications
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <div>
+        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 sm:mb-4 px-1">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {quickActions.map((action, index) => (
           <a
             key={index}
@@ -705,114 +716,97 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                 window.location.hash = action.href.replace('#', '');
               }
             }}
-            className="group bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border-2 border-slate-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1 sm:hover:-translate-y-1.5 focus:outline-none focus:ring-4 focus:ring-indigo-500/20"
+            className="group glass-card p-4 sm:p-5 rounded-2xl hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             aria-label={`Quick action: ${action.label}`}
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-              <div className={`${action.color} p-2.5 sm:p-3 lg:p-3.5 rounded-lg sm:rounded-xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
-                <action.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="flex flex-col gap-3">
+              <div className={`${action.color} w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                <action.icon className="w-5 h-5" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-900 text-sm sm:text-base truncate">{action.label}</p>
-                <p className="text-xs text-slate-500 mt-0.5 sm:mt-1 font-medium hidden sm:block">Quick action</p>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm sm:text-base">{action.label}</p>
+                <p className="text-xs text-slate-400 mt-0.5 hidden sm:flex items-center gap-1">
+                  Go <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                </p>
               </div>
-              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all hidden sm:block flex-shrink-0" />
             </div>
           </a>
         ))}
+        </div>
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
-        <div className="bg-gradient-to-br from-white via-emerald-50/30 to-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-lg shadow-emerald-500/5 hover:shadow-xl hover:shadow-emerald-500/10 hover:border-emerald-200 transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4 sm:mb-5">
-            <div className="p-3 sm:p-3.5 lg:p-4 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-xl sm:rounded-2xl shadow-md">
-              <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-emerald-700" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="stat-card stat-accent-emerald glass-card-strong rounded-2xl p-5 sm:p-6 hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="stat-icon-ring p-3 rounded-xl">
+              <DollarSign className="w-6 h-6 text-emerald-600" />
             </div>
-            <span className="text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 bg-emerald-100 text-emerald-700 rounded-full border border-emerald-200">
-              +12.5%
-            </span>
+            <span className="text-[11px] font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-full">+12.5%</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">${totalRevenue.toLocaleString()}</h3>
-          <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Monthly Revenue</p>
-          <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100 flex items-center text-xs text-slate-600 font-medium">
-            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-emerald-600 flex-shrink-0" />
-            <span className="truncate">On track for monthly target</span>
+          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">${totalRevenue.toLocaleString()}</h3>
+          <p className="text-slate-500 text-sm font-medium mt-1">Monthly Revenue</p>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-xs text-slate-500">
+            <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+            On track for target
           </div>
         </div>
 
-        <div className="relative bg-gradient-to-br from-white via-rose-50/30 to-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-lg shadow-rose-500/5 hover:shadow-xl hover:shadow-rose-500/10 hover:border-rose-300 transition-all duration-300 group">
-          {overdueAmount > 0 && (
-            <div className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg animate-pulse flex items-center gap-1 z-10">
-              <Clock className="w-3 h-3" />
-              HURRY!
+        <div className="stat-card stat-accent-rose glass-card-strong rounded-2xl p-5 sm:p-6 hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="stat-icon-ring p-3 rounded-xl">
+              <AlertCircle className="w-6 h-6 text-rose-600" />
             </div>
-          )}
-          <div className="flex items-start justify-between mb-4 sm:mb-5">
-            <div className="p-3 sm:p-3.5 lg:p-4 bg-gradient-to-br from-rose-100 to-rose-200 rounded-xl sm:rounded-2xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-rose-700" />
-            </div>
-            <span className="text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-100 text-rose-700 rounded-full border border-rose-200 group-hover:bg-rose-200 group-hover:border-rose-300 transition-colors">
-              <span className="hidden sm:inline">Needs Attention</span>
-              <span className="sm:hidden">Attention</span>
-            </span>
+            {overdueAmount > 0 && (
+              <span className="text-[11px] font-semibold px-2.5 py-1 bg-rose-50 text-rose-600 rounded-full">Attention</span>
+            )}
           </div>
-          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">${overdueAmount.toLocaleString()}</h3>
-          <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Outstanding Rent</p>
-          <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100">
+          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">${overdueAmount.toLocaleString()}</h3>
+          <p className="text-slate-500 text-sm font-medium mt-1">Outstanding Rent</p>
+          <div className="mt-4 pt-3 border-t border-slate-100">
             <button 
               onClick={() => setShowSendRemindersModal(true)}
-              className="relative text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/30 rounded px-1"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 transition-colors"
             >
-              <span className="hidden sm:inline">Send Reminders</span>
-              <span className="sm:hidden">Reminders</span>
-              <ArrowUpRight className="w-3.5 h-3.5 ml-1 group-hover:animate-pulse" />
+              Send Reminders <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white via-blue-50/30 to-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-lg shadow-blue-500/5 hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-200 transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4 sm:mb-5">
-            <div className="p-3 sm:p-3.5 lg:p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl sm:rounded-2xl shadow-md">
-              <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-blue-700" />
+        <div className="stat-card stat-accent-blue glass-card-strong rounded-2xl p-5 sm:p-6 hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="stat-icon-ring p-3 rounded-xl">
+              <Users className="w-6 h-6 text-blue-600" />
             </div>
-            <span className="text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-100 text-blue-700 rounded-full border border-blue-200">
-              Optimal
-            </span>
+            <span className="text-[11px] font-semibold px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full">Optimal</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">{occupancyRate}%</h3>
-          <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Occupancy Rate</p>
-          <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100 flex items-center gap-2 sm:gap-3">
-            <div className="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden shadow-inner">
+          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{occupancyRate}%</h3>
+          <p className="text-slate-500 text-sm font-medium mt-1">Occupancy Rate</p>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+            <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
               <div 
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-700 shadow-sm"
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-700"
                 style={{ width: `${occupancyRate}%` }}
-              ></div>
+              />
             </div>
-            <span className="text-xs text-slate-600 font-bold whitespace-nowrap">{tenants.filter(t => t.status === TenantStatus.ACTIVE).length} active</span>
+            <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">{tenants.filter(t => t.status === TenantStatus.ACTIVE).length} active</span>
           </div>
         </div>
 
-        <div className="relative bg-gradient-to-br from-white via-amber-50/30 to-white p-5 sm:p-6 lg:p-7 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-lg shadow-amber-500/5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-300 transition-all duration-300 group">
-          {openTickets > 0 && (
-            <div className="absolute -top-3 -right-3 bg-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg animate-pulse flex items-center gap-1 z-10">
-              <Zap className="w-3 h-3" />
-              HURRY!
+        <div className="stat-card stat-accent-amber glass-card-strong rounded-2xl p-5 sm:p-6 hover:shadow-lg transition-shadow duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="stat-icon-ring p-3 rounded-xl">
+              <Wrench className="w-6 h-6 text-amber-600" />
             </div>
-          )}
-          <div className="flex items-start justify-between mb-4 sm:mb-5">
-            <div className="p-3 sm:p-3.5 lg:p-4 bg-gradient-to-br from-amber-100 to-amber-200 rounded-xl sm:rounded-2xl shadow-md group-hover:scale-110 transition-transform duration-300">
-              <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-amber-700" />
-            </div>
-            <span className={`text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border transition-colors ${
-              openTickets > 3 ? 'bg-rose-100 text-rose-700 border-rose-200 group-hover:bg-rose-200 group-hover:border-rose-300' : 'bg-amber-100 text-amber-700 border-amber-200 group-hover:bg-amber-200 group-hover:border-amber-300'
+            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+              openTickets > 3 ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
             }`}>
               {openTickets > 3 ? 'High' : 'Normal'}
             </span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1 sm:mb-2 tracking-tight">{openTickets}</h3>
-          <p className="text-slate-600 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">Open Tickets</p>
-          <div className="mt-4 sm:mt-5 pt-3 sm:pt-4 border-t-2 border-slate-100">
+          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{openTickets}</h3>
+          <p className="text-slate-500 text-sm font-medium mt-1">Open Tickets</p>
+          <div className="mt-4 pt-3 border-t border-slate-100">
             <button 
               onClick={() => {
                 if (onNavigateToMaintenance) {
@@ -822,30 +816,26 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                   window.dispatchEvent(new HashChangeEvent('hashchange'));
                 }
               }}
-              className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center group-hover:gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/30 rounded px-1"
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors"
             >
-              <span className="hidden sm:inline">View All Tickets</span>
-              <span className="sm:hidden">View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5 ml-1 group-hover:animate-pulse" />
+              View All Tickets <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Revenue Chart */}
-        <div className="lg:col-span-2 bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+        <div className="lg:col-span-2 glass-card-strong p-5 sm:p-6 rounded-2xl overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-800">Revenue Overview</h3>
-              <p className="text-xs sm:text-sm text-slate-600">Monthly revenue performance</p>
+              <p className="text-xs sm:text-sm text-slate-500">Last 5 months performance</p>
             </div>
-            <div className="flex items-center gap-2 text-xs sm:text-sm">
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></div>
-                <span className="text-slate-600">Revenue</span>
-              </div>
+            <div className="flex items-center gap-2 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full font-medium">
+              <div className="w-2 h-2 bg-indigo-500 rounded-full" />
+              Revenue
             </div>
           </div>
           <div className="h-64 sm:h-72 -mx-2 sm:-mx-4 lg:-mx-6 px-2 sm:px-4 lg:px-6">
@@ -892,15 +882,15 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
         </div>
 
         {/* Maintenance Pie Chart */}
-        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+        <div className="glass-card-strong p-5 sm:p-6 rounded-2xl overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-800">Maintenance Status</h3>
-              <p className="text-xs sm:text-sm text-slate-600">Ticket distribution</p>
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">Maintenance</h3>
+              <p className="text-xs sm:text-sm text-slate-500">Ticket distribution</p>
             </div>
-            <div className="text-xs sm:text-sm text-slate-500">
-              Total: {maintenance.length}
-            </div>
+            <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full font-medium">
+              {maintenance.length} total
+            </span>
           </div>
           <div className="h-64 sm:h-72 relative -mx-2 sm:-mx-4 lg:-mx-6 px-2 sm:px-4 lg:px-6">
             <ResponsiveContainer width="100%" height="100%">
@@ -955,14 +945,16 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       </div>
 
       {/* Property Portfolio Section */}
-      <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+      <div className="glass-card-strong p-5 sm:p-6 rounded-2xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
+              <span className="p-1.5 rounded-lg bg-indigo-100">
+                <Building2 className="w-4 h-4 text-indigo-600" />
+              </span>
               Property Portfolio
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600">Manage your properties and units</p>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Manage your properties and units</p>
           </div>
           <button
             onClick={() => {
@@ -970,22 +962,20 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                 onNavigateToSettings();
               } else {
                 window.location.hash = 'settings';
-                // Fallback: trigger hashchange event
                 window.dispatchEvent(new HashChangeEvent('hashchange'));
               }
             }}
-            className="group flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm sm:text-base"
+            className="group flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl hover:shadow-lg hover:shadow-indigo-500/20 transition-all text-sm font-medium"
           >
-            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Manage Properties</span>
-            <span className="sm:hidden">Manage</span>
-            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform hidden sm:block" />
+            <Settings className="w-4 h-4" />
+            Manage Properties
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
 
         {properties.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <span className="text-xs font-semibold text-slate-500 uppercase">Filter</span>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-5 p-3 sm:p-4 glass-card rounded-xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter</span>
             <select
               value={filterBedrooms === '' ? '' : String(filterBedrooms)}
               onChange={e => setFilterBedrooms(e.target.value === '' ? '' : Number(e.target.value))}
@@ -1069,43 +1059,43 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               {filteredDashboardProperties.slice(0, dashboardPropertiesToShow).map(prop => (
                 <div 
                   key={prop.id} 
-                  className="group bg-gradient-to-b from-white to-slate-50 rounded-xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-slate-300 transition-all duration-300 transform hover:-translate-y-1"
+                  className="group glass-card rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300"
                 >
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative h-44 overflow-hidden">
                     {prop.image ? (
                       <img 
                         src={prop.image} 
                         alt={prop.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
-                        <Home className="w-12 h-12 text-slate-400" />
+                      <div className="w-full h-full bg-gradient-to-br from-slate-200 via-indigo-100 to-violet-100 flex items-center justify-center">
+                        <Home className="w-10 h-10 text-slate-400" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold text-slate-800">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/50 via-transparent to-transparent" />
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <h4 className="font-bold text-white text-base drop-shadow-sm truncate">{prop.name}</h4>
+                    </div>
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-bold text-slate-800">
                       {prop.units} {prop.units === 1 ? 'Unit' : 'Units'}
                     </div>
                   </div>
-                  <div className="p-5">
-                    <h4 className="font-bold text-slate-800 text-lg mb-2 group-hover:text-indigo-600 transition-colors">
-                      {prop.name}
-                    </h4>
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">
-                      {prop.address}, {prop.city}, {prop.state}
+                  <div className="p-4">
+                    <p className="text-sm text-slate-500 mb-3 line-clamp-1">
+                      {prop.address}, {prop.city}
                     </p>
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${prop.status === 'occupied' ? 'bg-rose-100 text-rose-700' : prop.status === 'coming_soon' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${prop.status === 'occupied' ? 'bg-rose-50 text-rose-600' : prop.status === 'coming_soon' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {prop.status === 'occupied' ? 'Occupied' : prop.status === 'coming_soon' ? 'Coming Soon' : 'Vacant'}
                         </span>
-                        <span className="text-sm text-slate-500">
-                          Occupancy: <span className="font-semibold text-slate-700">{calculatePropertyOccupancy(prop)}%</span>
+                        <span className="text-xs text-slate-400">
+                          {calculatePropertyOccupancy(prop)}% full
                         </span>
                       </div>
                       <button 
@@ -1113,10 +1103,9 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                           setSelectedProperty(prop);
                           setShowPropertyModal(true);
                         }}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5"
                       >
-                        View Details
-                        <ArrowUpRight className="w-3 h-3" />
+                        Details <ArrowUpRight className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
@@ -1150,45 +1139,35 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       </div>
 
       {/* Action Required & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Action Required */}
-        <div className="relative bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-rose-200 transition-all duration-200 group">
-          {tenants.filter(t => t.balance > 0).length > 0 && (
-            <div className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg animate-pulse flex items-center gap-1.5 z-10">
-              <Clock className="w-3 h-3" />
-              HURRY!
-            </div>
-          )}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+        <div className="glass-card-strong p-5 sm:p-6 rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                 Action Required
                 {tenants.filter(t => t.balance > 0).length > 0 && (
-                  <Clock className="w-4 h-4 text-rose-500 group-hover:animate-pulse" />
+                  <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
                 )}
               </h3>
-              <p className="text-xs sm:text-sm text-slate-600">Items needing your attention</p>
+              <p className="text-xs sm:text-sm text-slate-500">Items needing your attention</p>
             </div>
-            <span className="px-2.5 sm:px-3 py-1 bg-rose-100 text-rose-700 text-xs sm:text-sm font-medium rounded-full group-hover:bg-rose-200 group-hover:scale-105 transition-all duration-200">
+            <span className="px-3 py-1 bg-rose-50 text-rose-600 text-xs font-semibold rounded-full">
               {tenants.filter(t => t.balance > 0).length} items
             </span>
           </div>
           
-          <div className="space-y-3 sm:space-y-4">
+          <div className="space-y-3">
             {tenants.filter(t => t.balance > 0).slice(0, 3).map(t => (
-              <div key={t.id} className="relative p-3 sm:p-4 bg-gradient-to-r from-rose-50/50 to-white rounded-xl border border-rose-100 hover:border-rose-300 hover:shadow-lg transition-all duration-200 group">
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-md animate-pulse flex items-center gap-1 z-10">
-                  <Clock className="w-2.5 h-2.5" />
-                  HURRY
-                </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <div className="p-1.5 sm:p-2 bg-rose-100 rounded-lg flex-shrink-0 group-hover:bg-rose-200 group-hover:scale-110 transition-all duration-200">
-                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
+              <div key={t.id} className="p-4 glass-card rounded-xl hover:shadow-md transition-all duration-200 group">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="p-2 bg-rose-50 rounded-lg flex-shrink-0">
+                      <AlertCircle className="w-4 h-4 text-rose-500" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-800 text-sm sm:text-base truncate">{t.name}</p>
-                      <p className="text-xs sm:text-sm text-slate-600 truncate">{t.propertyUnit} • Due: ${t.balance}</p>
+                      <p className="font-semibold text-slate-800 text-sm truncate">{t.name}</p>
+                      <p className="text-xs text-slate-500 truncate">{t.propertyUnit} · Due ${t.balance}</p>
                     </div>
                   </div>
                   <button 
@@ -1196,7 +1175,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                       setSelectedTenantId(t.id);
                       setShowSendRemindersModal(true);
                     }}
-                    className="w-full sm:w-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50 hover:border-rose-300 hover:shadow-md text-xs sm:text-sm font-medium transition-all"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-xs font-semibold transition-colors"
                   >
                     Send Notice
                   </button>
@@ -1222,37 +1201,40 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+        <div className="glass-card-strong p-5 sm:p-6 rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-800">Recent Activity</h3>
-              <p className="text-xs sm:text-sm text-slate-600">Latest updates across properties</p>
+              <p className="text-xs sm:text-sm text-slate-500">Latest updates across properties</p>
             </div>
-            <span className="px-2.5 sm:px-3 py-1 bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium rounded-full">
+            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full">
               Today
             </span>
           </div>
           
-          <div className="space-y-3 sm:space-y-4">
+          <div className="space-y-1">
             {recentActivity.length > 0 ? (
-              recentActivity.map((activity) => {
+              recentActivity.map((activity, idx) => {
                 const IconComponent = activity.icon;
                 return (
-                  <div key={activity.id} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 hover:bg-slate-50 rounded-xl transition-colors">
-                    <div className={`p-1.5 sm:p-2 ${activity.iconBg} rounded-lg flex-shrink-0`}>
-                      <IconComponent className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activity.iconColor}`} />
+                  <div key={activity.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50/80 transition-colors relative">
+                    {idx < recentActivity.length - 1 && (
+                      <div className="absolute left-[1.65rem] top-10 bottom-0 w-px bg-slate-200" aria-hidden />
+                    )}
+                    <div className={`p-2 ${activity.iconBg} rounded-xl flex-shrink-0 z-[1]`}>
+                      <IconComponent className={`w-4 h-4 ${activity.iconColor}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-800 text-sm sm:text-base truncate">{activity.title}</p>
-                      <p className="text-xs sm:text-sm text-slate-500 truncate">{activity.subtitle}</p>
+                      <p className="font-medium text-slate-800 text-sm truncate">{activity.title}</p>
+                      <p className="text-xs text-slate-400 truncate">{activity.subtitle}</p>
                     </div>
-                    <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">{activity.time}</span>
+                    <span className="text-[11px] text-slate-400 whitespace-nowrap flex-shrink-0 font-medium">{activity.time}</span>
                   </div>
                 );
               })
             ) : (
               <div className="text-center py-8">
-                <p className="text-slate-500 text-sm">No recent activity to display</p>
+                <p className="text-slate-400 text-sm">No recent activity to display</p>
               </div>
             )}
           </div>

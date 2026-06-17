@@ -11,6 +11,7 @@ import {
   Globe,
   Settings
 } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 
 interface SidebarProps {
   activeTab: string;
@@ -40,22 +41,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isMobileMenu
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="flex items-center justify-center h-28 border-b border-slate-800/60 flex-shrink-0 px-6 bg-gradient-to-r from-slate-900/50 to-slate-800/30">
-        <div className="flex items-center gap-4">
-          {/* Logo Mark */}
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <span className="text-xl font-serif font-bold text-white tracking-widest">NCI</span>
-          </div>
-          
-          {/* Vertical Divider */}
-          <div className="h-10 w-px bg-gradient-to-b from-transparent via-slate-700 to-transparent"></div>
-          
-          {/* Logo Text */}
-          <div className="flex flex-col justify-center">
-            <span className="text-sm font-bold text-white tracking-wide uppercase leading-tight">Neela Capital</span>
-            <span className="text-[10px] text-slate-400 tracking-widest uppercase leading-tight font-semibold">Investment</span>
-          </div>
-        </div>
+      <div className="sidebar-logo-strip flex items-center justify-center h-24 flex-shrink-0 px-4 py-5">
+        <BrandLogo size="sm" showGlow />
       </div>
 
       <nav className="mt-8 px-4 space-y-2 flex-1 overflow-y-auto pb-4" aria-label="Main menu">
