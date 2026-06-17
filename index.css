@@ -33,17 +33,17 @@
 .dashboard-mesh {
   position: relative;
   isolation: isolate;
+  min-height: 100%;
 }
 
 .dashboard-mesh::before {
   content: '';
-  position: absolute;
-  inset: -2rem -1rem auto;
-  height: 420px;
+  position: fixed;
+  inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(99, 102, 241, 0.12), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 80% 10%, rgba(139, 92, 246, 0.1), transparent 65%),
-    radial-gradient(ellipse 50% 40% at 50% 30%, rgba(59, 130, 246, 0.08), transparent 60%);
+    radial-gradient(ellipse 70% 50% at 0% 0%, rgba(99, 102, 241, 0.09), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 100% 5%, rgba(139, 92, 246, 0.08), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(16, 185, 129, 0.05), transparent 55%);
   pointer-events: none;
   z-index: 0;
 }
@@ -53,7 +53,245 @@
   z-index: 1;
 }
 
-/* Glass cards */
+/* ── Premium manager dashboard ── */
+.dash-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 38%, #312e81 72%, #1e3a8a 100%);
+  box-shadow:
+    0 25px 50px -12px rgba(30, 27, 75, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dash-hero::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 55%;
+  height: 140%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.35) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.dash-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -5%;
+  width: 40%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.dash-hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black 30%, transparent 100%);
+  pointer-events: none;
+}
+
+.dash-section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.dash-stat {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.35rem;
+  color: #fff;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+}
+
+.dash-stat:hover {
+  transform: translateY(-4px);
+}
+
+.dash-stat::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 80%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.dash-stat--revenue {
+  background: linear-gradient(145deg, #064e3b 0%, #047857 45%, #10b981 100%);
+  box-shadow: 0 16px 40px -8px rgba(16, 185, 129, 0.45);
+}
+
+.dash-stat--overdue {
+  background: linear-gradient(145deg, #881337 0%, #be123c 45%, #fb7185 100%);
+  box-shadow: 0 16px 40px -8px rgba(244, 63, 94, 0.4);
+}
+
+.dash-stat--occupancy {
+  background: linear-gradient(145deg, #1e3a8a 0%, #2563eb 45%, #60a5fa 100%);
+  box-shadow: 0 16px 40px -8px rgba(37, 99, 235, 0.4);
+}
+
+.dash-stat--tickets {
+  background: linear-gradient(145deg, #78350f 0%, #d97706 45%, #fbbf24 100%);
+  box-shadow: 0 16px 40px -8px rgba(245, 158, 11, 0.4);
+}
+
+.dash-stat-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.dash-action {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 1.1rem 1.15rem;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dash-action::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent, rgba(99, 102, 241, 0.35), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.dash-action:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 20px 40px -12px rgba(99, 102, 241, 0.25);
+}
+
+.dash-action:hover::before {
+  opacity: 1;
+}
+
+.dash-action-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.25);
+}
+
+.dash-panel {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 1.35rem;
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.04),
+    0 20px 48px -12px rgba(99, 102, 241, 0.1);
+}
+
+.dash-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dash-property-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dash-property-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 56px -16px rgba(79, 70, 229, 0.28);
+  border-color: rgba(129, 140, 248, 0.4);
+}
+
+.dash-property-card .dash-property-img {
+  transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.dash-property-card:hover .dash-property-img {
+  transform: scale(1.08);
+}
+
+.dash-timeline-item {
+  position: relative;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  transition: background 0.2s ease;
+}
+
+.dash-timeline-item:hover {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.dash-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.dash-filter-bar select {
+  font-size: 0.8rem;
+  border-radius: 0.6rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 0.4rem 0.65rem;
+  color: #334155;
+}
+
+.dash-stagger > * {
+  animation: fade-up 0.55s ease-out both;
+}
+.dash-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.dash-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.dash-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.dash-stagger > *:nth-child(4) { animation-delay: 0.16s; }
+.dash-stagger > *:nth-child(5) { animation-delay: 0.2s; }
+.dash-stagger > *:nth-child(6) { animation-delay: 0.24s; }
+
+/* Glass cards (legacy) */
 .glass-card {
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(16px);

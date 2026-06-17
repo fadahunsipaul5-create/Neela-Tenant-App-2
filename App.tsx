@@ -432,7 +432,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 via-purple-50/20 to-blue-50/20">
+    <div className="min-h-screen flex bg-[#f4f6fb]">
       {/* Overlay for mobile menu */}
       {isMobileMenuOpen && !isPublic && (
         <div
