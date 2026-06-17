@@ -26,8 +26,8 @@ export interface NeelaLogoProps {
 }
 
 /**
- * Logo ships with a baked-in black background. mix-blend-screen on a brand
- * gradient removes the black box without using white behind the white lettering.
+ * Logo ships with a baked-in black background. mix-blend-screen on a dark
+ * charcoal surface removes the black box without using white behind the lettering.
  */
 const NeelaLogo: React.FC<NeelaLogoProps> = ({
   variant = 'full',
@@ -48,13 +48,10 @@ const NeelaLogo: React.FC<NeelaLogoProps> = ({
     return (
       <div className={`relative inline-flex shrink-0 ${className}`}>
         {showGlow && (
-          <div
-            className="absolute -inset-1 rounded-xl bg-gradient-to-br from-indigo-500/40 via-violet-500/30 to-blue-600/40 blur-md"
-            aria-hidden
-          />
+          <div className="absolute -inset-1 rounded-xl logo-glow blur-md" aria-hidden />
         )}
         <div
-          className={`relative overflow-hidden rounded-lg bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-700 flex-shrink-0 ring-1 ring-white/10 ${MARK_WIDTH[size]} ${HEIGHT[size]}`}
+          className={`logo-surface relative overflow-hidden rounded-lg flex-shrink-0 ring-1 ring-white/10 ${MARK_WIDTH[size]} ${HEIGHT[size]}`}
           aria-hidden={variant === 'mark'}
         >
           <div className="absolute inset-0 flex items-center justify-start pl-0.5">
@@ -74,12 +71,9 @@ const NeelaLogo: React.FC<NeelaLogoProps> = ({
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
       {showGlow && (
-        <div
-          className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500/40 via-violet-500/30 to-blue-600/40 blur-md"
-          aria-hidden
-        />
+        <div className="absolute -inset-1 rounded-2xl logo-glow blur-md" aria-hidden />
       )}
-      <div className="relative rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-blue-700 px-2.5 py-1.5 shadow-lg shadow-indigo-500/25 ring-1 ring-white/10">
+      <div className="logo-surface relative rounded-xl px-2.5 py-1.5 ring-1 ring-white/10">
         {img}
       </div>
     </div>
