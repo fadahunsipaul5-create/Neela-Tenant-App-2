@@ -589,16 +589,16 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
   const LandingHeader = () => (
     <header className="bg-gradient-to-b from-white via-white to-gray-50/50 backdrop-blur-xl border-b border-gray-200/30 sticky top-0 z-50 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="h-16 sm:h-20 flex items-center justify-between">
+      <div className="w-full pl-2 pr-3 sm:pl-3 sm:pr-5 lg:pl-4 lg:pr-8">
+        <div className="h-16 sm:h-20 flex items-center justify-between gap-3">
         <div 
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0" 
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink-0" 
           onClick={() => { setView('listings'); setUserStatus('guest'); }}
         >
             <NeelaLogo variant="mark" size="sm" className="sm:hidden" />
             <NeelaLogo variant="full" size="sm" showGlow className="hidden sm:block group-hover:scale-[1.02] transition-transform duration-300" />
-           <div className="flex flex-col min-w-0 hidden md:flex">
-              <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.2em] mt-0.5">Resident Portal</span>
+           <div className="flex flex-col min-w-0 hidden sm:flex border-l border-gray-200/80 pl-2 sm:pl-3 ml-0.5">
+              <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-[0.15em] sm:tracking-[0.2em] leading-tight whitespace-nowrap">Resident Portal</span>
            </div>
         </div>
           <div className="flex items-center gap-2 sm:gap-4">
