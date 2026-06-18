@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
@@ -63,12 +63,37 @@ const App: React.FC = () => {
         console.error("Error initializing app:", error);
       } finally {
         setIsAuthChecking(false);
-        setIsInitialLoad(false);
       }
     };
 
     initializeApp();
   }, []); // Only run once on mount
+
+  const loadAdminData = useCallback(async (options?: { blockUI?: boolean }) => {
+    const blockUI = options?.blockUI !== false;
+    if (blockUI) setLoading(true);
+
+    const tenantsP = api.getTenants();
+    const paymentsP = api.getPayments();
+    const maintenanceP = api.getMaintenanceRequests();
+    const propertiesP = api.getProperties();
+
+    try {
+      const [tenantsResult, paymentsResult] = await Promise.allSettled([tenantsP, paymentsP]);
+      setTenants(tenantsResult.status === 'fulfilled' ? tenantsResult.value : []);
+      setPayments(paymentsResult.status === 'fulfilled' ? paymentsResult.value : []);
+      if (tenantsResult.status === 'rejected') console.error('Error fetching tenants:', tenantsResult.reason);
+      if (paymentsResult.status === 'rejected') console.error('Error fetching payments:', paymentsResult.reason);
+    } finally {
+      if (blockUI) setLoading(false);
+    }
+
+    const [maintenanceResult, propertiesResult] = await Promise.allSettled([maintenanceP, propertiesP]);
+    setMaintenance(maintenanceResult.status === 'fulfilled' ? maintenanceResult.value : []);
+    setProperties(propertiesResult.status === 'fulfilled' ? propertiesResult.value : []);
+    if (maintenanceResult.status === 'rejected') console.error('Error fetching maintenance:', maintenanceResult.reason);
+    if (propertiesResult.status === 'rejected') console.error('Error fetching properties:', propertiesResult.reason);
+  }, []);
 
   // When returning from /admin login, switch to admin dashboard
   useEffect(() => {
@@ -100,48 +125,33 @@ const App: React.FC = () => {
 
   // Initial data fetch after auth check completes
   useEffect(() => {
-    if (!isAuthChecking && isInitialLoad) {
-      const fetchInitialData = async () => {
-        try {
-          const isAuth = isAuthenticated();
+    if (isAuthChecking || !isInitialLoad) return;
 
-          if (activeTab !== 'public-portal' && isAuth) {
-            setLoading(true);
-            const results = await Promise.allSettled([
-              api.getTenants(),
-              api.getPayments(),
-              api.getMaintenanceRequests(),
-              api.getProperties()
-            ]);
-            setTenants(results[0].status === 'fulfilled' ? results[0].value : []);
-            setPayments(results[1].status === 'fulfilled' ? results[1].value : []);
-            setMaintenance(results[2].status === 'fulfilled' ? results[2].value : []);
-            setProperties(results[3].status === 'fulfilled' ? results[3].value : []);
-            
-            results.forEach((result, index) => {
-              if (result.status === 'rejected') {
-                const names = ['tenants', 'payments', 'maintenance', 'properties'];
-                console.error(`Error fetching ${names[index]}:`, result.reason);
-              }
-            });
-          } else if (activeTab === 'public-portal') {
-            try {
-              const propertiesData = await api.getProperties();
-              setProperties(propertiesData);
-            } catch (error) {
-              console.error("Error fetching properties:", error);
-            }
+    const fetchInitialData = async () => {
+      try {
+        const isAuth = isAuthenticated();
+
+        if (activeTab !== 'public-portal' && isAuth) {
+          await loadAdminData({ blockUI: true });
+        } else if (activeTab === 'public-portal') {
+          try {
+            const propertiesData = await api.getProperties();
+            setProperties(propertiesData);
+          } catch (error) {
+            console.error('Error fetching properties:', error);
           }
-        } catch (error: any) {
-          console.error("Error fetching initial data:", error);
-        } finally {
           setLoading(false);
         }
-      };
+      } catch (error: any) {
+        console.error('Error fetching initial data:', error);
+        setLoading(false);
+      } finally {
+        setIsInitialLoad(false);
+      }
+    };
 
-      fetchInitialData();
-    }
-  }, [isAuthChecking, isInitialLoad, activeTab]);
+    fetchInitialData();
+  }, [isAuthChecking, isInitialLoad, activeTab, loadAdminData]);
 
   const handleReviewApplications = () => {
     setTenantsInitialTab('applicants');
@@ -163,32 +173,12 @@ const App: React.FC = () => {
   };
 
   const handleAdminLogin = async () => {
-    // When admin logs in, mark initial load as complete and switch to dashboard
     setIsInitialLoad(false);
     setActiveTab('dashboard');
-    // Immediately fetch data for dashboard
     try {
-      setLoading(true);
-      const results = await Promise.allSettled([
-        api.getTenants(),
-        api.getPayments(),
-        api.getMaintenanceRequests(),
-        api.getProperties()
-      ]);
-      setTenants(results[0].status === 'fulfilled' ? results[0].value : []);
-      setPayments(results[1].status === 'fulfilled' ? results[1].value : []);
-      setMaintenance(results[2].status === 'fulfilled' ? results[2].value : []);
-      setProperties(results[3].status === 'fulfilled' ? results[3].value : []);
-      
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const names = ['tenants', 'payments', 'maintenance', 'properties'];
-          console.error(`Error fetching ${names[index]}:`, result.reason);
-        }
-      });
+      await loadAdminData({ blockUI: true });
     } catch (error) {
-      console.error("Error fetching data after admin login:", error);
-    } finally {
+      console.error('Error fetching data after admin login:', error);
       setLoading(false);
     }
   };
@@ -413,10 +403,9 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 w-full min-h-screen lg:min-h-0 lg:h-screen overflow-hidden">
         {/* Top Bar — tablets & small laptops use drawer; sidebar fixed from lg up */}
         {!isPublic && (
-          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <NeelaLogo variant="mark" size="sm" />
-              <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate hidden sm:inline">Neela Capital</span>
+          <div className="admin-mobile-header lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
+            <div className="flex items-center min-w-0 flex-1 overflow-visible">
+              <NeelaLogo variant="full" size="sm" className="shrink-0" />
             </div>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 

@@ -3,20 +3,20 @@ import { NEELA_BRAND_NAME, NEELA_LOGO_SRC } from '../constants/branding';
 
 /** Full wordmark — height + max-width so text stays readable on every breakpoint */
 const FULL_CLASS: Record<NonNullable<NeelaLogoProps['size']>, string> = {
-  xs: 'h-6 max-w-[7.5rem] sm:max-w-[8rem]',
-  sm: 'h-8 max-w-[9.5rem] sm:max-w-[10.5rem]',
-  md: 'h-10 max-w-[11rem] sm:max-w-[12rem]',
-  lg: 'h-11 max-w-[12.5rem] sm:max-w-[13.5rem] lg:max-w-[14rem]',
-  xl: 'h-12 max-w-[13rem] sm:max-w-[14.5rem] lg:max-w-[15.5rem]',
+  xs: 'h-7 min-h-[1.75rem] max-w-[8.5rem] sm:max-w-[9rem]',
+  sm: 'h-9 min-h-[2.25rem] max-w-[10.5rem] sm:max-w-[11.5rem]',
+  md: 'h-10 min-h-[2.5rem] max-w-[11rem] sm:max-w-[12rem]',
+  lg: 'h-11 min-h-[2.75rem] max-w-[12.5rem] sm:max-w-[13.5rem] lg:max-w-[14rem]',
+  xl: 'h-12 min-h-[3rem] max-w-[13rem] sm:max-w-[14.5rem] lg:max-w-[15.5rem]',
 };
 
 /** Icon mark — square crop of the pillar graphic */
 const MARK_CLASS: Record<NonNullable<NeelaLogoProps['size']>, string> = {
-  xs: 'w-8 h-8',
-  sm: 'w-9 h-9 sm:w-10 sm:h-10',
-  md: 'w-10 h-10 sm:w-11 sm:h-11',
-  lg: 'w-11 h-11 sm:w-12 sm:h-12',
-  xl: 'w-12 h-12 sm:w-14 sm:h-14',
+  xs: 'w-9 h-9 min-w-[2.25rem] min-h-[2.25rem]',
+  sm: 'w-10 h-10 min-w-[2.5rem] min-h-[2.5rem] sm:w-11 sm:h-11',
+  md: 'w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] sm:w-12 sm:h-12',
+  lg: 'w-12 h-12 min-w-[3rem] min-h-[3rem] sm:w-[3.25rem] sm:h-[3.25rem]',
+  xl: 'w-14 h-14 min-w-[3.5rem] min-h-[3.5rem]',
 };
 
 export interface NeelaLogoProps {

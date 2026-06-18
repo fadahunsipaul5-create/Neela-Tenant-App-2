@@ -45,8 +45,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isMobileMenu
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="flex items-center justify-center h-20 xl:h-24 border-b border-slate-800/60 flex-shrink-0 px-3 xl:px-5 bg-gradient-to-r from-slate-900/50 to-slate-800/30">
-        <NeelaLogo variant="full" size="md" className="xl:h-14 max-w-[11rem] xl:max-w-[13rem] rounded-lg" />
+      <div className="sidebar-logo-strip flex items-center justify-center min-h-[4.5rem] h-20 xl:h-24 border-b border-slate-800/60 flex-shrink-0 px-4 xl:px-5">
+        <NeelaLogo variant="full" size="sm" className="lg:!h-10 xl:!h-14 shrink-0 w-auto min-w-[8.5rem] max-w-[min(100%,13rem)]" />
       </div>
 
       <nav className="mt-4 xl:mt-8 px-2 xl:px-4 space-y-1 xl:space-y-2 flex-1 overflow-y-auto pb-4" aria-label="Main menu">

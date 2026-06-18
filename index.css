@@ -381,8 +381,24 @@
   margin: 0;
 }
 
+/* Admin mobile top bar — keep full wordmark readable */
+.admin-mobile-header .logo-surface--full {
+  flex-shrink: 0;
+}
+
+.admin-mobile-header .logo-surface--full .logo-img {
+  transform: scale(1.05);
+  margin: 0;
+  max-width: min(42vw, 11.5rem);
+}
+
 /* ── Admin / manager responsive ── */
 @media (max-width: 639px) {
+  .admin-mobile-header .logo-surface--full .logo-img {
+    height: 2.25rem;
+    max-width: min(48vw, 10.5rem);
+  }
+
   .dash-hero {
     padding: 1.15rem !important;
     border-radius: 1.1rem;
