@@ -35,7 +35,18 @@ from api.management.commands.import_properties import (
 )
 import cloudinary.api
 import requests
-from .permissions import is_admin_user, is_property_manager, filter_properties_for_user, get_manager_property_ids
+from .permissions import (
+    is_admin_user,
+    is_property_manager,
+    filter_properties_for_user,
+    get_manager_property_ids,
+    filter_tenants_for_user,
+    filter_payments_for_user,
+    filter_maintenance_for_user,
+    MANAGER_EXPENSE_CATEGORIES,
+    ADMIN_ONLY_EXPENSE_CATEGORIES,
+)
+from rest_framework.exceptions import PermissionDenied
 
 def download_cloudinary_file(resource_path, resource_types=None, formats=None):
     """
@@ -195,6 +206,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Tenant.objects.all().order_by('-id')
+        qs = filter_tenants_for_user(qs, self.request.user)
         try:
             limit = int(self.request.query_params.get('limit', 0))
             offset = int(self.request.query_params.get('offset', 0))
@@ -203,6 +215,11 @@ class TenantViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError):
             pass
         return qs
+
+    def perform_destroy(self, instance):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Only admin can delete tenants.')
+        instance.delete()
 
     def perform_create(self, serializer):
         tenant = serializer.save()
@@ -434,8 +451,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]  # Require authentication for payments
-    
+
+    def get_queryset(self):
+        return filter_payments_for_user(Payment.objects.all(), self.request.user)
+
+    def _deny_manager_write(self):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Property managers can view payments but not record or edit them.')
+
     def create(self, request, *args, **kwargs):
+        self._deny_manager_write()
         """Override create to send invoice email after payment is created."""
         data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
         proof_files = request.FILES.getlist('proof_of_payment_files_upload')
@@ -496,6 +521,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
     
     def perform_update(self, serializer):
+        self._deny_manager_write()
         """Override to send receipt email when payment status changes to 'Paid'."""
         old_instance = self.get_object()
         old_status = old_instance.status
@@ -512,9 +538,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 logger.warning(f"Celery connection failed, using threading fallback for payment receipt: {e}")
                 send_payment_receipt_to_tenant(payment.id)
     
+    def perform_destroy(self, instance):
+        self._deny_manager_write()
+        instance.delete()
+
     @action(detail=True, methods=['post'], url_path='send-receipt')
     def send_receipt(self, request, pk=None):
         """Send receipt email to tenant for a payment (same pattern as Legal & Compliance)."""
+        self._deny_manager_write()
         payment = self.get_object()
         receipt_email_sent = False
         try:
@@ -538,6 +569,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='income-statement')
     def income_statement(self, request):
         """Live P&L / income statement by property, unit, and portfolio."""
+        if is_property_manager(request.user):
+            return Response(
+                {'error': 'Income statement is available to admin only. Property managers use the Expenses tab.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         year = timezone.now().year
         try:
             if request.query_params.get('year'):
@@ -795,7 +831,33 @@ class OperatingExpenseViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        user = self.request.user
+        if is_admin_user(user):
+            raise PermissionDenied('Admins view expenses only. Property managers record operating costs.')
+        if not is_property_manager(user):
+            raise PermissionDenied('Only property managers can record operating expenses.')
+        prop = serializer.validated_data.get('property')
+        if prop:
+            allowed = filter_properties_for_user(Property.objects.filter(id=prop.id), user)
+            if not allowed.exists():
+                raise PermissionDenied('You cannot record expenses for this property.')
+        serializer.save(created_by=user)
+
+    def perform_update(self, serializer):
+        if is_admin_user(self.request.user):
+            raise PermissionDenied('Admins view expenses only. Property managers record operating costs.')
+        if is_property_manager(self.request.user):
+            prop = serializer.validated_data.get('property', serializer.instance.property)
+            if prop:
+                allowed = filter_properties_for_user(Property.objects.filter(id=prop.id), self.request.user)
+                if not allowed.exists():
+                    raise PermissionDenied('You cannot edit expenses for this property.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Property managers cannot delete expense records.')
+        instance.delete()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -855,6 +917,12 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
     
+    def get_queryset(self):
+        qs = MaintenanceRequest.objects.all()
+        if self.action != 'create':
+            qs = filter_maintenance_for_user(qs, self.request.user)
+        return qs
+
     def get_permissions(self):
         """
         Allow public access for create (tenants can submit maintenance requests),
@@ -1056,17 +1124,27 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()
     serializer_class = LeaseTemplateSerializer
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if is_property_manager(request.user):
+            raise PermissionDenied('Lease templates are admin only.')
+
+
 class LegalDocumentViewSet(viewsets.ModelViewSet):
     queryset = LegalDocument.objects.all()
     serializer_class = LegalDocumentSerializer
     permission_classes = [IsAuthenticated]  # Require authentication for legal documents
-    
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
     
     def get_queryset(self):
+        if is_property_manager(self.request.user) and self.action in (
+            'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
+        ):
+            raise PermissionDenied('Legal documents are admin only.')
         queryset = LegalDocument.objects.all()
         tenant_id = self.request.query_params.get('tenant')
         if tenant_id:
@@ -1679,6 +1757,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         qs = Property.objects.all().order_by("id")
+        if request.user.is_authenticated and is_property_manager(request.user):
+            qs = filter_properties_for_user(qs, request.user)
         data = PropertySerializer(qs, many=True, context={"request": request}).data
         for item in data:
             name, address = _clean_property_name_and_address(
@@ -1690,6 +1770,21 @@ class PropertyViewSet(viewsets.ModelViewSet):
             item["name"] = name
             item["address"] = address
         return Response(data)
+
+    def perform_create(self, serializer):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Only admin can add properties.')
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Only admin can edit properties.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if is_property_manager(self.request.user):
+            raise PermissionDenied('Only admin can delete properties.')
+        instance.delete()
 
 
 class ShortStayBookingViewSet(viewsets.ModelViewSet):

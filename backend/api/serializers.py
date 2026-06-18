@@ -1,5 +1,11 @@
 from rest_framework import serializers
 from .models import Tenant, Payment, MaintenanceRequest, LegalDocument, Listing, Property, LeaseTemplate, ShortStayBooking, ShortStayBlockedDate, OperatingExpense, PropertyUnit, PropertyFinancials, PropertyManagerProfile
+from .permissions import (
+    is_admin_user,
+    is_property_manager,
+    MANAGER_EXPENSE_CATEGORIES,
+    ADMIN_ONLY_EXPENSE_CATEGORIES,
+)
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import os
@@ -310,13 +316,18 @@ class OperatingExpenseSerializer(serializers.ModelSerializer):
     def validate(self, data):
         visibility = data.get('visibility', getattr(self.instance, 'visibility', 'operating'))
         category = data.get('category', getattr(self.instance, 'category', 'utilities'))
-        admin_categories = {'mortgage_interest', 'mortgage_principal', 'depreciation'}
-        if category in admin_categories:
+        if category in ADMIN_ONLY_EXPENSE_CATEGORIES:
             data['visibility'] = 'admin_only'
         request = self.context.get('request')
-        if request and request.user and not (request.user.is_staff or request.user.is_superuser):
-            if visibility == 'admin_only' or category in admin_categories:
-                raise serializers.ValidationError('Property managers cannot create admin-only expenses.')
+        if request and request.user:
+            if is_admin_user(request.user):
+                return data
+            if is_property_manager(request.user):
+                if visibility == 'admin_only' or category not in MANAGER_EXPENSE_CATEGORIES:
+                    raise serializers.ValidationError(
+                        'Property managers can only record operating expenses (utilities, maintenance, cleaning, etc.).'
+                    )
+                data['visibility'] = 'operating'
         return data
 
 

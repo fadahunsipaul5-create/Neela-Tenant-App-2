@@ -292,7 +292,7 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                   <div className="mt-4 p-3 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-1">
                     <div className="flex items-center gap-1.5 text-amber-300 font-semibold mb-2">
                       <Lock className="w-3.5 h-3.5" />
-                      Admin — Financing &amp; Ownership
+                      Financing &amp; Ownership
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
                       <span className="text-slate-400">Purchase Price</span><span>{formatMoney(row.financials.purchasePrice)}</span>
@@ -309,8 +309,7 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm max-w-4xl">
-        <h3 className="font-bold text-slate-800 text-lg mb-1">Recent Expenses ({year})</h3>
-        <p className="text-sm text-slate-500 mb-4">Recorded by property managers. Admin view only.</p>
+        <h3 className="font-bold text-slate-800 text-lg mb-4">Recent Expenses ({year})</h3>
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {expensesLoading ? (
             <p className="text-sm text-slate-400 text-center py-6">Loading recent expenses…</p>

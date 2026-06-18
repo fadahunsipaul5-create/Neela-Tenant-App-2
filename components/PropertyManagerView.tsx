@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, CreditCard, Receipt, LogOut, Menu, X, Home, Plus,
-  MapPin, Wallet, Calendar, FileText, Tag,
+  MapPin, Wallet, Calendar, FileText, Tag, Wrench,
 } from 'lucide-react';
 import NeelaLogo from './NeelaLogo';
+import MaintenanceView from './MaintenanceView';
 import { isAuthenticated, getCurrentUser, logout } from '../services/auth';
 import { api } from '../services/api';
-import { Property, Tenant, Payment, OperatingExpense } from '../types';
+import { Property, Tenant, Payment, OperatingExpense, MaintenanceRequest } from '../types';
 import {
   CATEGORY_LABELS,
   groupPropertiesForSelect,
@@ -21,7 +22,7 @@ const formatMoney = (v: number) =>
 const FALLBACK_PROPERTY_IMAGE =
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
 
-type Tab = 'overview' | 'properties' | 'applications' | 'payments' | 'expenses';
+type Tab = 'overview' | 'properties' | 'applications' | 'payments' | 'expenses' | 'maintenance';
 
 const PropertyManagerView: React.FC = () => {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ const PropertyManagerView: React.FC = () => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [expenses, setExpenses] = useState<OperatingExpense[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
   const [managedIds, setManagedIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
@@ -59,7 +61,7 @@ const PropertyManagerView: React.FC = () => {
       setLoading(true);
       try {
         const year = new Date().getFullYear();
-        const [meRes, props, t, p, ex] = await Promise.all([
+        const [meRes, props, t, p, ex, m] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:8000')}/api/manager/me/`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
           }).then((r) => r.json()),
@@ -67,6 +69,7 @@ const PropertyManagerView: React.FC = () => {
           api.getTenants(),
           api.getPayments(),
           api.getOperatingExpenses({ year, limit: 100 }),
+          api.getMaintenanceRequests(),
         ]);
         const ids = (meRes.managed_property_ids || []).map(String);
         setManagedIds(ids);
@@ -74,6 +77,7 @@ const PropertyManagerView: React.FC = () => {
         setTenants(t);
         setPayments(p);
         setExpenses(ex);
+        setMaintenance(m);
       } catch (e) {
         console.error(e);
       } finally {
@@ -93,6 +97,16 @@ const PropertyManagerView: React.FC = () => {
   }, [tenants, properties]);
 
   const applicants = useMemo(() => myTenants.filter((t) => t.status === 'Applicant'), [myTenants]);
+  const residents = useMemo(() => myTenants.filter((t) => t.status === 'Active'), [myTenants]);
+
+  const refreshMaintenance = useCallback(async () => {
+    try {
+      const data = await api.getMaintenanceRequests();
+      setMaintenance(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const myPayments = useMemo(() => {
     const tenantIds = new Set(myTenants.map((t) => t.id));
@@ -148,7 +162,8 @@ const PropertyManagerView: React.FC = () => {
   const navItems: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Home },
     { id: 'properties', label: 'My Properties', icon: Building2 },
-    { id: 'applications', label: 'Applications', icon: Users },
+    { id: 'applications', label: 'Tenants & Leases', icon: Users },
+    { id: 'maintenance', label: 'Maintenance', icon: Wrench },
     { id: 'payments', label: 'Rent & Payments', icon: CreditCard },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
   ];
@@ -188,21 +203,46 @@ const PropertyManagerView: React.FC = () => {
         );
       case 'applications':
         return (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-slate-800">Tenant Applications</h2>
-            <div className="space-y-3">
-              {applicants.map((t) => (
-                <div key={t.id} className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-800">{t.name}</p>
-                    <p className="text-sm text-slate-500">{t.email} · {t.propertyUnit}</p>
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-slate-800">Tenant Applications</h2>
+              <div className="space-y-3">
+                {applicants.map((t) => (
+                  <div key={t.id} className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">{t.name}</p>
+                      <p className="text-sm text-slate-500">{t.email} · {t.propertyUnit}</p>
+                    </div>
+                    <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold uppercase">{t.status}</span>
                   </div>
-                  <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold uppercase">{t.status}</span>
-                </div>
-              ))}
-              {applicants.length === 0 && <p className="text-slate-500 text-center py-12">No pending applications.</p>}
+                ))}
+                {applicants.length === 0 && <p className="text-slate-500 text-center py-8">No pending applications.</p>}
+              </div>
+            </div>
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-slate-800">Residents</h2>
+              <div className="space-y-3">
+                {residents.map((t) => (
+                  <div key={t.id} className="bg-white rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">{t.name}</p>
+                      <p className="text-sm text-slate-500">{t.email} · {t.propertyUnit}</p>
+                    </div>
+                    <span className="inline-flex px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase">{t.status}</span>
+                  </div>
+                ))}
+                {residents.length === 0 && <p className="text-slate-500 text-center py-8">No active residents on your properties.</p>}
+              </div>
             </div>
           </div>
+        );
+      case 'maintenance':
+        return (
+          <MaintenanceView
+            requests={maintenance}
+            tenants={myTenants}
+            onMaintenanceChange={refreshMaintenance}
+          />
         );
       case 'payments':
         return (
