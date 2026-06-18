@@ -332,6 +332,7 @@ const App: React.FC = () => {
             onNavigateToTenants={() => setActiveTab('tenants')}
             onNavigateToPayments={() => setActiveTab('payments')}
             onNavigateToMaintenance={() => setActiveTab('maintenance')}
+            onNavigateToIncomeStatement={() => setActiveTab('income-statement')}
           />
         );
       case 'tenants':
@@ -432,7 +433,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#f4f6fb]">
+    <div className="min-h-screen flex bg-[#f7f5f2]">
       {/* Overlay for mobile menu */}
       {isMobileMenuOpen && !isPublic && (
         <div

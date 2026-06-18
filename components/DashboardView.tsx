@@ -264,8 +264,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize, Wrench, Sparkles, Activity } from 'lucide-react';
-import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property } from '../types';
+import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home, Settings, TrendingUp, ChevronRight, ArrowUpRight, ArrowDownRight, Clock, Zap, X, MapPin, Bed, Bath, Maximize, Wrench, Activity, BarChart3 } from 'lucide-react';
+import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property, IncomeStatementSummary } from '../types';
 import Modal from './Modal';
 import { api } from '../services/api';
 import { formatDateMMDDYYYY } from '../utils/date';
@@ -280,6 +280,7 @@ interface DashboardProps {
   onNavigateToTenants?: () => void;
   onNavigateToPayments?: () => void;
   onNavigateToMaintenance?: () => void;
+  onNavigateToIncomeStatement?: () => void;
 }
 
 const DASHBOARD_LISTING_AREAS = [
@@ -293,7 +294,7 @@ const DASHBOARD_LISTING_AREAS = [
   'Westlock Dr',
 ];
 
-const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings, onNavigateToTenants, onNavigateToPayments, onNavigateToMaintenance }) => {
+const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenance, properties, onReviewApplications, onNavigateToSettings, onNavigateToTenants, onNavigateToPayments, onNavigateToMaintenance, onNavigateToIncomeStatement }) => {
   // Derived Metrics
   const totalRevenue = payments
     .filter(p => p.status === 'Paid')
@@ -333,6 +334,11 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   const [appliedFilterArea, setAppliedFilterArea] = useState('');
   const DASHBOARD_PROPERTIES_PAGE_SIZE = 6;
   const [dashboardPropertiesToShow, setDashboardPropertiesToShow] = useState(DASHBOARD_PROPERTIES_PAGE_SIZE);
+  const [pnlSummary, setPnlSummary] = useState<IncomeStatementSummary | null>(null);
+
+  useEffect(() => {
+    api.getIncomeStatement().then(setPnlSummary).catch(() => setPnlSummary(null));
+  }, []);
 
   // Responsive state for chart labels and sizing
   const [screenSize, setScreenSize] = useState({
@@ -654,125 +660,122 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   })();
 
   return (
-    <div className="dashboard-mesh space-y-5 sm:space-y-7 lg:space-y-9 pb-6 sm:pb-8 animate-fade-in w-full min-w-0 overflow-x-hidden">
+    <div className="dashboard-mesh space-y-5 sm:space-y-7 pb-6 sm:pb-8 animate-fade-in w-full min-w-0 overflow-x-hidden">
       {/* Hero */}
-      <div className="dash-hero p-4 sm:p-6 md:p-8 lg:p-10 rounded-2xl sm:rounded-3xl">
+      <div className="dash-hero p-5 sm:p-7 md:p-8">
         <div className="dash-hero-grid" aria-hidden />
-        <div className="relative z-[1] flex flex-col lg:flex-row lg:items-end justify-between gap-5 sm:gap-6">
-          <div className="space-y-3 sm:space-y-4 max-w-2xl min-w-0">
-            <div className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/10 border border-white/15 text-indigo-200 text-[10px] sm:text-xs font-semibold backdrop-blur-sm max-w-full">
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-violet-300 flex-shrink-0" />
-              <span className="truncate">{todayLabel}</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-indigo-200/90 text-xs sm:text-sm font-medium mb-1">{greeting}</p>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.75rem] font-bold text-white tracking-tight leading-[1.12]">
-                Manager Dashboard
-              </h1>
-              <p className="mt-2 sm:mt-3 text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-lg">
-                Revenue, occupancy, maintenance & portfolio — everything you need to run properties beautifully.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5">
-              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/25 text-emerald-200 text-[10px] sm:text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                {properties.length} Properties
+        <div className="relative z-[1] flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="min-w-0 space-y-3">
+            <p className="dash-section-label">{todayLabel}</p>
+            <h1 className="text-2xl sm:text-3xl md:text-[2.125rem] font-bold text-stone-900 tracking-tight leading-tight">
+              {greeting}, <span className="text-indigo-600">Manager</span>
+            </h1>
+            <p className="text-stone-500 text-sm sm:text-base max-w-md leading-relaxed">
+              Portfolio overview — rent, occupancy, maintenance, and profit at a glance.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-medium border border-stone-200/80">
+                <Building2 className="w-3.5 h-3.5 text-stone-400" />
+                {properties.length} properties
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/10 border border-white/15 text-slate-200 text-[10px] sm:text-xs font-semibold">
-                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-                {tenants.filter(t => t.status === TenantStatus.ACTIVE).length} Active
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium border border-indigo-100">
+                <Users className="w-3.5 h-3.5" />
+                {tenants.filter(t => t.status === TenantStatus.ACTIVE).length} tenants
               </span>
             </div>
           </div>
-          <div className="flex flex-col gap-2.5 sm:gap-3 w-full lg:w-auto lg:flex-shrink-0">
-            <button
-              onClick={onReviewApplications}
-              className={`w-full lg:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-300 ${
-                newApplications > 0
-                  ? 'bg-white text-indigo-900 shadow-xl shadow-black/20 hover:shadow-2xl hover:-translate-y-0.5'
-                  : 'bg-white/10 text-white border border-white/20 hover:bg-white/15'
-              }`}
-            >
-              {newApplications > 0 ? (
-                <span className="flex items-center justify-center gap-2">
-                  <FileText className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{newApplications} New Application{newApplications !== 1 ? 's' : ''}</span>
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">All Applications Reviewed</span>
-                </span>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={onReviewApplications}
+            className={`relative z-[1] w-full lg:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              newApplications > 0
+                ? 'bg-stone-900 text-white hover:bg-stone-800 shadow-lg shadow-stone-900/15'
+                : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-300'
+            }`}
+          >
+            {newApplications > 0 ? `${newApplications} application${newApplications !== 1 ? 's' : ''} to review` : 'No pending applications'}
+          </button>
         </div>
       </div>
 
-      {/* Stats bento */}
-      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 dash-stagger">
+      {/* P&L snapshot */}
+      {pnlSummary && (
+        <button
+          type="button"
+          onClick={() => onNavigateToIncomeStatement?.()}
+          className="dash-pnl-banner w-full text-left hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="dash-stat-icon dash-stat-icon--teal flex-shrink-0">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">P&amp;L · {pnlSummary.year}</p>
+              <p className="text-lg sm:text-xl font-bold text-stone-900 truncate">
+                Net income {pnlSummary.portfolio.netIncome >= 0 ? '' : '−'}
+                ${Math.abs(pnlSummary.portfolio.netIncome).toLocaleString()}
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Income ${pnlSummary.portfolio.totalIncome.toLocaleString()} · Expenses ${pnlSummary.portfolio.totalExpenses.toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <span className="text-sm font-semibold text-indigo-600 flex items-center gap-1 flex-shrink-0">
+            Full statement <ChevronRight className="w-4 h-4" />
+          </span>
+        </button>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 dash-stagger">
         <div className="dash-stat dash-stat--revenue">
-          <div className="relative z-[1] flex items-start justify-between mb-5">
-            <div className="dash-stat-icon"><DollarSign className="w-5 h-5" /></div>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2 py-1 rounded-md">Revenue</span>
+          <div className="flex items-start justify-between mb-4">
+            <div className="dash-stat-icon dash-stat-icon--emerald"><DollarSign className="w-5 h-5" /></div>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Revenue</span>
           </div>
-          <p className="relative z-[1] text-3xl sm:text-4xl font-bold tracking-tight">${totalRevenue.toLocaleString()}</p>
-          <p className="relative z-[1] text-emerald-100/80 text-sm mt-1 font-medium">Collected this period</p>
-          <div className="relative z-[1] mt-4 flex items-center gap-1.5 text-xs text-emerald-100/70">
-            <TrendingUp className="w-3.5 h-3.5" /> Trending positive
-          </div>
+          <p className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">${totalRevenue.toLocaleString()}</p>
+          <p className="text-stone-500 text-sm mt-1">Collected this period</p>
         </div>
 
         <div className="dash-stat dash-stat--overdue">
-          <div className="relative z-[1] flex items-start justify-between mb-5">
-            <div className="dash-stat-icon"><AlertCircle className="w-5 h-5" /></div>
-            {overdueAmount > 0 && (
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2 py-1 rounded-md animate-pulse">Due</span>
-            )}
+          <div className="flex items-start justify-between mb-4">
+            <div className="dash-stat-icon dash-stat-icon--rose"><AlertCircle className="w-5 h-5" /></div>
+            {overdueAmount > 0 && <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">Due</span>}
           </div>
-          <p className="relative z-[1] text-3xl sm:text-4xl font-bold tracking-tight">${overdueAmount.toLocaleString()}</p>
-          <p className="relative z-[1] text-rose-100/80 text-sm mt-1 font-medium">Outstanding rent</p>
-          <button
-            onClick={() => setShowSendRemindersModal(true)}
-            className="relative z-[1] mt-4 flex items-center gap-1 text-xs font-semibold text-white/90 hover:text-white transition-colors"
-          >
-            Send reminders <ArrowUpRight className="w-3.5 h-3.5" />
+          <p className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">${overdueAmount.toLocaleString()}</p>
+          <button onClick={() => setShowSendRemindersModal(true)} className="text-xs font-semibold text-rose-600 hover:text-rose-700 mt-2 flex items-center gap-1">
+            Send reminders <ArrowUpRight className="w-3 h-3" />
           </button>
         </div>
 
         <div className="dash-stat dash-stat--occupancy">
-          <div className="relative z-[1] flex items-start justify-between mb-5">
-            <div className="dash-stat-icon"><Users className="w-5 h-5" /></div>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2 py-1 rounded-md">{occupancyRate}%</span>
+          <div className="flex items-start justify-between mb-4">
+            <div className="dash-stat-icon dash-stat-icon--indigo"><Users className="w-5 h-5" /></div>
+            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{occupancyRate}%</span>
           </div>
-          <p className="relative z-[1] text-3xl sm:text-4xl font-bold tracking-tight">{occupancyRate}%</p>
-          <p className="relative z-[1] text-blue-100/80 text-sm mt-1 font-medium">Occupancy rate</p>
-          <div className="relative z-[1] mt-4 h-1.5 rounded-full bg-white/20 overflow-hidden">
-            <div className="h-full rounded-full bg-white/90 transition-all duration-700" style={{ width: `${occupancyRate}%` }} />
+          <p className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">{occupancyRate}%</p>
+          <div className="mt-3 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+            <div className="h-full rounded-full bg-indigo-500 transition-all duration-700" style={{ width: `${occupancyRate}%` }} />
           </div>
         </div>
 
         <div className="dash-stat dash-stat--tickets">
-          <div className="relative z-[1] flex items-start justify-between mb-5">
-            <div className="dash-stat-icon"><Wrench className="w-5 h-5" /></div>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2 py-1 rounded-md">
-              {openTickets > 3 ? 'High' : 'Normal'}
-            </span>
+          <div className="flex items-start justify-between mb-4">
+            <div className="dash-stat-icon dash-stat-icon--amber"><Wrench className="w-5 h-5" /></div>
+            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">{openTickets > 3 ? 'High' : 'Normal'}</span>
           </div>
-          <p className="relative z-[1] text-3xl sm:text-4xl font-bold tracking-tight">{openTickets}</p>
-          <p className="relative z-[1] text-amber-100/80 text-sm mt-1 font-medium">Open maintenance</p>
+          <p className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">{openTickets}</p>
           <button
             onClick={() => onNavigateToMaintenance ? onNavigateToMaintenance() : (window.location.hash = 'maintenance')}
-            className="relative z-[1] mt-4 flex items-center gap-1 text-xs font-semibold text-white/90 hover:text-white transition-colors"
+            className="text-xs font-semibold text-amber-700 hover:text-amber-800 mt-2 flex items-center gap-1"
           >
-            View tickets <ArrowUpRight className="w-3.5 h-3.5" />
+            View tickets <ArrowUpRight className="w-3 h-3" />
           </button>
         </div>
       </div>
 
       {/* Quick actions */}
       <div>
-        <p className="dash-section-label mb-4 px-0.5">Quick Actions</p>
+        <p className="dash-section-label mb-3">Shortcuts</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4 dash-stagger">
           {quickActions.map((action, index) => (
             <a
@@ -890,7 +893,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       <div className="dash-panel p-5 sm:p-7">
         <div className="dash-panel-header !items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <div className="w-10 h-10 rounded-xl bg-stone-900 flex items-center justify-center">
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -900,7 +903,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           </div>
           <button
             onClick={() => onNavigateToSettings ? onNavigateToSettings() : (window.location.hash = 'settings')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition-all"
           >
             <Settings className="w-4 h-4" />
             Manage
