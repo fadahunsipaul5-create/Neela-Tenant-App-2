@@ -43,6 +43,7 @@ from .permissions import (
     filter_tenants_for_user,
     filter_payments_for_user,
     filter_maintenance_for_user,
+    exclude_import_placeholder_tenants,
     MANAGER_EXPENSE_CATEGORIES,
     ADMIN_ONLY_EXPENSE_CATEGORIES,
 )
@@ -206,6 +207,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Tenant.objects.all().order_by('-id')
+        qs = exclude_import_placeholder_tenants(qs)
         qs = filter_tenants_for_user(qs, self.request.user)
         try:
             limit = int(self.request.query_params.get('limit', 0))

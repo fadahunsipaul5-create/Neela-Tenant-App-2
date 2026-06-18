@@ -58,6 +58,18 @@ def filter_properties_for_user(queryset, user):
     return queryset.filter(id__in=property_ids)
 
 
+def is_import_placeholder_email(email):
+    """Synthetic tenants created by excel import — hide from admin/manager UI."""
+    if not email:
+        return False
+    e = email.lower().strip()
+    return e.startswith('excel-import-') and e.endswith('@neela.local')
+
+
+def exclude_import_placeholder_tenants(queryset):
+    return queryset.exclude(email__startswith='excel-import-', email__endswith='@neela.local')
+
+
 def _tenant_property_unit_q(properties):
     """Match tenants whose property_unit text references assigned property name/address."""
     q = Q()

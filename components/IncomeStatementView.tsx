@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   DollarSign, TrendingUp, Building2, Wallet, ChevronDown, ChevronUp,
-  Lock, MapPin, Home, BarChart3, Sparkles,
+  Lock, MapPin, Home, BarChart3, Sparkles, PieChart,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { IncomeStatementSummary, OperatingExpense, Property } from '../types';
@@ -38,8 +38,36 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: 'bg-stone-100 text-stone-800 border-stone-200',
 };
 
+const CATEGORY_BAR_COLORS: Record<string, string> = {
+  utilities: 'bg-sky-500',
+  maintenance: 'bg-amber-500',
+  taxes: 'bg-violet-500',
+  insurance: 'bg-blue-500',
+  management: 'bg-indigo-500',
+  cleaning: 'bg-teal-500',
+  hoa: 'bg-pink-500',
+  advertising: 'bg-orange-500',
+  legal: 'bg-slate-500',
+  supplies: 'bg-lime-600',
+  transportation: 'bg-cyan-500',
+  bank_charges: 'bg-gray-500',
+  mortgage_interest: 'bg-rose-600',
+  mortgage_principal: 'bg-red-600',
+  depreciation: 'bg-fuchsia-600',
+  other: 'bg-stone-500',
+};
+
 const FALLBACK_PROPERTY_IMAGE =
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
+
+/** Hide raw excel-import note prefixes; show the expense label only. */
+function formatExpenseNote(notes?: string): string {
+  if (!notes) return '';
+  if (notes.includes('@neela.local')) return '';
+  const imported = notes.match(/^excel-import-\d+\|[^|]+\|\d{2}\|(.+)$/);
+  if (imported) return imported[1].trim();
+  return notes;
+}
 
 const IncomeStatementView: React.FC<Props> = ({ properties }) => {
   const currentYear = new Date().getFullYear();
@@ -90,6 +118,20 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
     if (!summary?.byProperty?.length) return [];
     return groupIncomeStatementProperties(summary.byProperty, properties);
   }, [summary, properties]);
+
+  const expenseCategoryBreakdown = useMemo(() => {
+    if (!summary?.expensesByCategory) return [];
+    const entries = Object.entries(summary.expensesByCategory)
+      .filter(([, amt]) => amt > 0)
+      .sort(([, a], [, b]) => b - a);
+    const total = entries.reduce((sum, [, amt]) => sum + amt, 0);
+    return entries.map(([cat, amt]) => ({
+      cat,
+      label: CATEGORY_LABELS[cat] || cat.replace(/_/g, ' '),
+      amount: amt,
+      share: total > 0 ? (amt / total) * 100 : 0,
+    }));
+  }, [summary]);
 
   if (loading) {
     return (
@@ -185,21 +227,63 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         </div>
       </div>
 
-      {Object.keys(summary.expensesByCategory).length > 0 && (
+      {expenseCategoryBreakdown.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
-          <h3 className="font-bold text-slate-800 text-lg mb-4">Expenses by Category</h3>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(summary.expensesByCategory)
-              .sort(([, a], [, b]) => b - a)
-              .map(([cat, amt]) => (
-                <span
-                  key={cat}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.other}`}
-                >
-                  {CATEGORY_LABELS[cat] || cat}
-                  <span className="opacity-80">{formatMoney(amt)}</span>
-                </span>
-              ))}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <PieChart className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-800 text-lg">Expenses by Category</h3>
+              </div>
+              <p className="text-sm text-slate-500 max-w-2xl">
+                Portfolio breakdown for {year} — where operating costs were recorded across all properties
+                (manager-logged expenses plus taxes, insurance, and financing lines on the books).
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-xs uppercase tracking-wide text-slate-400 font-semibold">Category total</p>
+              <p className="text-xl font-bold text-rose-700">
+                {formatMoney(expenseCategoryBreakdown.reduce((s, r) => s + r.amount, 0))}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {expenseCategoryBreakdown.map(({ cat, label, amount, share }, index) => (
+              <div
+                key={cat}
+                className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1fr)_minmax(7rem,9rem)_minmax(5.5rem,6.5rem)] gap-x-4 gap-y-1.5 items-center py-2 border-b border-slate-100 last:border-0"
+              >
+                <div className="flex items-center gap-2 min-w-0 col-span-2 sm:col-span-1">
+                  <span className="text-xs font-bold text-slate-400 w-5 text-right flex-shrink-0">{index + 1}</span>
+                  <span
+                    className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border flex-shrink-0 ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.other}`}
+                  >
+                    {label}
+                  </span>
+                </div>
+
+                <div className="hidden sm:block h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${CATEGORY_BAR_COLORS[cat] || CATEGORY_BAR_COLORS.other}`}
+                    style={{ width: `${Math.max(share, share > 0 ? 2 : 0)}%` }}
+                    title={`${share.toFixed(1)}% of category total`}
+                  />
+                </div>
+
+                <div className="text-right sm:text-right">
+                  <p className="font-bold text-slate-800 text-sm tabular-nums">{formatMoney(amount)}</p>
+                  <p className="text-xs text-slate-400 tabular-nums">{share.toFixed(1)}%</p>
+                </div>
+
+                <div className="col-span-2 sm:hidden h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${CATEGORY_BAR_COLORS[cat] || CATEGORY_BAR_COLORS.other}`}
+                    style={{ width: `${Math.max(share, share > 0 ? 2 : 0)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -324,7 +408,10 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                     {e.unitLabel ? ` · ${e.unitLabel}` : ''}
                     {' · '}{CATEGORY_LABELS[e.category] || e.category}
                   </p>
-                  <p className="text-xs text-slate-500">{e.date}{e.notes ? ` · ${e.notes}` : ''}</p>
+                  <p className="text-xs text-slate-500">
+                    {e.date}
+                    {formatExpenseNote(e.notes) ? ` · ${formatExpenseNote(e.notes)}` : ''}
+                  </p>
                 </div>
                 <p className="font-bold text-sm text-rose-700 ml-3 flex-shrink-0">{formatMoney(e.amount)}</p>
               </div>
