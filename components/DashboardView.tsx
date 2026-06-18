@@ -268,7 +268,7 @@ import { DollarSign, AlertCircle, CheckCircle2, Users, FileText, Building2, Home
 import { Tenant, Payment, MaintenanceRequest, TenantStatus, Property, IncomeStatementSummary } from '../types';
 import Modal from './Modal';
 import { api } from '../services/api';
-import { formatDateMMDDYYYY } from '../utils/date';
+import { formatDateMMDDYYYY, formatRelativeTimeAgo } from '../utils/date';
 
 interface DashboardProps {
   tenants: Tenant[];
@@ -442,7 +442,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             iconBg: 'bg-emerald-100',
             title: `Payment received from ${tenant.name}`,
             subtitle: `${tenant.propertyUnit} • $${p.amount.toLocaleString()}`,
-            time: formatActivityTime(paymentDate),
+            time: formatRelativeTimeAgo(paymentDate),
             date: paymentDate,
           });
         }
@@ -464,7 +464,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           iconBg: 'bg-blue-100',
           title: 'New application submitted',
           subtitle: `${t.propertyUnit} • ${t.name}`,
-          time: formatActivityTime(appDate),
+          time: formatRelativeTimeAgo(appDate),
           date: appDate,
         });
       });
@@ -485,7 +485,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
             iconBg: 'bg-amber-100',
             title: `Maintenance ticket ${m.status.toLowerCase()}`,
             subtitle: `${tenant.propertyUnit} • ${m.category}`,
-            time: formatActivityTime(maintDate),
+            time: formatRelativeTimeAgo(maintDate),
             date: maintDate,
           });
         }
@@ -499,9 +499,8 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
         date: new Date(t.leaseStart),
       }))
       .filter(item => {
-        // Only include if lease started within last 30 days
-        const daysSince = (new Date().getTime() - item.date.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSince <= 30;
+        const daysSince = (Date.now() - item.date.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSince >= 0 && daysSince <= 30;
       })
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 3)
@@ -514,7 +513,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
           iconBg: 'bg-indigo-100',
           title: 'New tenant moved in',
           subtitle: `${item.tenant.propertyUnit} • ${item.tenant.name}`,
-          time: formatActivityTime(item.date),
+          time: formatRelativeTimeAgo(item.date),
           date: item.date,
         });
       });
@@ -523,31 +522,6 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
     return activities
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 4);
-  };
-
-  // Format activity time display
-  const formatActivityTime = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 60) {
-      return `${diffMins}m ago`;
-    } else if (diffHours < 24) {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours % 12 || 12;
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return formatDateMMDDYYYY(date);
-    }
   };
 
   const recentActivity = getRecentActivity();
