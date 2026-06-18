@@ -335,12 +335,22 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   const DASHBOARD_PROPERTIES_PAGE_SIZE = 6;
   const [dashboardPropertiesToShow, setDashboardPropertiesToShow] = useState(DASHBOARD_PROPERTIES_PAGE_SIZE);
   const [pnlSummary, setPnlSummary] = useState<IncomeStatementSummary | null>(null);
+  const [pnlLoading, setPnlLoading] = useState(true);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      api.getIncomeStatement().then(setPnlSummary).catch(() => setPnlSummary(null));
-    }, 150);
-    return () => window.clearTimeout(timer);
+    let cancelled = false;
+    setPnlLoading(true);
+    api.getIncomeStatement()
+      .then((data) => {
+        if (!cancelled) setPnlSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPnlSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPnlLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   // Responsive state for chart labels and sizing
@@ -632,7 +642,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4 pb-4 sm:pb-5 border-b-2 border-slate-100">
         <div className="w-full lg:w-auto min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold bg-gradient-to-r from-slate-900 via-indigo-900 to-purple-900 bg-clip-text text-transparent tracking-tight mb-1 sm:mb-2">
-            Dashboard Overview
+            Overview
           </h1>
           <p className="text-slate-600 text-sm sm:text-base font-medium leading-relaxed">Welcome back! Here's what's happening with your properties today.</p>
         </div>
@@ -670,35 +680,81 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
         </div>
       </div>
 
-      {/* P&L snapshot */}
-      {pnlSummary && (
-        <button
-          type="button"
-          onClick={() => onNavigateToIncomeStatement?.()}
-          className="w-full text-left bg-gradient-to-br from-white via-teal-50/30 to-white p-5 sm:p-6 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-lg shadow-teal-500/5 hover:shadow-xl hover:border-teal-200 transition-all duration-300 group"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* P&L / NOI snapshot → income statement */}
+      <button
+        type="button"
+        onClick={() => onNavigateToIncomeStatement?.()}
+        disabled={!onNavigateToIncomeStatement}
+        className="dash-pnl-banner w-full text-left hover:shadow-md transition-shadow disabled:cursor-default"
+      >
+        <div className="flex flex-col gap-4 w-full">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="p-3 bg-gradient-to-br from-teal-100 to-teal-200 rounded-xl shadow-md flex-shrink-0">
-                <BarChart3 className="w-6 h-6 text-teal-700" />
+              <div className="dash-stat-icon dash-stat-icon--teal flex-shrink-0">
+                <BarChart3 className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">P&amp;L · {pnlSummary.year}</p>
-                <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
-                  Net income {pnlSummary.portfolio.netIncome >= 0 ? '' : '−'}
-                  ${Math.abs(pnlSummary.portfolio.netIncome).toLocaleString()}
+                <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">
+                  Portfolio NOI · {pnlSummary?.year ?? new Date().getFullYear()}
                 </p>
-                <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                  Income ${pnlSummary.portfolio.totalIncome.toLocaleString()} · Expenses ${pnlSummary.portfolio.totalExpenses.toLocaleString()}
-                </p>
+                {pnlLoading ? (
+                  <p className="text-sm text-slate-500 mt-1">Loading P&amp;L snapshot…</p>
+                ) : pnlSummary ? (
+                  <>
+                    <p className="text-lg sm:text-2xl font-bold text-stone-900 truncate">
+                      {pnlSummary.portfolio.netIncome >= 0 ? '' : '−'}
+                      ${Math.abs(pnlSummary.portfolio.netIncome).toLocaleString()} net operating income
+                    </p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Income ${pnlSummary.portfolio.totalIncome.toLocaleString()} · Expenses ${pnlSummary.portfolio.totalExpenses.toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600 mt-1">Open the full income statement for portfolio P&amp;L</p>
+                )}
               </div>
             </div>
-            <span className="text-sm font-bold text-indigo-600 flex items-center gap-1 flex-shrink-0 group-hover:gap-2 transition-all">
+            <span className="text-sm font-semibold text-indigo-600 flex items-center gap-1 flex-shrink-0">
               Full statement <ChevronRight className="w-4 h-4" />
             </span>
           </div>
-        </button>
-      )}
+
+          {!pnlLoading && pnlSummary && pnlSummary.portfolio.totalIncome > 0 && (
+            <div className="space-y-2">
+              <div className="flex h-3 rounded-full overflow-hidden bg-slate-200 shadow-inner">
+                <div
+                  className="bg-gradient-to-r from-rose-400 to-rose-500 transition-all duration-700"
+                  style={{
+                    width: `${Math.min(100, (pnlSummary.portfolio.totalExpenses / pnlSummary.portfolio.totalIncome) * 100)}%`,
+                  }}
+                  title={`Expenses: ${((pnlSummary.portfolio.totalExpenses / pnlSummary.portfolio.totalIncome) * 100).toFixed(1)}% of income`}
+                />
+                <div
+                  className={`flex-1 transition-all duration-700 ${pnlSummary.portfolio.netIncome >= 0 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-rose-600 to-rose-700'}`}
+                  title={`NOI: ${((pnlSummary.portfolio.netIncome / pnlSummary.portfolio.totalIncome) * 100).toFixed(1)}% of income`}
+                />
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] sm:text-xs text-slate-600 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-rose-400" />
+                  Expenses
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-sm ${pnlSummary.portfolio.netIncome >= 0 ? 'bg-emerald-500' : 'bg-rose-600'}`} />
+                  NOI
+                </span>
+                <span className="text-slate-400">
+                  {((pnlSummary.portfolio.netIncome / pnlSummary.portfolio.totalIncome) * 100).toFixed(1)}% margin
+                </span>
+              </div>
+            </div>
+          )}
+
+          {pnlLoading && (
+            <div className="h-3 rounded-full bg-slate-200 animate-pulse" />
+          )}
+        </div>
+      </button>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">

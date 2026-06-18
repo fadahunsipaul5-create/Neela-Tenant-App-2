@@ -24,7 +24,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isMobileMenuOpen, onLogout }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'tenants', label: 'Tenants & Leases', icon: Users },
     { id: 'short-stays', label: 'Short Stays', icon: CalendarDays },
     { id: 'income-statement', label: 'Income Statement', icon: ReceiptText },

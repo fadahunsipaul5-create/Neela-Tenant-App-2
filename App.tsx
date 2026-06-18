@@ -336,6 +336,11 @@ const App: React.FC = () => {
             maintenance={maintenance}
             properties={properties}
             onReviewApplications={handleReviewApplications}
+            onNavigateToSettings={() => setActiveTab('settings')}
+            onNavigateToTenants={() => setActiveTab('tenants')}
+            onNavigateToPayments={() => setActiveTab('payments')}
+            onNavigateToMaintenance={() => setActiveTab('maintenance')}
+            onNavigateToIncomeStatement={() => setActiveTab('income-statement')}
           />
         );
     }
