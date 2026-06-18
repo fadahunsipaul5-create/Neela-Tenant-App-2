@@ -22,6 +22,7 @@ from django.http import HttpResponse
 from django.http import FileResponse
 from django.core.files.storage import default_storage
 from django.db.models import Sum, Q
+from django.db.models.functions import ExtractMonth
 import re
 import cloudinary
 import mimetypes
@@ -550,6 +551,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
             request.user,
         )
         properties = list(properties_qs)
+        property_ids = [p.id for p in properties]
+        property_ids_set = set(property_ids)
 
         def normalize(text):
             return re.sub(r'[^a-z0-9]+', '', (text or '').lower())
@@ -574,45 +577,59 @@ class PaymentViewSet(viewsets.ModelViewSet):
             for unit in prop.property_units.all():
                 unit_rows_by_property[prop.id].append(unit)
 
+        tenant_prop_map = {}
+        for t in Tenant.objects.only('id', 'property_unit'):
+            pid = match_property_id(t.property_unit)
+            if pid in property_ids_set:
+                tenant_prop_map[t.id] = pid
+
         rent_income_by_property = defaultdict(lambda: Decimal('0'))
         rent_income_by_unit = defaultdict(lambda: Decimal('0'))
-        payments_qs = Payment.objects.select_related('tenant').filter(
+
+        payments_qs = Payment.objects.filter(
             status='Paid',
             date__year=year,
             type='Rent',
-        )
+            tenant_id__in=tenant_prop_map.keys() if tenant_prop_map else [],
+        ).select_related('tenant').only('id', 'amount', 'tenant_id', 'tenant__property_unit')
+
+        for row in payments_qs.values('tenant_id').annotate(total=Sum('amount')):
+            pid = tenant_prop_map.get(row['tenant_id'])
+            if pid:
+                rent_income_by_property[pid] += row['total'] or Decimal('0')
+
         for pay in payments_qs:
-            prop_id = match_property_id(pay.tenant.property_unit if pay.tenant else '')
-            if prop_id and prop_id in {p.id for p in properties}:
-                rent_income_by_property[prop_id] += pay.amount or Decimal('0')
-                unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
-                for unit in unit_rows_by_property.get(prop_id, []):
-                    if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
-                        rent_income_by_unit[unit.id] += pay.amount or Decimal('0')
-                        break
+            prop_id = tenant_prop_map.get(pay.tenant_id)
+            if not prop_id:
+                continue
+            unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
+            for unit in unit_rows_by_property.get(prop_id, []):
+                if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
+                    rent_income_by_unit[unit.id] += pay.amount or Decimal('0')
+                    break
 
         short_stay_by_property = defaultdict(lambda: Decimal('0'))
-        short_stays_qs = ShortStayBooking.objects.filter(
+        for row in ShortStayBooking.objects.filter(
             status='confirmed',
             check_in__year=year,
-            property_id__in=[p.id for p in properties],
-        )
-        for booking in short_stays_qs:
-            short_stay_by_property[booking.property_id] += booking.total_amount or Decimal('0')
+            property_id__in=property_ids,
+        ).values('property_id').annotate(total=Sum('total_amount')):
+            short_stay_by_property[row['property_id']] = row['total'] or Decimal('0')
 
         expenses_by_property = defaultdict(lambda: Decimal('0'))
         expenses_by_category = defaultdict(lambda: Decimal('0'))
         expenses_by_unit = defaultdict(lambda: Decimal('0'))
-        expenses_qs = OperatingExpense.objects.select_related('property', 'unit').filter(
+        expenses_qs = OperatingExpense.objects.filter(
             date__year=year,
-            property_id__in=[p.id for p in properties] + [None],
+        ).filter(
+            Q(property_id__in=property_ids) | Q(property_id__isnull=True)
+        ).select_related('property', 'unit').only(
+            'id', 'amount', 'category', 'property_id', 'unit_id', 'visibility'
         )
         if not admin_view:
             expenses_qs = expenses_qs.exclude(visibility='admin_only')
         for exp in expenses_qs:
             amount = exp.amount or Decimal('0')
-            if exp.property_id and exp.property_id not in {p.id for p in properties}:
-                continue
             expenses_by_category[exp.category] += amount
             if exp.unit_id:
                 expenses_by_unit[exp.unit_id] += amount
@@ -698,27 +715,35 @@ class PaymentViewSet(viewsets.ModelViewSet):
         portfolio_net = portfolio_income - portfolio_expenses
 
         monthly = []
-        for month in range(1, 13):
-            month_rent = (Payment.objects.filter(
-                status='Paid',
-                type='Rent',
-                date__year=year,
-                date__month=month,
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0'))
-            month_short = (ShortStayBooking.objects.filter(
+        month_rent_map = {
+            int(row['month']): row['total'] or Decimal('0')
+            for row in Payment.objects.filter(
+                status='Paid', type='Rent', date__year=year,
+            ).annotate(month=ExtractMonth('date')).values('month').annotate(total=Sum('amount'))
+        }
+        month_short_map = {
+            int(row['month']): row['total'] or Decimal('0')
+            for row in ShortStayBooking.objects.filter(
                 status='confirmed',
                 check_in__year=year,
-                check_in__month=month,
-                property_id__in=[p.id for p in properties],
-            ).aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
-            month_exp_qs = OperatingExpense.objects.filter(
-                date__year=year,
-                date__month=month,
-                property_id__in=[p.id for p in properties] + [None],
-            )
-            if not admin_view:
-                month_exp_qs = month_exp_qs.exclude(visibility='admin_only')
-            month_exp = month_exp_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                property_id__in=property_ids,
+            ).annotate(month=ExtractMonth('check_in')).values('month').annotate(total=Sum('total_amount'))
+        }
+        month_exp_qs = OperatingExpense.objects.filter(
+            date__year=year,
+        ).filter(
+            Q(property_id__in=property_ids) | Q(property_id__isnull=True)
+        )
+        if not admin_view:
+            month_exp_qs = month_exp_qs.exclude(visibility='admin_only')
+        month_exp_map = {
+            int(row['month']): row['total'] or Decimal('0')
+            for row in month_exp_qs.annotate(month=ExtractMonth('date')).values('month').annotate(total=Sum('amount'))
+        }
+        for month in range(1, 13):
+            month_rent = month_rent_map.get(month, Decimal('0'))
+            month_short = month_short_map.get(month, Decimal('0'))
+            month_exp = month_exp_map.get(month, Decimal('0'))
             monthly.append({
                 'month': month,
                 'income': float(month_rent + month_short),
@@ -755,6 +780,18 @@ class OperatingExpenseViewSet(viewsets.ModelViewSet):
         )
         if not is_admin_user(self.request.user):
             qs = qs.exclude(visibility='admin_only')
+        year = self.request.query_params.get('year')
+        if year:
+            try:
+                qs = qs.filter(date__year=int(year))
+            except (TypeError, ValueError):
+                pass
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                qs = qs[: max(1, int(limit))]
+            except (TypeError, ValueError):
+                pass
         return qs
 
     def perform_create(self, serializer):

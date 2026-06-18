@@ -320,7 +320,7 @@ export const ShortStayPromoPopup: React.FC<{ onExplore: () => void; onDismiss: (
         <h3 className="text-xl font-bold text-slate-900">Looking for a short stay?</h3>
       </div>
       <p className="text-slate-600 mb-6 leading-relaxed">
-        Need an Airbnb-style getaway for a few nights? Browse our properties, pick your dates, and book a short stay — no long-term lease required.
+        Need an Airbnb-style getaway for a few nights? Browse our properties, pick your dates, and book a short stay.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
         <button onClick={onExplore} className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl hover:shadow-lg transition-all">

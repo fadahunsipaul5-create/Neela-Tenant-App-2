@@ -16,7 +16,6 @@ import LeaseSigningOverlay from './LeaseSigningOverlay';
 import type { LeaseSigningMetadata } from '../types';
 import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
 import { formatDateMMDDYYYY } from '../utils/date';
-import NeelaLogo from './NeelaLogo';
 import { 
   MapPin, BedDouble, Bath, Maximize, Check, ArrowLeft, 
   FileText, Save, Send, User, FileSignature, Download, 

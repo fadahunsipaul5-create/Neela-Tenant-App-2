@@ -59,14 +59,14 @@ const AdminLoginPage: React.FC = () => {
           Back to Home
         </Link>
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-500/10 border border-slate-200/60 overflow-hidden">
-          <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:items-center">
-              <NeelaLogo variant="full" size="md" className="rounded-xl shadow-md" />
-              <div>
-                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">
+          <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-b from-slate-50/90 to-white">
+            <div className="flex flex-col items-center text-center gap-3 sm:gap-4 max-w-sm mx-auto">
+              <NeelaLogo variant="full" size="lg" showGlow={false} />
+              <div className="space-y-1 w-full">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Admin Portal Login
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-medium">
+                <p className="text-sm text-slate-500 font-medium">
                   Secure Management Access
                 </p>
               </div>

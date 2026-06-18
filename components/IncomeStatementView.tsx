@@ -5,6 +5,10 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { IncomeStatementSummary, OperatingExpense, Property } from '../types';
+import {
+  CATEGORY_LABELS,
+  groupIncomeStatementProperties,
+} from '../utils/propertyGrouping';
 
 interface Props {
   properties: Property[];
@@ -14,34 +18,6 @@ const formatMoney = (value: number) =>
   `$${(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const CARD_GRADIENTS = [
-  'from-violet-600 via-purple-600 to-fuchsia-600',
-  'from-blue-600 via-cyan-600 to-teal-500',
-  'from-emerald-600 via-green-600 to-lime-500',
-  'from-orange-500 via-amber-500 to-yellow-500',
-  'from-rose-600 via-pink-600 to-red-500',
-  'from-indigo-600 via-blue-600 to-sky-500',
-];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  utilities: 'Utilities',
-  maintenance: 'Repairs & Maintenance',
-  taxes: 'Property Taxes',
-  insurance: 'Insurance',
-  management: 'Management Fees',
-  cleaning: 'Cleaning',
-  hoa: 'HOA Fees',
-  advertising: 'Advertising / Leasing',
-  legal: 'Legal & Professional',
-  supplies: 'Supplies & Materials',
-  transportation: 'Transportation',
-  bank_charges: 'Bank Charges',
-  mortgage_interest: 'Mortgage Interest',
-  mortgage_principal: 'Mortgage Principal',
-  depreciation: 'Depreciation',
-  other: 'Other',
-};
 
 const CATEGORY_COLORS: Record<string, string> = {
   utilities: 'bg-sky-100 text-sky-800 border-sky-200',
@@ -71,34 +47,29 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
   const [summary, setSummary] = useState<IncomeStatementSummary | null>(null);
   const [expenses, setExpenses] = useState<OperatingExpense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expensesLoading, setExpensesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [expandedProperty, setExpandedProperty] = useState<string | null>(null);
-
-  const [expenseForm, setExpenseForm] = useState({
-    property: '',
-    category: 'maintenance' as OperatingExpense['category'],
-    amount: '',
-    date: new Date().toISOString().slice(0, 10),
-    notes: '',
-    visibility: 'operating' as OperatingExpense['visibility'],
-  });
 
   const load = async (selectedYear: number) => {
     setLoading(true);
     setError(null);
+    setSummary(null);
+    setExpenses([]);
     try {
-      const [statement, expenseRows] = await Promise.all([
-        api.getIncomeStatement(selectedYear),
-        api.getOperatingExpenses(),
-      ]);
+      const statement = await api.getIncomeStatement(selectedYear);
       setSummary(statement);
-      setExpenses(expenseRows);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load income statement');
     } finally {
       setLoading(false);
     }
+
+    setExpensesLoading(true);
+    api.getOperatingExpenses({ year: selectedYear, limit: 20 })
+      .then(setExpenses)
+      .catch(() => setExpenses([]))
+      .finally(() => setExpensesLoading(false));
   };
 
   useEffect(() => {
@@ -106,7 +77,7 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
   }, [year]);
 
   const filteredExpenses = useMemo(
-    () => expenses.filter((e) => new Date(e.date).getFullYear() === year).slice(0, 15),
+    () => expenses.filter((e) => new Date(e.date).getFullYear() === year).slice(0, 20),
     [expenses, year]
   );
 
@@ -115,24 +86,10 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
     return Math.max(...summary.monthly.map((m) => Math.max(m.income, m.expenses)), 1);
   }, [summary]);
 
-  const addExpense = async () => {
-    if (!expenseForm.amount) return;
-    setSaving(true);
-    try {
-      await api.createOperatingExpense({
-        property: expenseForm.property || undefined,
-        category: expenseForm.category,
-        amount: Number(expenseForm.amount),
-        date: expenseForm.date,
-        notes: expenseForm.notes.trim(),
-        visibility: expenseForm.visibility,
-      });
-      setExpenseForm((prev) => ({ ...prev, amount: '', notes: '' }));
-      await load(year);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const groupedProperties = useMemo(() => {
+    if (!summary?.byProperty?.length) return [];
+    return groupIncomeStatementProperties(summary.byProperty, properties);
+  }, [summary, properties]);
 
   if (loading) {
     return (
@@ -153,7 +110,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-8">
-      {/* Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-700 to-fuchsia-700 text-white p-6 sm:p-8 shadow-2xl shadow-indigo-500/20">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80')] opacity-15 bg-cover bg-center" />
         <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
@@ -179,7 +135,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         </div>
       </div>
 
-      {/* Portfolio KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'Total Income', value: summary.portfolio.totalIncome, icon: DollarSign, grad: 'from-emerald-500 to-teal-600' },
@@ -198,7 +153,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         ))}
       </div>
 
-      {/* Monthly chart */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-5">
           <BarChart3 className="w-5 h-5 text-indigo-600" />
@@ -231,7 +185,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         </div>
       </div>
 
-      {/* Expense categories */}
       {Object.keys(summary.expensesByCategory).length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <h3 className="font-bold text-slate-800 text-lg mb-4">Expenses by Category</h3>
@@ -251,150 +204,120 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         </div>
       )}
 
-      {/* Property cards */}
       <div>
         <h3 className="font-bold text-slate-800 text-xl mb-4 flex items-center gap-2">
           <Home className="w-6 h-6 text-indigo-600" />
           Properties &amp; Units
         </h3>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {summary.byProperty.map((row, idx) => {
-            const grad = CARD_GRADIENTS[idx % CARD_GRADIENTS.length];
-            const img = row.imageUrl || properties.find((p) => p.id === row.propertyId)?.image || FALLBACK_PROPERTY_IMAGE;
-            const expanded = expandedProperty === row.propertyId;
+        <div className="flex flex-col gap-4 max-w-4xl">
+          {groupedProperties.map((row) => {
+            const img =
+              row.imageUrl ||
+              properties.find((p) => row.units?.some((u) => u.propertyId === p.id))?.image ||
+              FALLBACK_PROPERTY_IMAGE;
+            const expanded = expandedProperty === row.groupKey;
+            const unitCount = row.units?.length || 0;
+
             return (
               <div
-                key={row.propertyId}
-                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow"
+                key={row.groupKey}
+                className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow"
               >
-                <div className="relative h-40 sm:h-44">
-                  <img src={img} alt={row.propertyName} className="w-full h-full object-cover" />
-                  <div className={`absolute inset-0 bg-gradient-to-t ${grad} opacity-75 mix-blend-multiply`} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                    <h4 className="text-xl font-bold">{row.propertyName}</h4>
-                    {(row.address || row.city) && (
-                      <p className="text-sm text-white/85 flex items-center gap-1 mt-1">
-                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                        {[row.address, row.city, row.state].filter(Boolean).join(', ')}
-                      </p>
-                    )}
+                <div className="flex flex-col md:flex-row md:items-stretch gap-4 md:gap-6">
+                  {/* Left: image, name, units */}
+                  <div className="flex gap-3 sm:gap-4 md:flex-1 md:min-w-0 md:max-w-[55%]">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                      <img src={img} alt={row.propertyName} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-2">
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-900 leading-tight">{row.propertyName}</h4>
+                        {(row.address || row.city) && (
+                          <p className="text-xs sm:text-sm text-slate-500 flex items-start gap-1 mt-1">
+                            <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">
+                              {[row.address, row.city, row.state].filter(Boolean).join(', ')}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      {unitCount > 0 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProperty(expanded ? null : row.groupKey)}
+                            className="inline-flex items-center justify-between gap-2 w-full max-w-xs px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-semibold text-slate-700 transition-colors"
+                          >
+                            <span>Units ({unitCount})</span>
+                            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                          {expanded && (
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                              {row.units!.map((unit) => (
+                                <div
+                                  key={unit.unitId}
+                                  className="flex items-center justify-between text-xs sm:text-sm px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-100"
+                                >
+                                  <span className="font-semibold text-slate-800">{unit.label}</span>
+                                  <span className="text-emerald-700 font-medium">{formatMoney(unit.rentIncome)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="absolute top-3 right-3 bg-white/20 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-white">
-                    {row.unitsCount || row.units?.length || 0} units
-                  </div>
-                </div>
 
-                <div className="p-4 sm:p-5">
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div className="text-center p-2 rounded-xl bg-emerald-50">
+                  {/* Right: income / expenses / NOI */}
+                  <div className="flex flex-col justify-center gap-2 md:w-52 lg:w-56 flex-shrink-0">
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-emerald-600 font-bold">Income</p>
-                      <p className="font-bold text-emerald-800 text-sm sm:text-base">{formatMoney(row.totalIncome)}</p>
+                      <p className="font-bold text-emerald-800 text-base sm:text-lg">{formatMoney(row.totalIncome)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-xl bg-rose-50">
+                    <div className="rounded-xl bg-rose-50 border border-rose-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-rose-600 font-bold">Expenses</p>
-                      <p className="font-bold text-rose-800 text-sm sm:text-base">{formatMoney(row.totalExpenses)}</p>
+                      <p className="font-bold text-rose-800 text-base sm:text-lg">{formatMoney(row.totalExpenses)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-xl bg-indigo-50">
+                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-indigo-600 font-bold">NOI</p>
-                      <p className={`font-bold text-sm sm:text-base ${row.netIncome >= 0 ? 'text-indigo-800' : 'text-rose-700'}`}>
+                      <p className={`font-bold text-base sm:text-lg ${row.netIncome >= 0 ? 'text-indigo-800' : 'text-rose-700'}`}>
                         {formatMoney(row.netIncome)}
                       </p>
                     </div>
                   </div>
-
-                  {isAdmin && row.financials && (
-                    <div className="mb-4 p-3 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 text-amber-300 font-semibold mb-2">
-                        <Lock className="w-3.5 h-3.5" />
-                        Admin — Financing &amp; Ownership
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        <span className="text-slate-400">Purchase Price</span><span>{formatMoney(row.financials.purchasePrice)}</span>
-                        <span className="text-slate-400">Monthly Mortgage</span><span>{formatMoney(row.financials.monthlyMortgagePayment)}</span>
-                        <span className="text-slate-400">Loan Amount</span><span>{formatMoney(row.financials.loanAmount)}</span>
-                        <span className="text-slate-400">Interest Rate</span><span>{(row.financials.interestRate * 100).toFixed(2)}%</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setExpandedProperty(expanded ? null : row.propertyId)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-semibold text-slate-700 transition-colors"
-                  >
-                    <span>Unit breakdown ({row.units?.length || 0})</span>
-                    {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-
-                  {expanded && (
-                    <div className="mt-3 space-y-2">
-                      {(row.units?.length ? row.units : []).length === 0 ? (
-                        <p className="text-sm text-slate-500 px-2 py-3 text-center bg-slate-50 rounded-xl">
-                          No units configured yet. Add units under property setup to track per-door income.
-                        </p>
-                      ) : (
-                        row.units!.map((unit) => (
-                          <div key={unit.unitId} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50">
-                            <div>
-                              <p className="font-semibold text-slate-800">{unit.label}</p>
-                              <p className="text-xs text-slate-500 capitalize">{unit.status} · Rent {formatMoney(unit.monthlyRent)}/mo</p>
-                            </div>
-                            <div className="text-right text-sm">
-                              <p className="text-emerald-700 font-semibold">{formatMoney(unit.rentIncome)}</p>
-                              <p className={`text-xs font-medium ${unit.netIncome >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                                NOI {formatMoney(unit.netIncome)}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
                 </div>
+
+                {isAdmin && row.financials && (
+                  <div className="mt-4 p-3 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-amber-300 font-semibold mb-2">
+                      <Lock className="w-3.5 h-3.5" />
+                      Admin — Financing &amp; Ownership
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
+                      <span className="text-slate-400">Purchase Price</span><span>{formatMoney(row.financials.purchasePrice)}</span>
+                      <span className="text-slate-400">Monthly Mortgage</span><span>{formatMoney(row.financials.monthlyMortgagePayment)}</span>
+                      <span className="text-slate-400">Loan Amount</span><span>{formatMoney(row.financials.loanAmount)}</span>
+                      <span className="text-slate-400">Interest Rate</span><span>{(row.financials.interestRate * 100).toFixed(2)}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Add expense + recent */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
-          <h3 className="font-bold text-slate-800 text-lg">Record Expense</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <select className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" value={expenseForm.property} onChange={(e) => setExpenseForm((p) => ({ ...p, property: e.target.value }))}>
-              <option value="">Portfolio (all properties)</option>
-              {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" value={expenseForm.category} onChange={(e) => setExpenseForm((p) => ({ ...p, category: e.target.value as OperatingExpense['category'] }))}>
-              {Object.entries(CATEGORY_LABELS)
-                .filter(([k]) => isAdmin || !['mortgage_interest', 'mortgage_principal', 'depreciation'].includes(k))
-                .map(([k, label]) => (
-                  <option key={k} value={k}>{label}</option>
-                ))}
-            </select>
-            {isAdmin && (
-              <select className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm sm:col-span-2" value={expenseForm.visibility} onChange={(e) => setExpenseForm((p) => ({ ...p, visibility: e.target.value as OperatingExpense['visibility'] }))}>
-                <option value="operating">Operating (visible to managers)</option>
-                <option value="admin_only">Admin only (mortgage / financing)</option>
-              </select>
-            )}
-            <input className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" type="number" min="0" step="0.01" placeholder="Amount" value={expenseForm.amount} onChange={(e) => setExpenseForm((p) => ({ ...p, amount: e.target.value }))} />
-            <input className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" type="date" value={expenseForm.date} onChange={(e) => setExpenseForm((p) => ({ ...p, date: e.target.value }))} />
-          </div>
-          <input className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" placeholder="Notes (optional)" value={expenseForm.notes} onChange={(e) => setExpenseForm((p) => ({ ...p, notes: e.target.value }))} />
-          <button disabled={saving || !expenseForm.amount} onClick={addExpense} className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-indigo-500/25 disabled:opacity-50 hover:from-indigo-700 hover:to-purple-700 transition-all">
-            {saving ? 'Saving…' : 'Save Expense'}
-          </button>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
-          <h3 className="font-bold text-slate-800 text-lg mb-4">Recent Expenses ({year})</h3>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {filteredExpenses.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-8">No expenses recorded yet.</p>
-            ) : filteredExpenses.map((e) => (
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm max-w-4xl">
+        <h3 className="font-bold text-slate-800 text-lg mb-1">Recent Expenses ({year})</h3>
+        <p className="text-sm text-slate-500 mb-4">Recorded by property managers. Admin view only.</p>
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {expensesLoading ? (
+            <p className="text-sm text-slate-400 text-center py-6">Loading recent expenses…</p>
+          ) : filteredExpenses.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">No expenses recorded yet.</p>
+          ) : (
+            filteredExpenses.map((e) => (
               <div key={e.id} className="flex items-center justify-between border border-slate-100 rounded-xl p-3 hover:bg-slate-50 transition-colors">
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-slate-800 truncate">
@@ -406,8 +329,8 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                 </div>
                 <p className="font-bold text-sm text-rose-700 ml-3 flex-shrink-0">{formatMoney(e.amount)}</p>
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
       </div>
     </div>

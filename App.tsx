@@ -18,7 +18,7 @@ import { isAuthenticated } from './services/auth';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
-  const adminPagePadding = 'px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-8';
+  const adminPagePadding = 'px-3 py-4 sm:px-4 sm:py-5 md:px-4 md:py-5 lg:px-6 lg:py-6 xl:px-8 xl:py-8';
   const location = useLocation();
   const navigate = useNavigate();
   // Check if we're on a password reset page - Vercel deployment trigger
@@ -80,65 +80,23 @@ const App: React.FC = () => {
     }
   }, [location.state, navigate]);
 
-  // Fetch data when tab changes (but not on initial load)
+  // Fetch properties when switching to public portal only (admin data loads once on login)
   useEffect(() => {
-    if (isInitialLoad) return; // Skip on initial mount
+    if (isInitialLoad || activeTab !== 'public-portal') return;
 
-    const fetchData = async () => {
+    if (properties.length > 0) return;
+
+    const loadPublicProperties = async () => {
       try {
-        const isAuth = isAuthenticated();
-
-        // Only fetch admin data if user is authenticated and on admin view
-        if (activeTab !== 'public-portal' && isAuth) {
-          setLoading(true);
-          const results = await Promise.allSettled([
-            api.getTenants(),
-            api.getPayments(),
-            api.getMaintenanceRequests(),
-            api.getProperties()
-          ]);
-          // Set data for successful requests, empty array for failed ones
-          setTenants(results[0].status === 'fulfilled' ? results[0].value : []);
-          setPayments(results[1].status === 'fulfilled' ? results[1].value : []);
-          setMaintenance(results[2].status === 'fulfilled' ? results[2].value : []);
-          setProperties(results[3].status === 'fulfilled' ? results[3].value : []);
-          
-          // Log individual errors if any
-          results.forEach((result, index) => {
-            if (result.status === 'rejected') {
-              const names = ['tenants', 'payments', 'maintenance', 'properties'];
-              console.error(`Error fetching ${names[index]}:`, result.reason);
-            }
-          });
-        } else if (activeTab === 'public-portal') {
-          // For public portal, only fetch properties if not already loaded
-          if (properties.length === 0) {
-            try {
-              const propertiesData = await api.getProperties();
-              setProperties(propertiesData);
-            } catch (error) {
-              console.error("Error fetching properties:", error);
-            }
-          }
-        }
-      } catch (error: any) {
-        // Don't log 401 errors for public portal - they're handled gracefully
-        if (activeTab === 'public-portal' && error?.message?.includes('401')) {
-          // Silently handle
-        } else {
-          console.error("Error fetching data:", error);
-        }
-        // If authentication fails, redirect to public portal
-        if (activeTab !== 'public-portal') {
-          setActiveTab('public-portal');
-        }
-      } finally {
-        setLoading(false);
+        const propertiesData = await api.getProperties();
+        setProperties(propertiesData);
+      } catch (error) {
+        console.error('Error fetching properties:', error);
       }
     };
 
-    fetchData();
-  }, [activeTab, isInitialLoad]); // Run when tab changes, but skip initial load
+    loadPublicProperties();
+  }, [activeTab, isInitialLoad, properties.length]);
 
   // Initial data fetch after auth check completes
   useEffect(() => {
@@ -433,7 +391,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#f7f5f2]">
+    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 via-purple-50/20 to-blue-50/20">
       {/* Overlay for mobile menu */}
       {isMobileMenuOpen && !isPublic && (
         <div
@@ -455,22 +413,15 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 w-full min-h-screen lg:min-h-0 lg:h-screen overflow-hidden">
         {/* Top Bar — tablets & small laptops use drawer; sidebar fixed from lg up */}
         {!isPublic && (
-          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5 safe-area-top">
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 text-left rounded-lg hover:bg-slate-50/80 active:bg-slate-100 py-1 pr-2 -ml-1 transition-colors"
-              aria-label="Open menu"
-            >
-              <NeelaLogo variant="full" size="md" className="pointer-events-none shrink-0" />
-              <span className="font-semibold text-slate-800 text-xs sm:text-sm tracking-tight truncate hidden min-[400px]:inline">
-                Manager Portal
-              </span>
-            </button>
+          <div className="lg:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm shadow-slate-500/5">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <NeelaLogo variant="mark" size="sm" />
+              <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate hidden sm:inline">Neela Capital</span>
+            </div>
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
-              className="p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 flex-shrink-0"
-              aria-label="Open navigation menu"
+              className="p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              aria-label="Open mobile menu"
               aria-expanded={isMobileMenuOpen}
             >
               <Menu className="w-6 h-6" />
@@ -487,7 +438,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className={adminPagePadding}>
-              <div className="admin-content-wrap max-w-7xl mx-auto w-full min-w-0">
+              <div className="max-w-7xl mx-auto w-full min-w-0">
                 {renderAdminContent()}
               </div>
             </div>

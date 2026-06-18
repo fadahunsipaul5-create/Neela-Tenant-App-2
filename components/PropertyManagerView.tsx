@@ -2,27 +2,26 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, CreditCard, Receipt, LogOut, Menu, X, Home, Plus,
+  MapPin, Wallet, Calendar, FileText, Tag,
 } from 'lucide-react';
 import NeelaLogo from './NeelaLogo';
 import { isAuthenticated, getCurrentUser, logout } from '../services/auth';
 import { api } from '../services/api';
 import { Property, Tenant, Payment, OperatingExpense } from '../types';
+import {
+  CATEGORY_LABELS,
+  groupPropertiesForSelect,
+  MANAGER_EXPENSE_CATEGORIES,
+  resolvePropertyIdForExpense,
+} from '../utils/propertyGrouping';
 
 const formatMoney = (v: number) =>
   `$${(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-type Tab = 'overview' | 'properties' | 'applications' | 'payments' | 'expenses';
+const FALLBACK_PROPERTY_IMAGE =
+  'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
 
-const EXPENSE_CATEGORIES: { value: OperatingExpense['category']; label: string }[] = [
-  { value: 'maintenance', label: 'Repairs & Maintenance' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'cleaning', label: 'Cleaning' },
-  { value: 'advertising', label: 'Advertising / Leasing' },
-  { value: 'legal', label: 'Legal & Professional' },
-  { value: 'supplies', label: 'Supplies & Materials' },
-  { value: 'transportation', label: 'Transportation' },
-  { value: 'other', label: 'Other' },
-];
+type Tab = 'overview' | 'properties' | 'applications' | 'payments' | 'expenses';
 
 const PropertyManagerView: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +35,8 @@ const PropertyManagerView: React.FC = () => {
   const [managedIds, setManagedIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
-    property: '',
+    groupKey: '',
+    unitLabel: '',
     amount: '',
     category: 'maintenance' as OperatingExpense['category'],
     date: new Date().toISOString().slice(0, 10),
@@ -58,6 +58,7 @@ const PropertyManagerView: React.FC = () => {
     const load = async () => {
       setLoading(true);
       try {
+        const year = new Date().getFullYear();
         const [meRes, props, t, p, ex] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:8000')}/api/manager/me/`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
@@ -65,7 +66,7 @@ const PropertyManagerView: React.FC = () => {
           api.getProperties(),
           api.getTenants(),
           api.getPayments(),
-          api.getOperatingExpenses(),
+          api.getOperatingExpenses({ year, limit: 100 }),
         ]);
         const ids = (meRes.managed_property_ids || []).map(String);
         setManagedIds(ids);
@@ -98,24 +99,45 @@ const PropertyManagerView: React.FC = () => {
     return payments.filter((p) => tenantIds.has(p.tenantId));
   }, [payments, myTenants]);
 
+  const propertyGroups = useMemo(() => groupPropertiesForSelect(properties), [properties]);
+
+  const selectedGroup = useMemo(
+    () => propertyGroups.find((g) => g.groupKey === expenseForm.groupKey),
+    [propertyGroups, expenseForm.groupKey],
+  );
+
+  const myPropertyIds = useMemo(() => new Set(properties.map((p) => p.id)), [properties]);
+
+  const myExpenses = useMemo(
+    () => expenses.filter((e) => !e.property || myPropertyIds.has(e.property)),
+    [expenses, myPropertyIds],
+  );
+
   const handleLogout = () => {
     logout();
     navigate('/manager/login', { replace: true });
   };
 
   const addExpense = async () => {
-    if (!expenseForm.amount || !expenseForm.property) return;
+    if (!expenseForm.amount || !expenseForm.groupKey) return;
+    const propertyId = resolvePropertyIdForExpense(
+      propertyGroups,
+      expenseForm.groupKey,
+      expenseForm.unitLabel,
+    );
+    if (!propertyId) return;
     setSaving(true);
     try {
+      const year = new Date().getFullYear();
       await api.createOperatingExpense({
-        property: expenseForm.property,
+        property: propertyId,
         amount: Number(expenseForm.amount),
         category: expenseForm.category,
         date: expenseForm.date,
         notes: expenseForm.notes,
         visibility: 'operating',
       });
-      const ex = await api.getOperatingExpenses();
+      const ex = await api.getOperatingExpenses({ year, limit: 100 });
       setExpenses(ex);
       setExpenseForm((f) => ({ ...f, amount: '', notes: '' }));
     } finally {
@@ -211,36 +233,190 @@ const PropertyManagerView: React.FC = () => {
         );
       case 'expenses':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800">Record Operating Expense</h2>
-            <p className="text-sm text-slate-500">Expenses you add here appear on the admin income statement. Mortgage and financing details are admin-only.</p>
-            <div className="bg-white rounded-2xl border p-5 space-y-4 max-w-xl">
-              <select className="w-full border rounded-xl px-3 py-2.5" value={expenseForm.property} onChange={(e) => setExpenseForm((f) => ({ ...f, property: e.target.value }))}>
-                <option value="">Select property</option>
-                {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select className="w-full border rounded-xl px-3 py-2.5" value={expenseForm.category} onChange={(e) => setExpenseForm((f) => ({ ...f, category: e.target.value as OperatingExpense['category'] }))}>
-                {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="number" min="0" step="0.01" placeholder="Amount" className="border rounded-xl px-3 py-2.5" value={expenseForm.amount} onChange={(e) => setExpenseForm((f) => ({ ...f, amount: e.target.value }))} />
-                <input type="date" className="border rounded-xl px-3 py-2.5" value={expenseForm.date} onChange={(e) => setExpenseForm((f) => ({ ...f, date: e.target.value }))} />
-              </div>
-              <input placeholder="Notes" className="w-full border rounded-xl px-3 py-2.5" value={expenseForm.notes} onChange={(e) => setExpenseForm((f) => ({ ...f, notes: e.target.value }))} />
-              <button disabled={saving || !expenseForm.amount || !expenseForm.property} onClick={addExpense} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold disabled:opacity-50">
-                <Plus className="w-4 h-4" /> {saving ? 'Saving…' : 'Add Expense'}
-              </button>
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Record Expenses</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Log operating costs for your properties. These feed the portfolio income statement — mortgage and financing stay admin-only.
+              </p>
             </div>
-            <div className="space-y-2">
-              {expenses.slice(0, 10).map((e) => (
-                <div key={e.id} className="bg-white border rounded-xl p-3 flex justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{e.propertyName} · {e.category}</p>
-                    <p className="text-xs text-slate-500">{e.date}</p>
+
+            {propertyGroups.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-semibold text-slate-600">Your properties</p>
+                {propertyGroups.map((group) => (
+                  <div
+                    key={group.groupKey}
+                    className="bg-white border border-slate-200 rounded-2xl p-4 flex gap-3 sm:gap-4 items-center shadow-sm"
+                  >
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                      <img
+                        src={group.image || FALLBACK_PROPERTY_IMAGE}
+                        alt={group.label}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-900">{group.label}</p>
+                      {group.address && (
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          {group.address}
+                        </p>
+                      )}
+                      {group.units.length > 1 && (
+                        <p className="text-xs text-emerald-700 font-medium mt-1">
+                          {group.units.length} units — {group.units.map((u) => u.label).join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <p className="font-bold text-rose-700">{formatMoney(e.amount)}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-4 text-white">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">New expense</h3>
                 </div>
-              ))}
+                <p className="text-emerald-100 text-sm mt-1">Choose property, category, and amount.</p>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" /> Property
+                  </label>
+                  <select
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    value={expenseForm.groupKey}
+                    onChange={(e) => setExpenseForm((f) => ({
+                      ...f,
+                      groupKey: e.target.value,
+                      unitLabel: '',
+                    }))}
+                  >
+                    <option value="">Select property</option>
+                    {propertyGroups.map((g) => (
+                      <option key={g.groupKey} value={g.groupKey}>{g.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedGroup && selectedGroup.units.length > 1 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                      <Home className="w-3.5 h-3.5" /> Unit
+                    </label>
+                    <select
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                      value={expenseForm.unitLabel}
+                      onChange={(e) => setExpenseForm((f) => ({ ...f, unitLabel: e.target.value }))}
+                    >
+                      <option value="">All units / building-wide</option>
+                      {selectedGroup.units.map((u) => (
+                        <option key={u.propertyId} value={u.label}>{u.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5" /> Expense type
+                  </label>
+                  <select
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    value={expenseForm.category}
+                    onChange={(e) => setExpenseForm((f) => ({ ...f, category: e.target.value as OperatingExpense['category'] }))}
+                  >
+                    {MANAGER_EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5" /> Amount
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="w-full border border-slate-200 rounded-xl pl-7 pr-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        value={expenseForm.amount}
+                        onChange={(e) => setExpenseForm((f) => ({ ...f, amount: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" /> Date
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                      value={expenseForm.date}
+                      onChange={(e) => setExpenseForm((f) => ({ ...f, date: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5" /> Notes <span className="font-normal normal-case text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    placeholder="Vendor, invoice #, description…"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    value={expenseForm.notes}
+                    onChange={(e) => setExpenseForm((f) => ({ ...f, notes: e.target.value }))}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  disabled={saving || !expenseForm.amount || !expenseForm.groupKey}
+                  onClick={addExpense}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-md shadow-emerald-600/20 disabled:opacity-50 disabled:shadow-none transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  {saving ? 'Recording…' : 'Record Expense'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <h3 className="font-bold text-slate-800 mb-4">Recent expenses</h3>
+              <div className="space-y-2">
+                {myExpenses.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-8">No expenses recorded yet.</p>
+                ) : (
+                  myExpenses.slice(0, 15).map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between border border-slate-100 rounded-xl p-3 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-slate-800 truncate">
+                          {e.propertyName || 'Property'}
+                          {e.unitLabel ? ` · ${e.unitLabel}` : ''}
+                          {' · '}{CATEGORY_LABELS[e.category] || e.category}
+                        </p>
+                        <p className="text-xs text-slate-500">{e.date}{e.notes ? ` · ${e.notes}` : ''}</p>
+                      </div>
+                      <p className="font-bold text-sm text-rose-700 ml-3 flex-shrink-0">{formatMoney(e.amount)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         );
@@ -256,7 +432,7 @@ const PropertyManagerView: React.FC = () => {
                 { label: 'Properties', value: properties.length },
                 { label: 'Applications', value: applicants.length },
                 { label: 'Residents', value: myTenants.filter((t) => t.status === 'Active').length },
-                { label: 'Expenses logged', value: expenses.length },
+                { label: 'Expenses logged', value: myExpenses.length },
               ].map((s) => (
                 <div key={s.label} className="bg-white rounded-xl border p-4 text-center shadow-sm">
                   <p className="text-3xl font-bold text-emerald-700">{s.value}</p>

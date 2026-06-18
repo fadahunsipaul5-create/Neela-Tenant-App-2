@@ -339,8 +339,12 @@ export const api = {
     };
   },
 
-  getOperatingExpenses: async (): Promise<OperatingExpense[]> => {
-    const response = await fetchWithAuth(`${API_URL}/operating-expenses/`, {
+  getOperatingExpenses: async (opts?: { year?: number; limit?: number }): Promise<OperatingExpense[]> => {
+    const params = new URLSearchParams();
+    if (opts?.year) params.set('year', String(opts.year));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const query = params.toString();
+    const response = await fetchWithAuth(`${API_URL}/operating-expenses/${query ? `?${query}` : ''}`, {
       headers: getHeaders(false, true),
     });
     if (!response.ok) throw new Error('Failed to fetch operating expenses');
