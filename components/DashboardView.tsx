@@ -340,7 +340,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   useEffect(() => {
     let cancelled = false;
     setPnlLoading(true);
-    api.getIncomeStatement()
+    api.getIncomeStatement(undefined, { summary: true })
       .then((data) => {
         if (!cancelled) setPnlSummary(data);
       })
@@ -376,7 +376,13 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
   }, []);
 
   const overdueTenants = tenants.filter(t => t.balance > 0);
-  const tenantsMap = tenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
+  const tenantsMap = tenants.reduce(
+    (acc, t) => ({ ...acc, [String(t.id)]: t }),
+    {} as Record<string, Tenant>,
+  );
+
+  const paymentTenantName = (p: Payment) =>
+    p.tenantName || tenantsMap[String(p.tenantId)]?.name || 'Tenant';
 
   const dashboardAreaOptions = useMemo(() => {
     const fromProps = properties.map(p => p.area).filter((a): a is string => Boolean(a?.trim()));
@@ -441,21 +447,21 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5)
       .forEach(p => {
-        const tenant = tenantsMap[p.tenantId];
-        if (tenant) {
-          const paymentDate = new Date(p.date);
-          activities.push({
-            id: `payment-${p.id}`,
-            type: 'payment',
-            icon: DollarSign,
-            iconColor: 'text-emerald-600',
-            iconBg: 'bg-emerald-100',
-            title: `Payment received from ${tenant.name}`,
-            subtitle: `${tenant.propertyUnit} • $${p.amount.toLocaleString()}`,
-            time: formatRelativeTimeAgo(paymentDate),
-            date: paymentDate,
-          });
-        }
+        const tenant = tenantsMap[String(p.tenantId)];
+        const name = paymentTenantName(p);
+        const unit = p.tenantPropertyUnit || tenant?.propertyUnit || '';
+        const paymentDate = new Date(p.date);
+        activities.push({
+          id: `payment-${p.id}`,
+          type: 'payment',
+          icon: DollarSign,
+          iconColor: 'text-emerald-600',
+          iconBg: 'bg-emerald-100',
+          title: `Payment received from ${name}`,
+          subtitle: `${unit ? `${unit} • ` : ''}$${p.amount.toLocaleString()}`,
+          time: formatRelativeTimeAgo(paymentDate),
+          date: paymentDate,
+        });
       });
 
     // Add recent applications

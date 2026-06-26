@@ -10,6 +10,7 @@ from .views import (
     contact_manager,
     sign_lease_by_token,
     manager_me,
+    PropertyManagerViewSet,
 )
 
 router = DefaultRouter()
@@ -25,6 +26,7 @@ router.register(r'property-units', PropertyUnitViewSet, basename='property-unit'
 router.register(r'short-stay-bookings', ShortStayBookingViewSet, basename='short-stay-booking')
 router.register(r'short-stay-blocks', ShortStayBlockedDateViewSet, basename='short-stay-block')
 router.register(r'email-test', EmailTestViewSet, basename='email-test')
+router.register(r'property-managers', PropertyManagerViewSet, basename='property-manager')
 
 urlpatterns = [
     path('', include(router.urls)),

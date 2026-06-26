@@ -95,6 +95,8 @@ export interface Tenant {
 export interface Payment {
   id: string;
   tenantId: string;
+  tenantName?: string;
+  tenantPropertyUnit?: string;
   amount: number;
   date: string;
   status: 'Paid' | 'Pending' | 'Overdue' | 'Failed';
@@ -278,6 +280,33 @@ export interface OperatingExpense {
   notes?: string;
   createdByName?: string;
   createdAt?: string;
+}
+
+export interface PropertyManagerProfile {
+  id: string;
+  user: number;
+  userEmail: string;
+  userName: string;
+  phone: string;
+  propertyIds: string[];
+  assignedProperties: {
+    id: string;
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    image?: string | null;
+  }[];
+  createdAt: string;
+}
+
+export interface CreatePropertyManagerInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  phone?: string;
+  propertyIds?: string[];
 }
 
 export interface PropertyFinancials {

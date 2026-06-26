@@ -1448,10 +1448,6 @@ Landlord                            Tenant
                  {applicantModalTab === 'notes' && (
                     <div className="h-full flex flex-col animate-fade-in">
                        <h3 className="font-bold text-slate-800 mb-4">Internal Notes</h3>
-                       <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-4 flex items-start gap-3">
-                          <Shield className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-amber-800">These notes are only visible to property managers and staff. Applicants cannot see this.</p>
-                       </div>
                        <textarea
                           className="flex-1 p-4 border border-slate-300 rounded-xl resize-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors"
                           placeholder="Add notes about interactions, showing feedback, or exceptions..."

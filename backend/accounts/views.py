@@ -114,6 +114,7 @@ def reset_password(request):
         'is_verified': user.is_verified,
         'is_staff': user.is_staff,
         'is_superuser': user.is_superuser,
+        'role': getattr(user, 'role', 'tenant'),
     }
     
     # Try to find linked tenant by email
@@ -180,6 +181,7 @@ def login(request):
         'is_verified': user.is_verified,
         'is_staff': user.is_staff,
         'is_superuser': user.is_superuser,
+        'role': getattr(user, 'role', 'tenant'),
     }
     
     # Try to find linked tenant by email

@@ -59,7 +59,13 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
     type: 'info' as 'success' | 'error' | 'info' | 'warning',
   });
 
-  const tenantsMap = initialTenants.reduce((acc, t) => ({ ...acc, [t.id]: t }), {} as Record<string, Tenant>);
+  const tenantsMap = initialTenants.reduce(
+    (acc, t) => ({ ...acc, [String(t.id)]: t }),
+    {} as Record<string, Tenant>,
+  );
+
+  const paymentTenantName = (p: Payment) =>
+    p.tenantName || tenantsMap[String(p.tenantId)]?.name || 'Unknown';
 
   // Derived Data - Use props directly to ensure reactivity
   const totalCollected = initialPayments
@@ -571,7 +577,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                                 {p.status === 'Paid' ? <ArrowDownLeft className="w-4 h-4"/> : <AlertCircle className="w-4 h-4"/>}
                              </div>
                              <div>
-                                <p className="text-sm font-medium text-slate-800">{tenantsMap[p.tenantId]?.name || 'Unknown'}</p>
+                                <p className="text-sm font-medium text-slate-800">{paymentTenantName(p)}</p>
                                 <p className="text-xs text-slate-500">{p.date} • {p.type}</p>
                              </div>
                           </div>
@@ -678,7 +684,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     {initialPayments.map((pay) => (
                        <tr key={pay.id} className="hover:bg-slate-50">
                           <td className="px-6 py-4 text-slate-600">{pay.date}</td>
-                          <td className="px-6 py-4 font-medium text-slate-800">{tenantsMap[pay.tenantId]?.name}</td>
+                          <td className="px-6 py-4 font-medium text-slate-800">{paymentTenantName(pay)}</td>
                           <td className="px-6 py-4 text-slate-600">{pay.type}</td>
                           <td className="px-6 py-4 text-slate-600">{pay.method}</td>
                           <td className="px-6 py-4 font-bold text-emerald-600">+${pay.amount}</td>
@@ -723,7 +729,7 @@ const PaymentsView: React.FC<PaymentsViewProps> = ({
                     {pendingPaymentsWithProof.map((pay) => (
                        <tr key={pay.id} className="hover:bg-slate-50">
                           <td className="px-6 py-4 text-slate-600">{pay.date}</td>
-                          <td className="px-6 py-4 font-medium text-slate-800">{tenantsMap[pay.tenantId]?.name}</td>
+                          <td className="px-6 py-4 font-medium text-slate-800">{paymentTenantName(pay)}</td>
                           <td className="px-6 py-4 text-slate-600">{pay.method}</td>
                           <td className="px-6 py-4 font-bold text-slate-800">${pay.amount}</td>
                           <td className="px-6 py-4">

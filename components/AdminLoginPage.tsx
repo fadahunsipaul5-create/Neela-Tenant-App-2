@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { login, isAuthenticated } from '../services/auth';
+import { login, isAuthenticated, logout } from '../services/auth';
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import NeelaLogo from './NeelaLogo';
+import { SEO_PAGES, usePageMeta } from '../utils/seo';
 
 const AdminLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -11,6 +12,8 @@ const AdminLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  usePageMeta(SEO_PAGES.adminLogin);
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -35,7 +38,8 @@ const AdminLoginPage: React.FC = () => {
     try {
       const response = await login(email, password);
       if (!response.user?.is_staff && !response.user?.is_superuser) {
-        setError('Access denied. This account does not have admin privileges.');
+        logout();
+        setError('Invalid email or password.');
         return;
       }
       navigate('/', { replace: true, state: { adminLogin: true } });

@@ -56,17 +56,22 @@ export function getPropertyGroupKey(row: IncomeStatementRow, prop?: Property): s
 }
 
 export function extractUnitLabel(name: string, address?: string): string {
-  const src = `${name} ${address || ''}`;
+  const trimmedName = (name || '').trim();
+  const src = `${trimmedName} ${address || ''}`;
   const unit = src.match(/unit\s*[-–]?\s*([A-Za-z0-9]+)/i);
   if (unit) return `Unit ${unit[1].toUpperCase()}`;
   const door = src.match(/door\s*(\d+)/i);
   if (door) return `Door ${door[1]}`;
-  return 'Main';
+  return trimmedName || (address || '').trim() || 'Property';
 }
 
 function unitSortKey(label: string): string {
   const m = label.match(/(\d+|[A-Za-z]+)/);
   return m ? m[1].padStart(4, '0') : label;
+}
+
+function normalizeName(s?: string): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 export type GroupedPropertyRow = IncomeStatementRow & { groupKey: string };
@@ -113,26 +118,64 @@ export function groupIncomeStatementProperties(
     if (!group.address && row.address) group.address = row.address;
 
     if (row.units?.length) {
-      group.units!.push(...row.units);
+      for (const unit of row.units) {
+        if (!group.units!.some((u) => u.unitId === unit.unitId)) {
+          group.units!.push(unit);
+        }
+      }
     } else {
-      group.units!.push({
-        unitId: row.propertyId,
-        propertyId: row.propertyId,
-        label: extractUnitLabel(row.propertyName, row.address),
-        monthlyRent: prop?.price ?? 0,
-        status: prop?.status || 'vacant',
-        rentIncome: row.rentIncome,
-        totalExpenses: row.totalExpenses,
-        netIncome: row.netIncome,
-      });
+      const name = prop?.name || row.propertyName;
+      const isParentRollup =
+        normalizeName(name) === normalizeName(groupKey) ||
+        Boolean(prop?.area?.trim() && normalizeName(name) === normalizeName(prop.area));
+      if (!isParentRollup || (row.unitsCount || prop?.units || 1) <= 1) {
+        group.units!.push({
+          unitId: row.propertyId,
+          propertyId: row.propertyId,
+          label: extractUnitLabel(name, prop?.address || row.address),
+          monthlyRent: prop?.price ?? 0,
+          status: prop?.status || 'vacant',
+          rentIncome: row.rentIncome,
+          totalExpenses: row.totalExpenses,
+          netIncome: row.netIncome,
+        });
+      }
     }
-    group.unitsCount = group.units!.length;
+    group.unitsCount = Math.max(group.units!.length, row.unitsCount || prop?.units || 0);
   }
 
-  return Array.from(map.values()).map((g) => ({
-    ...g,
-    units: [...(g.units || [])].sort((a, b) => unitSortKey(a.label).localeCompare(unitSortKey(b.label))),
-  }));
+  return Array.from(map.values()).map((g) => {
+    // Enrich units from all Property records in the same building group (e.g. Unit A, B on Avenue Q)
+    for (const prop of propertyList) {
+      const propGroup = getPropertyGroupKeyFromProperty(prop);
+      if (propGroup !== g.groupKey) continue;
+      const unitLabel = extractUnitLabel(prop.name, prop.address);
+      const isParentOnly =
+        normalizeName(prop.name) === normalizeName(g.groupKey) ||
+        (prop.area?.trim() && normalizeName(prop.name) === normalizeName(prop.area));
+      if (isParentOnly) continue;
+
+      const pseudoId = `prop-${prop.id}`;
+      if (!g.units!.some((u) => u.unitId === pseudoId || u.label === unitLabel)) {
+        g.units!.push({
+          unitId: pseudoId,
+          propertyId: prop.id,
+          label: unitLabel,
+          monthlyRent: prop.price ?? 0,
+          status: prop.status || 'vacant',
+          rentIncome: 0,
+          totalExpenses: 0,
+          netIncome: 0,
+        });
+      }
+    }
+
+    const sortedUnits = [...(g.units || [])].sort((a, b) =>
+      unitSortKey(a.label).localeCompare(unitSortKey(b.label)),
+    );
+    const unitsCount = Math.max(g.unitsCount || 0, sortedUnits.length);
+    return { ...g, units: sortedUnits, unitsCount };
+  });
 }
 
 export type PropertyGroupUnit = {

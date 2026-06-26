@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { SEO_PAGES, usePageMeta } from '../utils/seo';
 
 // const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'https://neela-backend.onrender.com';
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
@@ -391,6 +392,7 @@ const SigBlock: React.FC<SigBlockProps> = ({ sigField, dateFieldId, signerLabel,
 // ─── Main page ────────────────────────────────────────────────────────────────
 const LeaseSigningPage: React.FC = () => {
   const token = new URLSearchParams(window.location.search).get('token');
+  usePageMeta(SEO_PAGES.signLease);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

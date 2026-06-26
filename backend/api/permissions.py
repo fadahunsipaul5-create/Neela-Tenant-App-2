@@ -3,6 +3,24 @@
 from django.db.models import Q
 
 # Operating categories property managers may record (no mortgage / tax / depreciation).
+# Routine notices property managers may send (not formal eviction / legal).
+MANAGER_NOTICE_TYPES = {
+    'Notice of Late Rent',
+    'Rent Reminder',
+}
+
+MANAGER_TENANT_STATUS_TRANSITIONS = {
+    'Applicant': {'Approved', 'Declined'},
+    'Approved': {'Active'},
+    'Active': {'Past'},
+}
+
+MANAGER_EDITABLE_TENANT_FIELDS = {'status', 'lease_start', 'lease_end'}
+
+MANAGER_PAYMENT_METHODS = {'Cash', 'Zelle', 'Check', 'Money Order'}
+
+MANAGER_EDITABLE_PAYMENT_FIELDS = {'status', 'method', 'reference', 'date', 'amount', 'type', 'tenant'}
+
 MANAGER_EXPENSE_CATEGORIES = {
     'utilities',
     'maintenance',
@@ -68,6 +86,14 @@ def is_import_placeholder_email(email):
 
 def exclude_import_placeholder_tenants(queryset):
     return queryset.exclude(email__startswith='excel-import-', email__endswith='@neela.local')
+
+
+def get_tenant_queryset_for_user(queryset, user):
+    """Admins see all tenants (including excel rent-roll rows); others hide import placeholders."""
+    qs = queryset
+    if not is_admin_user(user):
+        qs = exclude_import_placeholder_tenants(qs)
+    return filter_tenants_for_user(qs, user)
 
 
 def _tenant_property_unit_q(properties):

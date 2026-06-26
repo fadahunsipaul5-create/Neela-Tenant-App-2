@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { FloatingPillSwitch } from './FloatingPillSwitch';
 import { shortStayArea, shortStayDescription, shortStayLocation, shortStayTitle } from '../utils/shortStayListings';
+import { SEO_PAGES, setPageMeta, shortStayListingMeta } from '../utils/seo';
 
 const PAYMENT_OPTIONS = [
   { id: 'Zelle', label: 'Zelle', payTo: 'payments@neelacapital.com', desc: 'Bank transfer' },
@@ -224,6 +225,8 @@ const PriceBreakdown: React.FC<{ quote: any }> = ({ quote }) => (
 
 interface ShortStayPortalProps {
   onBack: () => void;
+  initialPropertyId?: string;
+  onPropertyChange?: (propertyId: string | null) => void;
 }
 
 const FAB_SIZE = 56;
@@ -332,7 +335,7 @@ export const ShortStayPromoPopup: React.FC<{ onExplore: () => void; onDismiss: (
   </div>
 );
 
-const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack }) => {
+const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack, initialPropertyId, onPropertyChange }) => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -390,6 +393,23 @@ const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack }) => {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (!initialPropertyId || loading || properties.length === 0) return;
+    const match = properties.find((p) => p.id === initialPropertyId);
+    if (match) {
+      setSelectedProperty(match);
+      setStep('book');
+    }
+  }, [initialPropertyId, loading, properties]);
+
+  useEffect(() => {
+    if (selectedProperty && step === 'book') {
+      setPageMeta(shortStayListingMeta(selectedProperty));
+    } else if (step === 'browse') {
+      setPageMeta(SEO_PAGES.shortStaysBrowse);
+    }
+  }, [selectedProperty, step]);
 
   useEffect(() => {
     if (!selectedProperty) return;
@@ -646,6 +666,7 @@ const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack }) => {
   const openPropertyBooking = (p: Property) => {
     setSelectedProperty(p);
     setStep('book');
+    onPropertyChange?.(p.id);
     setCheckIn('');
     setCheckOut('');
     setGuestFirstName('');
@@ -677,7 +698,7 @@ const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack }) => {
     return (
       <>
       <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-8 animate-fade-in">
-        <button onClick={() => { setSelectedProperty(null); setStep('browse'); }} className="flex items-center text-slate-600 hover:text-slate-900 mb-6">
+        <button onClick={() => { setSelectedProperty(null); setStep('browse'); onPropertyChange?.(null); }} className="flex items-center text-slate-600 hover:text-slate-900 mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to properties
         </button>
 
@@ -1072,7 +1093,9 @@ const ShortStayPortal: React.FC<ShortStayPortalProps> = ({ onBack }) => {
                 </div>
               </div>
               <div className="p-5">
-                <h3 className="font-bold text-lg text-slate-900">{shortStayTitle(p)}</h3>
+                <h3 className="font-bold text-lg text-slate-900">
+                  <a href={`/short-stays/${p.id}`} className="hover:text-amber-700 transition-colors">{shortStayTitle(p)}</a>
+                </h3>
                 <p className="text-sm text-slate-500 flex items-start gap-1 mt-1"><MapPin className="w-4 h-4 shrink-0" />{shortStayLocation(p)}</p>
                 <p className="text-sm text-slate-600 mt-2 line-clamp-2">{shortStayDescription(p)}</p>
                 <div className="flex gap-4 text-sm text-slate-600 mt-3">

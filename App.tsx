@@ -15,6 +15,7 @@ import { Menu } from 'lucide-react';
 import NeelaLogo from './components/NeelaLogo';
 import { api } from './services/api';
 import { isAuthenticated } from './services/auth';
+import { adminTabMeta, SEO_PAGES, usePageMeta } from './utils/seo';
 import { Tenant, Payment, MaintenanceRequest, Property } from './types';
 
 const App: React.FC = () => {
@@ -38,37 +39,6 @@ const App: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Initial mount - check auth and set initial tab
-  useEffect(() => {
-    const initializeApp = async () => {
-      setIsAuthChecking(true);
-      try {
-        const isAuth = isAuthenticated();
-        
-        if (isAuth) {
-          // Check if user is admin/staff
-          try {
-            const userStr = localStorage.getItem('user_data');
-            if (userStr) {
-              const user = JSON.parse(userStr);
-              if (user.is_staff || user.is_superuser) {
-                setActiveTab('dashboard');
-              }
-            }
-          } catch (e) {
-            console.error('Error parsing user data:', e);
-          }
-        }
-      } catch (error) {
-        console.error("Error initializing app:", error);
-      } finally {
-        setIsAuthChecking(false);
-      }
-    };
-
-    initializeApp();
-  }, []); // Only run once on mount
-
   const loadAdminData = useCallback(async (options?: { blockUI?: boolean }) => {
     const blockUI = options?.blockUI !== false;
     if (blockUI) setLoading(true);
@@ -78,32 +48,55 @@ const App: React.FC = () => {
     const maintenanceP = api.getMaintenanceRequests();
     const propertiesP = api.getProperties();
 
+    // Show dashboard as soon as tenants + properties load; payments/maintenance stream in after.
     try {
-      const [tenantsResult, paymentsResult] = await Promise.allSettled([tenantsP, paymentsP]);
+      const [tenantsResult, propertiesResult] = await Promise.allSettled([tenantsP, propertiesP]);
       setTenants(tenantsResult.status === 'fulfilled' ? tenantsResult.value : []);
-      setPayments(paymentsResult.status === 'fulfilled' ? paymentsResult.value : []);
+      setProperties(propertiesResult.status === 'fulfilled' ? propertiesResult.value : []);
       if (tenantsResult.status === 'rejected') console.error('Error fetching tenants:', tenantsResult.reason);
-      if (paymentsResult.status === 'rejected') console.error('Error fetching payments:', paymentsResult.reason);
+      if (propertiesResult.status === 'rejected') console.error('Error fetching properties:', propertiesResult.reason);
     } finally {
       if (blockUI) setLoading(false);
     }
 
-    const [maintenanceResult, propertiesResult] = await Promise.allSettled([maintenanceP, propertiesP]);
+    const [paymentsResult, maintenanceResult] = await Promise.allSettled([paymentsP, maintenanceP]);
+    setPayments(paymentsResult.status === 'fulfilled' ? paymentsResult.value : []);
     setMaintenance(maintenanceResult.status === 'fulfilled' ? maintenanceResult.value : []);
-    setProperties(propertiesResult.status === 'fulfilled' ? propertiesResult.value : []);
+    if (paymentsResult.status === 'rejected') console.error('Error fetching payments:', paymentsResult.reason);
     if (maintenanceResult.status === 'rejected') console.error('Error fetching maintenance:', maintenanceResult.reason);
-    if (propertiesResult.status === 'rejected') console.error('Error fetching properties:', propertiesResult.reason);
   }, []);
 
-  // When returning from /admin login, switch to admin dashboard
+  const isStaffAdmin = useCallback((): boolean => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user_data') || 'null');
+      return !!(user?.is_staff || user?.is_superuser);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Safety net: admin tab open but tenants never loaded (login via /admin or refresh race)
+  useEffect(() => {
+    if (isAuthChecking || loading || activeTab === 'public-portal' || !isAuthenticated()) return;
+    if (tenants.length > 0) return;
+    if (!isStaffAdmin()) return;
+    loadAdminData({ blockUI: false }).catch((error) => {
+      console.error('Error backfilling admin data:', error);
+    });
+  }, [activeTab, isAuthChecking, loading, tenants.length, loadAdminData, isStaffAdmin]);
+
+  // When returning from /admin login, switch to admin dashboard and load data
   useEffect(() => {
     const state = location.state as { adminLogin?: boolean } | null;
-    if (state?.adminLogin) {
-      setActiveTab('dashboard');
-      setIsInitialLoad(false);
-      navigate('/', { replace: true, state: {} });
-    }
-  }, [location.state, navigate]);
+    if (!state?.adminLogin) return;
+    setActiveTab('dashboard');
+    setIsInitialLoad(false);
+    navigate('/', { replace: true, state: {} });
+    loadAdminData({ blockUI: true }).catch((error) => {
+      console.error('Error loading admin data after login:', error);
+      setLoading(false);
+    });
+  }, [location.state, navigate, loadAdminData]);
 
   // Fetch properties when switching to public portal only (admin data loads once on login)
   useEffect(() => {
@@ -123,35 +116,42 @@ const App: React.FC = () => {
     loadPublicProperties();
   }, [activeTab, isInitialLoad, properties.length]);
 
-  // Initial data fetch after auth check completes
+  // Initial mount — restore admin session and load data in one pass
   useEffect(() => {
-    if (isAuthChecking || !isInitialLoad) return;
+    let cancelled = false;
 
-    const fetchInitialData = async () => {
+    const initializeApp = async () => {
+      setIsAuthChecking(true);
       try {
         const isAuth = isAuthenticated();
+        const staffAdmin = isAuth && isStaffAdmin();
 
-        if (activeTab !== 'public-portal' && isAuth) {
+        if (staffAdmin) {
+          setActiveTab('dashboard');
           await loadAdminData({ blockUI: true });
-        } else if (activeTab === 'public-portal') {
+        } else {
           try {
             const propertiesData = await api.getProperties();
-            setProperties(propertiesData);
+            if (!cancelled) setProperties(propertiesData);
           } catch (error) {
             console.error('Error fetching properties:', error);
           }
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
-      } catch (error: any) {
-        console.error('Error fetching initial data:', error);
-        setLoading(false);
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        if (!cancelled) setLoading(false);
       } finally {
-        setIsInitialLoad(false);
+        if (!cancelled) {
+          setIsAuthChecking(false);
+          setIsInitialLoad(false);
+        }
       }
     };
 
-    fetchInitialData();
-  }, [isAuthChecking, isInitialLoad, activeTab, loadAdminData]);
+    initializeApp();
+    return () => { cancelled = true; };
+  }, [loadAdminData, isStaffAdmin]);
 
   const handleReviewApplications = () => {
     setTenantsInitialTab('applicants');
@@ -364,6 +364,8 @@ const App: React.FC = () => {
   }
 
   const isPublic = activeTab === 'public-portal';
+
+  usePageMeta(isPublic ? SEO_PAGES.home : adminTabMeta(activeTab));
 
   if (isAuthChecking) {
     return (

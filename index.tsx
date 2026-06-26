@@ -7,6 +7,7 @@ import AdminLoginPage from './components/AdminLoginPage';
 import PropertyManagerLoginPage from './components/PropertyManagerLoginPage';
 import PropertyManagerView from './components/PropertyManagerView';
 import LeaseSigningPage from './components/LeaseSigningPage';
+import ShortStaysPublicPage from './components/ShortStaysPublicPage';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -18,6 +19,8 @@ root.render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route path="/short-stays/:propertyId" element={<ShortStaysPublicPage />} />
+        <Route path="/short-stays" element={<ShortStaysPublicPage />} />
         <Route path="/tenant" element={<TenantLoginPage />} />
         <Route path="/admin" element={<AdminLoginPage />} />
         <Route path="/manager/login" element={<PropertyManagerLoginPage />} />

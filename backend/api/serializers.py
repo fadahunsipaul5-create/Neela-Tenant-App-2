@@ -11,6 +11,21 @@ from django.core.files.base import ContentFile
 import os
 from datetime import datetime
 
+class TenantListSerializer(serializers.ModelSerializer):
+    """Lightweight tenant payload for list views — skips document URL normalization."""
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'id', 'name', 'email', 'phone', 'status', 'property_unit',
+            'lease_start', 'lease_end', 'rent_amount', 'deposit', 'balance',
+            'credit_score', 'background_check_status', 'lease_status',
+            'signed_lease_url', 'application_data',
+            'photo_id_files', 'income_verification_files', 'background_check_files',
+        ]
+        read_only_fields = fields
+
+
 class TenantSerializer(serializers.ModelSerializer):
     # Accept file uploads (these won't be in the model directly)
     photo_id_files_upload = serializers.ListField(
@@ -224,6 +239,19 @@ class TenantSerializer(serializers.ModelSerializer):
         
         return data
 
+class PaymentListSerializer(serializers.ModelSerializer):
+    """List payments without heavy proof-of-payment file metadata."""
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_property_unit = serializers.CharField(source='tenant.property_unit', read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_property_unit',
+            'amount', 'date', 'status', 'type', 'method', 'reference',
+        ]
+
+
 class PaymentSerializer(serializers.ModelSerializer):
     proof_of_payment_files_upload = serializers.ListField(
         child=serializers.FileField(max_length=100000, allow_empty_file=False),
@@ -353,13 +381,50 @@ class PropertyManagerProfileSerializer(serializers.ModelSerializer):
     property_ids = serializers.PrimaryKeyRelatedField(
         source='properties', many=True, queryset=Property.objects.all(), required=False
     )
+    assigned_properties = serializers.SerializerMethodField()
 
     class Meta:
         model = PropertyManagerProfile
-        fields = ('id', 'user', 'user_email', 'user_name', 'phone', 'property_ids', 'created_at')
+        fields = (
+            'id', 'user', 'user_email', 'user_name', 'phone',
+            'property_ids', 'assigned_properties', 'created_at',
+        )
 
     def get_user_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}".strip()
+
+    def get_assigned_properties(self, obj):
+        request = self.context.get('request')
+        rows = []
+        for prop in obj.properties.all():
+            image = None
+            if prop.image:
+                if request:
+                    image = request.build_absolute_uri(prop.image.url)
+                else:
+                    image = prop.image.url
+            elif prop.image_url:
+                image = prop.image_url
+            rows.append({
+                'id': prop.id,
+                'name': prop.name,
+                'address': prop.address,
+                'city': prop.city,
+                'state': prop.state,
+                'image': image,
+            })
+        return rows
+
+
+class CreatePropertyManagerSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    phone = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
+    property_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
 
 class LeaseTemplateSerializer(serializers.ModelSerializer):
     class Meta:

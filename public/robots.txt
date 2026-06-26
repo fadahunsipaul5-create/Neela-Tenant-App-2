@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /short-stays
+Disallow: /admin
+Disallow: /manager
+Disallow: /sign-lease
+Disallow: /reset-password/
+
+Sitemap: https://neelacapital.com/sitemap.xml

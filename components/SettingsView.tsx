@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, FileText, DollarSign, Palette, Save, Plus, Trash2, Upload,
-  Check, AlertCircle, LayoutTemplate, Calendar, Home, Sliders, Mail, X, Loader2
+  Check, AlertCircle, LayoutTemplate, Calendar, Home, Sliders, Mail, X, Loader2, UserCog
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Property } from '../types';
 import Modal from './Modal';
+import PropertyManagersPanel from './PropertyManagersPanel';
 
 const PROPERTY_AREAS = [
   'Avenue Q',
@@ -19,7 +20,7 @@ const PROPERTY_AREAS = [
 ];
 
 const SettingsView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'properties' | 'templates' | 'finance' | 'branding'>('properties');
+  const [activeTab, setActiveTab] = useState<'properties' | 'managers' | 'templates' | 'finance' | 'branding'>('properties');
 
   // Properties - Real API Data
   const [properties, setProperties] = useState<Property[]>([]);
@@ -393,6 +394,7 @@ ________________________ Tenant`);
         {/* Tabs */}
         <div className="flex border-b border-slate-200 overflow-x-auto">
           <TabButton id="properties" label="Properties & Units" icon={Building2} />
+          <TabButton id="managers" label="Property Managers" icon={UserCog} />
           <TabButton id="templates" label="Application & Lease" icon={FileText} />
           <TabButton id="finance" label="Payment Rules" icon={DollarSign} />
           <TabButton id="branding" label="Branding & Look" icon={Palette} />
@@ -486,6 +488,10 @@ ________________________ Tenant`);
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'managers' && (
+            <PropertyManagersPanel properties={properties} />
           )}
 
           {/* 2. TEMPLATES TAB */}

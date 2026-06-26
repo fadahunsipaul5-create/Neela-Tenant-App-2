@@ -17,6 +17,7 @@ from django.db.models import Sum, Q
 from django.db.models.functions import ExtractMonth
 
 from .models import Payment, Property, Tenant, OperatingExpense, ShortStayBooking, PropertyUnit
+from .property_units_service import get_property_group_key, is_portfolio_parent, sync_units_for_property
 from .permissions import is_admin_user, exclude_import_placeholder_tenants
 
 IMPORT_TAG = 'excel-import-2026'
@@ -83,12 +84,103 @@ def build_tenant_property_map(tenants, property_ids_set, property_aliases):
     return tenant_prop_map
 
 
+def _aggregate_expenses(expenses_qs, *, admin_view):
+    """
+    Excel imports store monthly __SUMMARY__ rows matching workbook totals.
+    Line-item rows feed category breakdown only when a summary row exists.
+    """
+    expenses = list(expenses_qs)
+    if not admin_view:
+        expenses = [e for e in expenses if e.visibility != 'admin_only']
+
+    summary_keys = {
+        (e.property_id, e.date.month)
+        for e in expenses
+        if (e.notes or '').startswith(IMPORT_TAG) and '__SUMMARY__' in (e.notes or '')
+    }
+    properties_with_excel_summary = {pid for pid, _ in summary_keys}
+
+    expenses_by_property = defaultdict(lambda: Decimal('0'))
+    expenses_by_category = defaultdict(lambda: Decimal('0'))
+    expenses_by_unit = defaultdict(lambda: Decimal('0'))
+
+    for exp in expenses:
+        amount = exp.amount or Decimal('0')
+        notes = exp.notes or ''
+        is_excel = notes.startswith(IMPORT_TAG)
+        is_summary = is_excel and '__SUMMARY__' in notes
+
+        if not is_summary:
+            expenses_by_category[exp.category] += amount
+
+        if is_excel and not is_summary and exp.property_id in properties_with_excel_summary:
+            continue
+
+        if exp.unit_id:
+            expenses_by_unit[exp.unit_id] += amount
+        if exp.property_id:
+            expenses_by_property[exp.property_id] += amount
+        else:
+            expenses_by_property['portfolio'] += amount
+
+    return expenses_by_property, expenses_by_category, expenses_by_unit
+
+
+def _monthly_expense_map(expenses_qs, *, admin_view, property_ids_set):
+    expenses = list(expenses_qs.filter(
+        Q(property_id__in=property_ids_set) | Q(property_id__isnull=True)
+    ))
+    if not admin_view:
+        expenses = [e for e in expenses if e.visibility != 'admin_only']
+
+    summary_keys = {
+        (e.property_id, e.date.month)
+        for e in expenses
+        if (e.notes or '').startswith(IMPORT_TAG) and '__SUMMARY__' in (e.notes or '')
+    }
+    properties_with_excel_summary = {pid for pid, _ in summary_keys}
+
+    month_map = defaultdict(lambda: Decimal('0'))
+    for exp in expenses:
+        notes = exp.notes or ''
+        is_excel = notes.startswith(IMPORT_TAG)
+        is_summary = is_excel and '__SUMMARY__' in notes
+        if is_excel and not is_summary and exp.property_id in properties_with_excel_summary:
+            continue
+        month_map[exp.date.month] += exp.amount or Decimal('0')
+    return month_map
+
+
+def portfolio_parent_property_ids():
+    """Portfolio roll-up properties (one per building / Excel sheet)."""
+    ids = set()
+    for prop in Property.objects.only('id', 'name', 'area', 'address', 'units'):
+        group_key = get_property_group_key(prop)
+        if is_portfolio_parent(prop, group_key):
+            ids.add(prop.id)
+    return ids
+
+
+def excel_portfolio_property_ids(year):
+    """Property IDs with Excel workbook P&L import for this year."""
+    ids = set()
+    for ref in Payment.objects.filter(
+        reference__startswith=f'{IMPORT_TAG}-',
+        date__year=year,
+    ).values_list('reference', flat=True):
+        pid = parse_import_property_id(ref)
+        if pid:
+            ids.add(pid)
+    return ids
+
+
 def compute_property_pnl(
     *,
     year,
     properties,
     admin_view,
     request=None,
+    summary_only=False,
 ):
     """
     Build income-statement payload matching Excel P&L structure.
@@ -96,6 +188,7 @@ def compute_property_pnl(
     """
     property_ids = [p.id for p in properties]
     property_ids_set = set(property_ids)
+    excel_property_ids = excel_portfolio_property_ids(year)
 
     property_aliases = []
     for p in properties:
@@ -113,9 +206,12 @@ def compute_property_pnl(
     )
 
     unit_rows_by_property = defaultdict(list)
-    for prop in properties:
-        for unit in PropertyUnit.objects.filter(property_id=prop.id):
-            unit_rows_by_property[prop.id].append(unit)
+    if not summary_only:
+        all_props = list(properties) if len(properties) < 50 else list(Property.objects.all())
+        for prop in properties:
+            sync_units_for_property(prop, all_props)
+            for unit in PropertyUnit.objects.filter(property_id=prop.id):
+                unit_rows_by_property[prop.id].append(unit)
 
     rent_income_by_property = defaultdict(lambda: Decimal('0'))
     rent_income_by_unit = defaultdict(lambda: Decimal('0'))
@@ -130,13 +226,17 @@ def compute_property_pnl(
         prop_id = tenant_prop_map.get(pay.tenant_id) or parse_import_property_id(pay.reference)
         if prop_id not in property_ids_set:
             continue
+        if excel_property_ids and prop_id in excel_property_ids:
+            if not (pay.reference or '').startswith(IMPORT_TAG):
+                continue
         amount = pay.amount or Decimal('0')
         rent_income_by_property[prop_id] += amount
-        unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
-        for unit in unit_rows_by_property.get(prop_id, []):
-            if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
-                rent_income_by_unit[unit.id] += amount
-                break
+        if not summary_only:
+            unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
+            for unit in unit_rows_by_property.get(prop_id, []):
+                if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
+                    rent_income_by_unit[unit.id] += amount
+                    break
 
     short_stay_by_property = defaultdict(lambda: Decimal('0'))
     for row in ShortStayBooking.objects.filter(
@@ -155,20 +255,34 @@ def compute_property_pnl(
     ).filter(
         Q(property_id__in=property_ids) | Q(property_id__isnull=True)
     ).select_related('property', 'unit').only(
-        'id', 'amount', 'category', 'property_id', 'unit_id', 'visibility'
+        'id', 'amount', 'category', 'property_id', 'unit_id', 'visibility', 'notes', 'date'
     )
-    if not admin_view:
-        expenses_qs = expenses_qs.exclude(visibility='admin_only')
 
-    for exp in expenses_qs:
-        amount = exp.amount or Decimal('0')
-        expenses_by_category[exp.category] += amount
-        if exp.unit_id:
-            expenses_by_unit[exp.unit_id] += amount
-        if exp.property_id:
-            expenses_by_property[exp.property_id] += amount
-        else:
-            expenses_by_property['portfolio'] += amount
+    expenses_by_property, expenses_by_category, expenses_by_unit = _aggregate_expenses(
+        expenses_qs, admin_view=admin_view
+    )
+
+    if summary_only:
+        total_rent = sum(rent_income_by_property.get(p.id, Decimal('0')) for p in properties)
+        total_short = sum(short_stay_by_property.get(p.id, Decimal('0')) for p in properties)
+        total_expenses = sum(expenses_by_property.get(p.id, Decimal('0')) for p in properties)
+        portfolio_expenses = total_expenses + expenses_by_property['portfolio']
+        portfolio_income = total_rent + total_short
+        return {
+            'year': year,
+            'is_admin_view': admin_view,
+            'portfolio': {
+                'rent_income': float(total_rent),
+                'short_stay_income': float(total_short),
+                'total_income': float(portfolio_income),
+                'total_expenses': float(portfolio_expenses),
+                'net_income': float(portfolio_income - portfolio_expenses),
+            },
+            'by_property': [],
+            'by_unit': [],
+            'expenses_by_category': {k: float(v) for k, v in expenses_by_category.items()},
+            'monthly': [],
+        }
 
     property_rows = []
     unit_detail_rows = []
@@ -275,6 +389,7 @@ def compute_property_pnl(
 def _monthly_cash_flow(*, year, property_ids, admin_view, tenant_prop_map):
     """Monthly income / expenses / NOI — mirrors Excel month summary rows."""
     property_ids_set = set(property_ids)
+    excel_property_ids = excel_portfolio_property_ids(year)
 
     month_rent_map = defaultdict(lambda: Decimal('0'))
     for pay in Payment.objects.filter(
@@ -283,6 +398,9 @@ def _monthly_cash_flow(*, year, property_ids, admin_view, tenant_prop_map):
         prop_id = tenant_prop_map.get(pay.tenant_id) or parse_import_property_id(pay.reference)
         if prop_id not in property_ids_set:
             continue
+        if excel_property_ids and prop_id in excel_property_ids:
+            if not (pay.reference or '').startswith(IMPORT_TAG):
+                continue
         month = pay.date.month
         month_rent_map[month] += pay.amount or Decimal('0')
 
@@ -299,14 +417,11 @@ def _monthly_cash_flow(*, year, property_ids, admin_view, tenant_prop_map):
         date__year=year,
     ).filter(
         Q(property_id__in=property_ids) | Q(property_id__isnull=True)
-    )
-    if not admin_view:
-        month_exp_qs = month_exp_qs.exclude(visibility='admin_only')
+    ).only('amount', 'date', 'property_id', 'visibility', 'notes')
 
-    month_exp_map = {
-        int(row['month']): row['total'] or Decimal('0')
-        for row in month_exp_qs.annotate(month=ExtractMonth('date')).values('month').annotate(total=Sum('amount'))
-    }
+    month_exp_map = _monthly_expense_map(
+        month_exp_qs, admin_view=admin_view, property_ids_set=property_ids_set
+    )
 
     monthly = []
     for month in range(1, 13):

@@ -3,11 +3,15 @@ import {
   DollarSign, TrendingUp, Building2, Wallet, ChevronDown, ChevronUp,
   MapPin, Home, BarChart3, Sparkles, PieChart,
 } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 import { api } from '../services/api';
 import { IncomeStatementSummary, OperatingExpense, Property } from '../types';
 import {
   CATEGORY_LABELS,
   groupIncomeStatementProperties,
+  GroupedPropertyRow,
 } from '../utils/propertyGrouping';
 
 interface Props {
@@ -60,6 +64,20 @@ const CATEGORY_BAR_COLORS: Record<string, string> = {
 const FALLBACK_PROPERTY_IMAGE =
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
 
+const PROPERTIES_PAGE_SIZE = 6;
+
+function SectionSkeleton({ label }: { label: string }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm animate-pulse">
+      <p className="text-sm text-slate-400 font-medium mb-4">{label}</p>
+      <div className="space-y-3">
+        <div className="h-24 rounded-xl bg-slate-100" />
+        <div className="h-16 rounded-xl bg-slate-100" />
+      </div>
+    </div>
+  );
+}
+
 /** Hide raw excel-import note prefixes; show the expense label only. */
 function formatExpenseNote(notes?: string): string {
   if (!notes) return '';
@@ -75,32 +93,52 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
   const [summary, setSummary] = useState<IncomeStatementSummary | null>(null);
   const [expenses, setExpenses] = useState<OperatingExpense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [propertiesLimit, setPropertiesLimit] = useState(PROPERTIES_PAGE_SIZE);
   const [expandedProperty, setExpandedProperty] = useState<string | null>(null);
+  /** Per property group: 'all' = combined totals, otherwise a unitId */
+  const [selectedUnitByGroup, setSelectedUnitByGroup] = useState<Record<string, string>>({});
 
   const load = async (selectedYear: number) => {
     setLoading(true);
+    setDetailsLoading(true);
     setError(null);
     setSummary(null);
     setExpenses([]);
+    setPropertiesLimit(PROPERTIES_PAGE_SIZE);
+
     try {
-      const statement = await api.getIncomeStatement(selectedYear);
-      setSummary(statement);
+      const quick = await api.getIncomeStatement(selectedYear, { summary: true });
+      setSummary(quick);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load income statement');
-    } finally {
       setLoading(false);
+      setDetailsLoading(false);
+      return;
     }
-
+    setLoading(false);
     setExpensesLoading(true);
-    api.getOperatingExpenses({ year: selectedYear, limit: 20 })
-      .then(setExpenses)
-      .catch(() => setExpenses([]))
-      .finally(() => setExpensesLoading(false));
+
+    try {
+      const [full, expenseRows] = await Promise.all([
+        api.getIncomeStatement(selectedYear),
+        api.getOperatingExpenses({ year: selectedYear, limit: 20 }),
+      ]);
+      setSummary(full);
+      setExpenses(expenseRows);
+    } catch {
+      // Portfolio totals from summary fetch remain visible
+    } finally {
+      setDetailsLoading(false);
+      setExpensesLoading(false);
+    }
   };
 
   useEffect(() => {
+    setSelectedUnitByGroup({});
+    setExpandedProperty(null);
     load(year);
   }, [year]);
 
@@ -109,15 +147,31 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
     [expenses, year]
   );
 
-  const maxMonthly = useMemo(() => {
-    if (!summary?.monthly?.length) return 1;
-    return Math.max(...summary.monthly.map((m) => Math.max(m.income, m.expenses)), 1);
+  const monthlyChartData = useMemo(() => {
+    if (!summary?.monthly?.length) return [];
+    return summary.monthly.map((m) => ({
+      name: MONTHS[m.month - 1],
+      income: m.income,
+      expenses: m.expenses,
+    }));
   }, [summary]);
 
   const groupedProperties = useMemo(() => {
     if (!summary?.byProperty?.length) return [];
     return groupIncomeStatementProperties(summary.byProperty, properties);
   }, [summary, properties]);
+
+  const visibleProperties = useMemo(
+    () => groupedProperties.slice(0, propertiesLimit),
+    [groupedProperties, propertiesLimit],
+  );
+
+  const hasMoreProperties = groupedProperties.length > propertiesLimit;
+
+  const totalUnitsAcrossProperties = useMemo(
+    () => groupedProperties.reduce((sum, g) => sum + (g.units?.length || g.unitsCount || 0), 0),
+    [groupedProperties],
+  );
 
   const expenseCategoryBreakdown = useMemo(() => {
     if (!summary?.expensesByCategory) return [];
@@ -132,6 +186,35 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
       share: total > 0 ? (amt / total) * 100 : 0,
     }));
   }, [summary]);
+
+  const getPropertyDisplay = (row: GroupedPropertyRow) => {
+    const unitCount = row.units?.length || 0;
+    const selection = selectedUnitByGroup[row.groupKey] ?? 'all';
+    if (unitCount <= 1 || selection === 'all') {
+      return {
+        income: row.totalIncome,
+        expenses: row.totalExpenses,
+        noi: row.netIncome,
+        unitLabel: unitCount === 1 ? row.units?.[0]?.label : null,
+      };
+    }
+    const unit = row.units?.find((u) => u.unitId === selection);
+    if (!unit) {
+      return {
+        income: row.totalIncome,
+        expenses: row.totalExpenses,
+        noi: row.netIncome,
+        unitLabel: null,
+      };
+    }
+    const unitIncome = unit.rentIncome;
+    return {
+      income: unitIncome,
+      expenses: unit.totalExpenses,
+      noi: unit.netIncome,
+      unitLabel: unit.label,
+    };
+  };
 
   if (loading) {
     return (
@@ -163,7 +246,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Income Statement</h2>
             <p className="text-indigo-100 mt-2 max-w-xl text-sm sm:text-base">
               Profit &amp; loss across every property — income, operating expenses, and net operating income (NOI).
-              Matches the Neela Capital Excel workbook: Total Income − Operating Expenses = NOI.
             </p>
           </div>
           <select
@@ -196,37 +278,68 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         ))}
       </div>
 
+      {detailsLoading && !summary.monthly.length ? (
+        <SectionSkeleton label="Loading monthly cash flow…" />
+      ) : (
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-5">
           <BarChart3 className="w-5 h-5 text-indigo-600" />
           <h3 className="font-bold text-slate-800 text-lg">Monthly Cash Flow — {year}</h3>
         </div>
-        <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 items-end h-36">
-          {summary.monthly.map((m) => (
-            <div key={m.month} className="flex flex-col items-center gap-1 min-w-0">
-              <div className="w-full flex flex-col justify-end h-28 gap-0.5">
-                <div
-                  className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-md min-h-[2px] transition-all"
-                  style={{ height: `${(m.income / maxMonthly) * 100}%` }}
-                  title={`Income: ${formatMoney(m.income)}`}
-                />
-                <div
-                  className="w-full bg-gradient-to-t from-rose-400 to-rose-300 rounded-b-md min-h-[2px] transition-all"
-                  style={{ height: `${(m.expenses / maxMonthly) * 100}%` }}
-                  title={`Expenses: ${formatMoney(m.expenses)}`}
-                />
-              </div>
-              <span className="text-[10px] sm:text-xs text-slate-500 font-medium truncate w-full text-center">
-                {MONTHS[m.month - 1]}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-4 mt-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" /> Income</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-400" /> Expenses</span>
+        <div className="h-56 sm:h-64 w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={monthlyChartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#64748b', fontSize: 12 }}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#64748b', fontSize: 12 }}
+                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                }}
+                formatter={(value: number, name: string) => [
+                  formatMoney(value),
+                  name === 'income' ? 'Income' : 'Expenses',
+                ]}
+              />
+              <Legend
+                formatter={(value) => (value === 'income' ? 'Income' : 'Expenses')}
+                iconType="circle"
+                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="income"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="expenses"
+                stroke="#f43f5e"
+                strokeWidth={2.5}
+                dot={{ r: 4, fill: '#f43f5e', strokeWidth: 0 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
+      )}
 
       {expenseCategoryBreakdown.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
@@ -288,19 +401,31 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         </div>
       )}
 
+      {detailsLoading && !groupedProperties.length ? (
+        <SectionSkeleton label="Loading properties…" />
+      ) : (
       <div>
         <h3 className="font-bold text-slate-800 text-xl mb-4 flex items-center gap-2">
           <Home className="w-6 h-6 text-indigo-600" />
           Properties &amp; Units
+          {groupedProperties.length > 0 && (
+            <span className="text-sm font-normal text-slate-500">
+              ({groupedProperties.length} propert{groupedProperties.length === 1 ? 'y' : 'ies'}
+              {totalUnitsAcrossProperties > 0 ? ` · ${totalUnitsAcrossProperties} units` : ''})
+            </span>
+          )}
         </h3>
         <div className="flex flex-col gap-4 max-w-4xl">
-          {groupedProperties.map((row) => {
+          {visibleProperties.map((row) => {
             const img =
               row.imageUrl ||
               properties.find((p) => row.units?.some((u) => u.propertyId === p.id))?.image ||
               FALLBACK_PROPERTY_IMAGE;
             const expanded = expandedProperty === row.groupKey;
             const unitCount = row.units?.length || 0;
+            const multiUnit = unitCount > 1 || (row.unitsCount ?? 0) > 1;
+            const selectedUnit = selectedUnitByGroup[row.groupKey] ?? 'all';
+            const display = getPropertyDisplay(row);
 
             return (
               <div
@@ -325,27 +450,55 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                           </p>
                         )}
                       </div>
-                      {unitCount > 0 && (
+                      {multiUnit && (
                         <>
                           <button
                             type="button"
                             onClick={() => setExpandedProperty(expanded ? null : row.groupKey)}
                             className="inline-flex items-center justify-between gap-2 w-full max-w-xs px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-semibold text-slate-700 transition-colors"
                           >
-                            <span>Units ({unitCount})</span>
+                            <span>
+                              Units ({unitCount})
+                              {selectedUnit !== 'all' && (
+                                <span className="text-indigo-600 font-normal ml-1">
+                                  · {row.units!.find((u) => u.unitId === selectedUnit)?.label}
+                                </span>
+                              )}
+                            </span>
                             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                           {expanded && (
-                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                              {row.units!.map((unit) => (
-                                <div
-                                  key={unit.unitId}
-                                  className="flex items-center justify-between text-xs sm:text-sm px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-100"
-                                >
-                                  <span className="font-semibold text-slate-800">{unit.label}</span>
-                                  <span className="text-emerald-700 font-medium">{formatMoney(unit.rentIncome)}</span>
-                                </div>
-                              ))}
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUnitByGroup((prev) => ({ ...prev, [row.groupKey]: 'all' }))}
+                                className={`w-full flex items-center justify-between text-xs sm:text-sm px-2.5 py-2 rounded-lg border transition-colors ${
+                                  selectedUnit === 'all'
+                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-900 ring-1 ring-indigo-200'
+                                    : 'bg-slate-50 border-slate-100 text-slate-700 hover:border-slate-200'
+                                }`}
+                              >
+                                <span className="font-semibold">All units</span>
+                                <span className="text-slate-500 font-medium">{formatMoney(row.totalIncome)}</span>
+                              </button>
+                              {row.units!.map((unit) => {
+                                const isSelected = selectedUnit === unit.unitId;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={unit.unitId}
+                                    onClick={() => setSelectedUnitByGroup((prev) => ({ ...prev, [row.groupKey]: unit.unitId }))}
+                                    className={`w-full flex items-center justify-between text-xs sm:text-sm px-2.5 py-2 rounded-lg border transition-colors ${
+                                      isSelected
+                                        ? 'bg-indigo-50 border-indigo-300 text-indigo-900 ring-1 ring-indigo-200'
+                                        : 'bg-slate-50 border-slate-100 text-slate-700 hover:border-slate-200'
+                                    }`}
+                                  >
+                                    <span className="font-semibold text-left">{unit.label}</span>
+                                    <span className="text-emerald-700 font-medium">{formatMoney(unit.rentIncome)}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                         </>
@@ -355,18 +508,23 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
 
                   {/* Right: income / expenses / NOI */}
                   <div className="flex flex-col justify-center gap-2 md:w-52 lg:w-56 flex-shrink-0">
+                    {display.unitLabel && (
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-600 px-1">
+                        {display.unitLabel}
+                      </p>
+                    )}
                     <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-emerald-600 font-bold">Income</p>
-                      <p className="font-bold text-emerald-800 text-base sm:text-lg">{formatMoney(row.totalIncome)}</p>
+                      <p className="font-bold text-emerald-800 text-base sm:text-lg">{formatMoney(display.income)}</p>
                     </div>
                     <div className="rounded-xl bg-rose-50 border border-rose-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-rose-600 font-bold">Expenses</p>
-                      <p className="font-bold text-rose-800 text-base sm:text-lg">{formatMoney(row.totalExpenses)}</p>
+                      <p className="font-bold text-rose-800 text-base sm:text-lg">{formatMoney(display.expenses)}</p>
                     </div>
                     <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-indigo-600 font-bold">NOI</p>
-                      <p className={`font-bold text-base sm:text-lg ${row.netIncome >= 0 ? 'text-indigo-800' : 'text-rose-700'}`}>
-                        {formatMoney(row.netIncome)}
+                      <p className={`font-bold text-base sm:text-lg ${display.noi >= 0 ? 'text-indigo-800' : 'text-rose-700'}`}>
+                        {formatMoney(display.noi)}
                       </p>
                     </div>
                   </div>
@@ -389,7 +547,17 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
             );
           })}
         </div>
+        {hasMoreProperties && (
+          <button
+            type="button"
+            onClick={() => setPropertiesLimit((n) => n + PROPERTIES_PAGE_SIZE)}
+            className="mt-4 px-5 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold text-sm hover:bg-indigo-100 transition-colors"
+          >
+            Load more properties ({groupedProperties.length - propertiesLimit} remaining)
+          </button>
+        )}
       </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm max-w-4xl">
         <h3 className="font-bold text-slate-800 text-lg mb-4">Recent Expenses ({year})</h3>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, isAuthenticated, getCurrentUser, logout } from '../services/auth';
-import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import NeelaLogo from './NeelaLogo';
+import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { SEO_PAGES, usePageMeta } from '../utils/seo';
 
 const PropertyManagerLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -11,6 +12,8 @@ const PropertyManagerLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  usePageMeta(SEO_PAGES.managerLogin);
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -27,14 +30,13 @@ const PropertyManagerLoginPage: React.FC = () => {
     setError(null);
     try {
       const response = await login(email, password);
-      if (response.user?.is_staff || response.user?.is_superuser) {
-        setError('This is an admin account. Use the admin portal instead.');
+      if (
+        response.user?.is_staff ||
+        response.user?.is_superuser ||
+        response.user?.role !== 'property_manager'
+      ) {
         logout();
-        return;
-      }
-      if (response.user?.role !== 'property_manager') {
-        setError('Access denied. This account is not registered as a property manager.');
-        logout();
+        setError('Invalid email or password.');
         return;
       }
       navigate('/manager', { replace: true });
@@ -53,13 +55,17 @@ const PropertyManagerLoginPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" />
           Back to Home
         </Link>
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-teal-50">
-            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:items-center">
-              <NeelaLogo variant="full" size="md" className="rounded-xl shadow-md" />
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">Property Manager Portal</h1>
-                <p className="text-sm text-slate-500">Manage your assigned properties</p>
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-500/10 border border-slate-200/60 overflow-hidden">
+          <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-b from-emerald-50/90 to-white">
+            <div className="flex flex-col items-center text-center gap-3 sm:gap-4 max-w-sm mx-auto">
+              <NeelaLogo variant="full" size="lg" showGlow={false} />
+              <div className="space-y-1 w-full">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                  Property Manager Portal
+                </h1>
+                <p className="text-sm text-slate-500 font-medium">
+                  Manage your assigned properties
+                </p>
               </div>
             </div>
           </div>

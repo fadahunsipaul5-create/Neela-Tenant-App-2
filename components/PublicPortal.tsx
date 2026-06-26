@@ -1,5 +1,6 @@
 //PublicPortal.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Listing, ApplicationForm, MaintenanceStatus, Invoice, PortalNotification, MaintenanceRequest, Property, Tenant, Payment, LegalDocument, TenantStatus } from '../types';
 import { analyzeMaintenanceRequest } from '../services/geminiService';
 import { api } from '../services/api';
@@ -16,6 +17,7 @@ import LeaseSigningOverlay from './LeaseSigningOverlay';
 import type { LeaseSigningMetadata } from '../types';
 import { getOnboardingSteps, getOnboardingCompleted, setOnboardingCompleted } from '../constants/onboardingSteps';
 import { formatDateMMDDYYYY } from '../utils/date';
+import { SEO_PAGES, usePageMeta } from '../utils/seo';
 import { 
   MapPin, BedDouble, Bath, Maximize, Check, ArrowLeft, 
   FileText, Save, Send, User, FileSignature, Download, 
@@ -40,6 +42,7 @@ interface PublicPortalProps {
 }
 
 const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onMaintenanceCreated }) => {
+  const navigate = useNavigate();
   const [view, setView] = useState<PortalView>('listings');
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [activeTab, setActiveTab] = useState<ResidentTab>('overview');
@@ -444,8 +447,10 @@ const PublicPortal: React.FC<PublicPortalProps> = ({ onAdminLogin, tenantId, onM
 
   const openShortStay = () => {
     dismissShortStayPromo();
-    setView('short_stay');
+    navigate('/short-stays');
   };
+
+  usePageMeta(SEO_PAGES.home);
 
   const handleApply = (listing: Listing) => {
     handleApplyFromHook(listing, setView);

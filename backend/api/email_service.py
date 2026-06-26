@@ -253,6 +253,42 @@ def send_contact_message_to_manager(*, tenant_id=None, sender_name=None, sender_
     )
 
 
+def _send_manager_message_to_tenant(tenant_id, manager_name, subject, message):
+    """Email a tenant directly from their property manager."""
+    from .models import Tenant
+
+    tenant = Tenant.objects.filter(id=tenant_id).first()
+    if not tenant or not tenant.email:
+        raise ValueError('Tenant not found or has no email')
+
+    plain = f"""Message from {manager_name}
+
+{message}
+
+---
+{tenant.property_unit}
+Reply to this email if you have questions.
+"""
+    html = f"""
+    <p><strong>Message from {manager_name}</strong></p>
+    <p style="white-space:pre-wrap">{message}</p>
+    <hr>
+    <p style="color:#666;font-size:12px">{tenant.property_unit}</p>
+    """
+    send_email_with_logging(
+        subject=subject,
+        message=plain,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+        recipient_list=[tenant.email],
+        html_message=html,
+        email_type='manager message to tenant',
+    )
+
+
+def send_manager_message_to_tenant(tenant_id, manager_name, subject, message):
+    return _send_manager_message_to_tenant(tenant_id, manager_name, subject, message)
+
+
 def send_email_in_thread(email_func, *args, **kwargs):
 
     email_backend = getattr(settings, 'EMAIL_BACKEND', '')

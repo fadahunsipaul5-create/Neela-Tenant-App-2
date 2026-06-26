@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login, isAuthenticated } from '../services/auth';
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import NeelaLogo from './NeelaLogo';
+import { SEO_PAGES, usePageMeta } from '../utils/seo';
 
 const TenantLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -11,6 +12,8 @@ const TenantLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  usePageMeta(SEO_PAGES.tenantLogin);
 
   useEffect(() => {
     if (isAuthenticated()) {

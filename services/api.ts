@@ -1,4 +1,4 @@
-import { Tenant, Payment, MaintenanceRequest, Listing, Property, LeaseSigningMetadata, ShortStayBooking, ShortStayBlockedDate, OperatingExpense, IncomeStatementSummary } from '../types';
+import { Tenant, Payment, MaintenanceRequest, Listing, Property, LeaseSigningMetadata, ShortStayBooking, ShortStayBlockedDate, OperatingExpense, IncomeStatementSummary, PropertyManagerProfile, CreatePropertyManagerInput } from '../types';
 import { getAuthHeader, clearInvalidTokens, refreshAccessToken, refreshTokenIfNeeded } from './auth';
 
 // In dev, use Vite proxy (/api → backend) unless VITE_API_URL is set explicitly.
@@ -159,9 +159,12 @@ export const api = {
     const data = await response.json();
     return data.map((item: any) => ({
       ...item,
-      tenantId: String(item.tenant),
+      id: String(item.id),
+      tenantId: String(item.tenant?.id ?? item.tenant ?? ''),
+      tenantName: item.tenant_name || undefined,
+      tenantPropertyUnit: item.tenant_property_unit || undefined,
       amount: parseFloat(item.amount),
-      proofOfPaymentFiles: item.proof_of_payment_files || []
+      proofOfPaymentFiles: item.proof_of_payment_files || [],
     }));
   },
 
@@ -261,9 +264,10 @@ export const api = {
     }
   },
 
-  getIncomeStatement: async (year?: number): Promise<IncomeStatementSummary> => {
+  getIncomeStatement: async (year?: number, options?: { summary?: boolean }): Promise<IncomeStatementSummary> => {
     const params = new URLSearchParams();
     if (year) params.set('year', String(year));
+    if (options?.summary) params.set('summary', '1');
     const query = params.toString();
     const response = await fetchWithAuth(`${API_URL}/payments/income-statement/${query ? `?${query}` : ''}`, {
       headers: getHeaders(false, true),
@@ -392,6 +396,78 @@ export const api = {
       throw new Error(error.detail || error.message || 'Failed to send receipt email');
     }
     return await response.json();
+  },
+
+  sendPaymentReminder: async (paymentId: string): Promise<{ status: string; message: string; reminder_email_sent?: boolean }> => {
+    const response = await fetchWithAuth(`${API_URL}/payments/${paymentId}/send-reminder/`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to send rent reminder' }));
+      throw new Error(error.detail || error.message || error.error || 'Failed to send rent reminder');
+    }
+    return await response.json();
+  },
+
+  sendTenantRentNotice: async (
+    tenantId: string,
+    noticeType: 'Rent Reminder' | 'Notice of Late Rent' = 'Notice of Late Rent',
+  ): Promise<{ status: string; message: string; notice_email_sent?: boolean }> => {
+    const response = await fetchWithAuth(`${API_URL}/tenants/${tenantId}/send-rent-notice/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ notice_type: noticeType }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to send notice' }));
+      throw new Error(error.detail || error.message || error.error || 'Failed to send notice');
+    }
+    return await response.json();
+  },
+
+  sendTenantMessage: async (
+    tenantId: string,
+    message: string,
+    subject?: string,
+  ): Promise<{ status: string; message: string }> => {
+    const response = await fetchWithAuth(`${API_URL}/tenants/${tenantId}/send-message/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ message, subject: subject || 'Message from your property manager' }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to send message' }));
+      throw new Error(error.detail || error.message || error.error || 'Failed to send message');
+    }
+    return await response.json();
+  },
+
+  markPaymentReceived: async (
+    paymentId: string,
+    method: 'Cash' | 'Zelle' | 'Check' | 'Money Order',
+    reference?: string,
+  ): Promise<Payment> => {
+    return api.updatePayment(paymentId, { status: 'Paid', method, reference: reference || undefined });
+  },
+
+  recordTenantPayment: async (input: {
+    tenantId: string;
+    amount: number;
+    method: 'Cash' | 'Zelle' | 'Check' | 'Money Order';
+    type?: Payment['type'];
+    reference?: string;
+    date?: string;
+  }): Promise<Payment> => {
+    return api.createPayment({
+      tenantId: input.tenantId,
+      amount: input.amount,
+      status: 'Paid',
+      method: input.method,
+      type: input.type || 'Rent',
+      reference: input.reference,
+      date: input.date || new Date().toISOString().slice(0, 10),
+    });
   },
 
   getMaintenanceRequests: async (): Promise<MaintenanceRequest[]> => {
@@ -675,21 +751,32 @@ export const api = {
     }
   },
 
-  // Property CRUD operations
-  getProperties: async (): Promise<Property[]> => {
-    // First try with auth if available, but handle 401 gracefully
-    let response = await fetch(`${API_URL}/properties/`, {
+  getManagerMe: async (): Promise<{
+    role: string;
+    managed_property_ids: string[];
+    phone?: string;
+  }> => {
+    const response = await fetchWithAuth(`${API_URL}/manager/me/`, {
       headers: getHeaders(false, true),
     });
-    
-    // If 401, clear invalid tokens and retry without auth (public endpoint)
-    if (response.status === 401) {
-      clearInvalidTokens();
-      response = await fetch(`${API_URL}/properties/`, {
-        headers: getHeaders(false, false),
-      });
+    if (!response.ok) {
+      throw new Error(parseApiErrorBody(await response.json().catch(() => null), 'Failed to load manager profile'));
     }
-    
+    const data = await response.json();
+    return {
+      role: String(data.role || ''),
+      managed_property_ids: ((data.managed_property_ids as Array<string | number>) || []).map(String),
+      phone: data.phone ? String(data.phone) : undefined,
+    };
+  },
+
+  // Property CRUD operations
+  getProperties: async (): Promise<Property[]> => {
+    const hasAuth = !!getAuthHeader();
+    const response = hasAuth
+      ? await fetchWithAuth(`${API_URL}/properties/`, { headers: getHeaders(false, true) })
+      : await fetch(`${API_URL}/properties/`, { headers: getHeaders(false, false) });
+
     if (!response.ok) throw new Error('Failed to fetch properties');
     const data = await response.json();
     return data.map((item: any) => {
@@ -1478,5 +1565,105 @@ export const api = {
       headers: getHeaders(false, true),
     });
     if (!response.ok) throw new Error('Failed to remove blocked dates');
+  },
+
+  getPropertyManagers: async (): Promise<PropertyManagerProfile[]> => {
+    const response = await fetchWithAuth(`${API_URL}/property-managers/`, {
+      headers: getHeaders(false, true),
+    });
+    if (!response.ok) throw new Error(parseApiErrorBody(await response.json().catch(() => null), 'Failed to fetch property managers'));
+    const data = await response.json();
+    const rows = Array.isArray(data) ? data : data.results || [];
+    return rows.map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      user: Number(row.user),
+      userEmail: String(row.user_email || ''),
+      userName: String(row.user_name || ''),
+      phone: String(row.phone || ''),
+      propertyIds: ((row.property_ids as number[]) || []).map(String),
+      assignedProperties: ((row.assigned_properties as Record<string, unknown>[]) || []).map((p) => ({
+        id: String(p.id),
+        name: String(p.name || ''),
+        address: String(p.address || ''),
+        city: String(p.city || ''),
+        state: String(p.state || ''),
+        image: (p.image as string) || null,
+      })),
+      createdAt: String(row.created_at || ''),
+    }));
+  },
+
+  createPropertyManager: async (input: CreatePropertyManagerInput): Promise<PropertyManagerProfile> => {
+    const response = await fetchWithAuth(`${API_URL}/property-managers/`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        email: input.email,
+        first_name: input.firstName,
+        last_name: input.lastName,
+        password: input.password,
+        phone: input.phone || '',
+        property_ids: (input.propertyIds || []).map(Number),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(parseApiErrorBody(await response.json().catch(() => null), 'Failed to create property manager'));
+    }
+    const row = await response.json();
+    return {
+      id: String(row.id),
+      user: Number(row.user),
+      userEmail: String(row.user_email || ''),
+      userName: String(row.user_name || ''),
+      phone: String(row.phone || ''),
+      propertyIds: ((row.property_ids as number[]) || []).map(String),
+      assignedProperties: ((row.assigned_properties as Record<string, unknown>[]) || []).map((p) => ({
+        id: String(p.id),
+        name: String(p.name || ''),
+        address: String(p.address || ''),
+        city: String(p.city || ''),
+        state: String(p.state || ''),
+        image: (p.image as string) || null,
+      })),
+      createdAt: String(row.created_at || ''),
+    };
+  },
+
+  updatePropertyManager: async (
+    id: string,
+    patch: Partial<Pick<CreatePropertyManagerInput, 'firstName' | 'lastName' | 'phone' | 'propertyIds'>>,
+  ): Promise<PropertyManagerProfile> => {
+    const body: Record<string, unknown> = {};
+    if (patch.firstName !== undefined) body.first_name = patch.firstName;
+    if (patch.lastName !== undefined) body.last_name = patch.lastName;
+    if (patch.phone !== undefined) body.phone = patch.phone;
+    if (patch.propertyIds !== undefined) body.property_ids = patch.propertyIds.map(Number);
+
+    const response = await fetchWithAuth(`${API_URL}/property-managers/${id}/`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(parseApiErrorBody(await response.json().catch(() => null), 'Failed to update property manager'));
+    }
+    const row = await response.json();
+    return {
+      id: String(row.id),
+      user: Number(row.user),
+      userEmail: String(row.user_email || ''),
+      userName: String(row.user_name || ''),
+      phone: String(row.phone || ''),
+      propertyIds: ((row.property_ids as number[]) || []).map(String),
+      assignedProperties: ((row.assigned_properties as Record<string, unknown>[]) || []).map((p) => ({
+        id: String(p.id),
+        name: String(p.name || ''),
+        address: String(p.address || ''),
+        city: String(p.city || ''),
+        state: String(p.state || ''),
+        image: (p.image as string) || null,
+      })),
+      createdAt: String(row.created_at || ''),
+    };
   },
 };

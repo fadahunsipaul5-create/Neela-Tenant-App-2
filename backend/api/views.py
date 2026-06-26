@@ -35,18 +35,23 @@ from api.management.commands.import_properties import (
 )
 import cloudinary.api
 import requests
-from .pnl_service import compute_property_pnl
+from .pnl_service import compute_property_pnl, excel_portfolio_property_ids, portfolio_parent_property_ids
 from .permissions import (
     is_admin_user,
     is_property_manager,
     filter_properties_for_user,
     get_manager_property_ids,
     filter_tenants_for_user,
+    get_tenant_queryset_for_user,
     filter_payments_for_user,
     filter_maintenance_for_user,
-    exclude_import_placeholder_tenants,
     MANAGER_EXPENSE_CATEGORIES,
     ADMIN_ONLY_EXPENSE_CATEGORIES,
+    MANAGER_NOTICE_TYPES,
+    MANAGER_TENANT_STATUS_TRANSITIONS,
+    MANAGER_EDITABLE_TENANT_FIELDS,
+    MANAGER_PAYMENT_METHODS,
+    MANAGER_EDITABLE_PAYMENT_FIELDS,
 )
 from rest_framework.exceptions import PermissionDenied
 
@@ -208,8 +213,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Tenant.objects.all().order_by('-id')
-        qs = exclude_import_placeholder_tenants(qs)
-        qs = filter_tenants_for_user(qs, self.request.user)
+        qs = get_tenant_queryset_for_user(qs, self.request.user)
         try:
             limit = int(self.request.query_params.get('limit', 0))
             offset = int(self.request.query_params.get('offset', 0))
@@ -218,6 +222,11 @@ class TenantViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError):
             pass
         return qs
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return TenantListSerializer
+        return TenantSerializer
 
     def perform_destroy(self, instance):
         if is_property_manager(self.request.user):
@@ -308,6 +317,53 @@ class TenantViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f"Celery connection failed, using threading fallback for declined email: {e}")
                 send_application_declined_email_to_user(tenant.id)
+
+    def partial_update(self, request, *args, **kwargs):
+        if is_property_manager(request.user):
+            tenant = self.get_object()
+            disallowed = set(request.data.keys()) - MANAGER_EDITABLE_TENANT_FIELDS
+            if disallowed:
+                raise PermissionDenied(
+                    f'Property managers may only update: {", ".join(sorted(MANAGER_EDITABLE_TENANT_FIELDS))}.'
+                )
+            new_status = request.data.get('status')
+            if new_status is not None and new_status != tenant.status:
+                allowed = MANAGER_TENANT_STATUS_TRANSITIONS.get(tenant.status, set())
+                if new_status not in allowed:
+                    raise PermissionDenied(
+                        f'Cannot change status from {tenant.status} to {new_status}.'
+                    )
+        return super().partial_update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='send-message')
+    def send_message(self, request, pk=None):
+        """Send a direct email message from admin or property manager to a tenant."""
+        tenant = self.get_object()
+        if tenant.status == 'Applicant':
+            return Response({'error': 'Cannot message applicants — approve or decline first.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not tenant.email:
+            return Response({'error': 'Tenant has no email on file.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        message = (request.data.get('message') or '').strip()
+        subject = (request.data.get('subject') or 'Message from your property manager').strip()
+        if not message:
+            return Response({'error': 'message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if is_property_manager(request.user):
+            pass  # tenant already scoped via get_queryset
+        elif not is_admin_user(request.user):
+            raise PermissionDenied('Admin or property manager access required.')
+
+        manager_name = request.user.get_full_name() or request.user.email
+        try:
+            send_manager_message_to_tenant(tenant.id, manager_name, subject, message)
+            return Response({
+                'status': 'success',
+                'message': f'Message sent to {tenant.name}.',
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f'Error sending tenant message: {e}')
+            return Response({'error': 'Failed to send message'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def check_status(self, request):
@@ -450,19 +506,99 @@ class TenantViewSet(viewsets.ModelViewSet):
             response['Content-Disposition'] = f'attachment; filename="{original_filename}"'
         return response
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='send-rent-notice')
+    def send_rent_notice(self, request, pk=None):
+        """Send rent reminder or late notice email (with PDF) to a tenant."""
+        tenant = self.get_object()
+        notice_type = request.data.get('notice_type', 'Notice of Late Rent')
+
+        if is_property_manager(request.user):
+            if notice_type not in MANAGER_NOTICE_TYPES:
+                raise PermissionDenied(
+                    'Property managers may only send rent reminders and late rent notices.'
+                )
+        elif not request.user.is_authenticated:
+            raise PermissionDenied('Authentication required.')
+
+        if tenant.status == 'Applicant':
+            return Response({'error': 'Notices cannot be sent to applicants.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not tenant.email:
+            return Response({'error': 'Tenant has no email on file.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            legal_doc, notice_email_sent = _create_and_send_notice(tenant, notice_type)
+            return Response({
+                'status': 'success' if notice_email_sent else 'error',
+                'message': (
+                    f'{notice_type} sent to {tenant.name}'
+                    if notice_email_sent
+                    else 'Notice could not be emailed.'
+                ),
+                'notice_email_sent': notice_email_sent,
+                'document_id': legal_doc.id,
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f'Error sending rent notice: {e}')
+            return Response(
+                {'error': f'Failed to send notice: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]  # Require authentication for payments
 
     def get_queryset(self):
-        return filter_payments_for_user(Payment.objects.all(), self.request.user)
+        return filter_payments_for_user(
+            Payment.objects.select_related('tenant').order_by('-date', '-id'),
+            self.request.user,
+        )
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return PaymentListSerializer
+        return PaymentSerializer
 
     def _deny_manager_write(self):
         if is_property_manager(self.request.user):
             raise PermissionDenied('Property managers can view payments but not record or edit them.')
 
+    def _validate_manager_payment_data(self, data, payment=None):
+        """Allow managers to mark rent received (cash/Zelle/check) for their tenants."""
+        disallowed = set(data.keys()) - MANAGER_EDITABLE_PAYMENT_FIELDS
+        if disallowed:
+            raise PermissionDenied(
+                f'Property managers may only set: {", ".join(sorted(MANAGER_EDITABLE_PAYMENT_FIELDS))}.'
+            )
+        new_status = data.get('status', getattr(payment, 'status', None))
+        if new_status is not None and new_status != 'Paid':
+            raise PermissionDenied('Property managers can only mark payments as Paid.')
+        method = data.get('method', getattr(payment, 'method', None))
+        if method is not None and method not in MANAGER_PAYMENT_METHODS:
+            raise PermissionDenied(
+                f'Allowed payment methods: {", ".join(sorted(MANAGER_PAYMENT_METHODS))}.'
+            )
+        tenant_id = data.get('tenant')
+        if tenant_id is not None:
+            from .models import Tenant
+            if not filter_tenants_for_user(Tenant.objects.filter(id=tenant_id), self.request.user).exists():
+                raise PermissionDenied('You cannot record payments for this tenant.')
+
     def create(self, request, *args, **kwargs):
+        if is_property_manager(request.user):
+            data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+            self._validate_manager_payment_data(data)
+            if data.get('status', 'Paid') != 'Paid':
+                data['status'] = 'Paid'
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            payment = serializer.save()
+            payment.tenant.update_balance()
+            response_data = dict(serializer.data)
+            headers = self.get_success_headers(serializer.data)
+            return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
         self._deny_manager_write()
         """Override create to send invoice email after payment is created."""
         data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
@@ -524,7 +660,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
     
     def perform_update(self, serializer):
-        self._deny_manager_write()
+        if is_property_manager(self.request.user):
+            self._validate_manager_payment_data(
+                self.request.data,
+                payment=self.get_object(),
+            )
+        else:
+            self._deny_manager_write()
         """Override to send receipt email when payment status changes to 'Paid'."""
         old_instance = self.get_object()
         old_status = old_instance.status
@@ -569,6 +711,36 @@ class PaymentViewSet(viewsets.ModelViewSet):
             'receipt_email_sent': receipt_email_sent,
         }, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='send-reminder')
+    def send_reminder(self, request, pk=None):
+        """Send rent payment reminder email to tenant (property managers allowed)."""
+        payment = self.get_object()
+        if payment.status == 'Paid':
+            return Response({'error': 'This payment is already marked paid.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not payment.tenant.email:
+            return Response({'error': 'Tenant has no email on file.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        reminder_email_sent = False
+        try:
+            try:
+                send_payment_reminder_to_tenant.delay(payment.id)
+                reminder_email_sent = True
+            except Exception:
+                send_payment_reminder_to_tenant(payment.id)
+                reminder_email_sent = True
+        except Exception as e:
+            logger.error(f'Failed to send payment reminder: {e}')
+
+        return Response({
+            'status': 'success' if reminder_email_sent else 'error',
+            'message': (
+                f'Rent reminder sent to {payment.tenant.name}'
+                if reminder_email_sent
+                else 'Reminder email could not be sent.'
+            ),
+            'reminder_email_sent': reminder_email_sent,
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], url_path='income-statement')
     def income_statement(self, request):
         """Live P&L / income statement by property, unit, and portfolio."""
@@ -585,17 +757,29 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Invalid year'}, status=status.HTTP_400_BAD_REQUEST)
 
         admin_view = is_admin_user(request.user)
-        properties_qs = filter_properties_for_user(
-            Property.objects.select_related('financials').prefetch_related('property_units'),
-            request.user,
-        )
+        summary_only = request.query_params.get('summary') in ('1', 'true', 'yes')
+        if summary_only:
+            properties_qs = filter_properties_for_user(Property.objects.all(), request.user)
+        else:
+            properties_qs = filter_properties_for_user(
+                Property.objects.select_related('financials').prefetch_related('property_units'),
+                request.user,
+            )
         properties = list(properties_qs)
+
+        excel_ids = excel_portfolio_property_ids(year)
+        portfolio_ids = portfolio_parent_property_ids()
+        if admin_view:
+            keep_ids = excel_ids | portfolio_ids if (excel_ids or portfolio_ids) else None
+            if keep_ids:
+                properties = [p for p in properties if p.id in keep_ids]
 
         data = compute_property_pnl(
             year=year,
             properties=properties,
             admin_view=admin_view,
             request=request,
+            summary_only=summary_only,
         )
         return Response(data)
 
@@ -621,9 +805,11 @@ class OperatingExpenseViewSet(viewsets.ModelViewSet):
         limit = self.request.query_params.get('limit')
         if limit:
             try:
-                qs = qs[: max(1, int(limit))]
+                qs = qs.order_by('-date', '-id')[: max(1, int(limit))]
             except (TypeError, ValueError):
                 pass
+        else:
+            qs = qs.order_by('-date', '-id')
         return qs
 
     def perform_create(self, serializer):
@@ -886,6 +1072,25 @@ def generate_notice_content(tenant, notice_type):
     today = datetime.now().strftime("%B %d, %Y")
     three_days_later = (datetime.now() + timedelta(days=3)).strftime("%B %d, %Y")
     
+    if notice_type == "Rent Reminder":
+        return f"""RENT PAYMENT REMINDER
+
+Dear {tenant.name},
+
+This is a friendly reminder that your rent payment for {tenant.property_unit} is due soon or may already be outstanding.
+
+Account Details:
+- Tenant Name: {tenant.name}
+- Property Unit: {tenant.property_unit}
+- Monthly Rent: ${tenant.rent_amount}
+- Current Balance Due: ${tenant.balance}
+
+Please submit payment through the tenant portal or your usual payment method. If you have already paid, please disregard this message and contact us with confirmation.
+
+Thank you,
+Neela Property Management Team
+Date: {today}"""
+
     if notice_type == "Notice of Late Rent":
         return f"""RENT PAYMENT BALANCE
 
@@ -996,6 +1201,69 @@ Outstanding Balance: ${tenant.balance}
 Please contact Neela Property Management immediately to resolve this matter.
 
 Neela Property Management Team"""
+
+
+def _create_and_send_notice(tenant, notice_type):
+    """Build notice PDF, save LegalDocument, email tenant. Returns (legal_doc, notice_email_sent)."""
+    import base64
+
+    notice_content = generate_notice_content(tenant, notice_type)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18,
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#1e293b'),
+        spaceAfter=30,
+        alignment=1,
+    )
+    elements.append(Paragraph(notice_type.upper(), title_style))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    for para in notice_content.split('\n\n'):
+        if para.strip():
+            elements.append(Paragraph(para.strip().replace('\n', '<br/>'), styles['Normal']))
+            elements.append(Spacer(1, 0.15 * inch))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    filename = f'notice_{tenant.id}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    legal_doc = LegalDocument.objects.create(
+        tenant=tenant,
+        type=notice_type,
+        generated_content=notice_content,
+        status='Sent',
+        delivery_method='Email',
+    )
+    legal_doc.pdf_file.save(filename, ContentFile(buffer.getvalue()))
+    legal_doc.save()
+
+    notice_email_sent = False
+    try:
+        pdf_bytes_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        try:
+            send_notice_to_tenant.delay(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
+            notice_email_sent = True
+        except Exception:
+            send_notice_to_tenant(legal_doc.id, pdf_bytes_b64=pdf_bytes_b64)
+            notice_email_sent = True
+    except Exception as e:
+        logger.error(f'Failed to send notice email: {e}')
+
+    return legal_doc, notice_email_sent
+
 
 class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()

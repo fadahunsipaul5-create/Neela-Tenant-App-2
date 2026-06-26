@@ -13,7 +13,8 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from api.models import OperatingExpense, Payment, Property, PropertyFinancials, Tenant
+from api.models import OperatingExpense, Payment, Property, PropertyFinancials, PropertyUnit, Tenant
+from api.property_units_service import sync_units_for_property
 
 IMPORT_TAG = 'excel-import-2026'
 EXCEL_NAME = '2026 Neela Capital Invesments LLC..xlsx'
@@ -205,6 +206,10 @@ def parse_overview(wb):
 
 
 def find_property(key, meta):
+    key_norm = normalize(key)
+    for prop in Property.objects.all():
+        if normalize(prop.name) == key_norm or normalize(prop.area or '') == key_norm:
+            return prop
     keywords = [normalize(meta['name']), normalize(meta['address'])]
     keywords = [k for k in keywords if k]
     best = None
@@ -405,7 +410,7 @@ class Command(BaseCommand):
             for month in range(1, 13):
                 summary = summaries.get(month, {})
                 income = summary.get('income')
-                if income and income > 0:
+                if income is not None and income != 0:
                     stats['payments'] += 1
                 stats['expenses'] += len(monthly_expenses.get(month, []))
 
@@ -418,25 +423,40 @@ class Command(BaseCommand):
                 prop = find_property(key, meta)
                 tenant = get_import_tenant(prop)
                 upsert_financials(prop, meta, sheet_financials)
+                sync_units_for_property(prop)
                 stats['properties'] += 1
                 self.stdout.write(f"{prop.name} ({sheet_name})")
 
-                payment_objs = []
                 expense_objs = []
 
                 for month in range(1, 13):
                     summary = summaries.get(month, {})
                     income = summary.get('income')
-                    if income and income > 0:
-                        payment_objs.append(Payment(
+                    if income is not None and income != 0:
+                        Payment.objects.update_or_create(
                             reference=f"{IMPORT_TAG}-{prop.id}-{year}-{month:02d}-rent",
-                            tenant=tenant,
-                            amount=income,
+                            defaults={
+                                'tenant': tenant,
+                                'amount': income,
+                                'date': date(year, month, 1),
+                                'status': 'Paid',
+                                'type': 'Rent',
+                                'method': 'Excel Import',
+                            },
+                        )
+
+                    summary_exp = summary.get('expenses')
+                    if summary_exp is not None and summary_exp != 0:
+                        OperatingExpense.objects.update_or_create(
+                            property=prop,
                             date=date(year, month, 1),
-                            status='Paid',
-                            type='Rent',
-                            method='Excel Import',
-                        ))
+                            notes=f"{IMPORT_TAG}|{sheet_name}|{month:02d}|__SUMMARY__",
+                            defaults={
+                                'amount': summary_exp,
+                                'category': 'other',
+                                'visibility': 'operating',
+                            },
+                        )
 
                     for label, amount in monthly_expenses.get(month, []):
                         category = map_category(label)
@@ -451,18 +471,6 @@ class Command(BaseCommand):
                             notes=note,
                         ))
 
-                for p in payment_objs:
-                    Payment.objects.update_or_create(
-                        reference=p.reference,
-                        defaults={
-                            'tenant': p.tenant,
-                            'amount': p.amount,
-                            'date': p.date,
-                            'status': p.status,
-                            'type': p.type,
-                            'method': p.method,
-                        },
-                    )
                 if expense_objs:
                     OperatingExpense.objects.bulk_create(expense_objs, batch_size=200)
 

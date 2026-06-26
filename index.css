@@ -392,11 +392,48 @@
   max-width: min(42vw, 11.5rem);
 }
 
+/* Property manager mobile header — full wordmark on light background */
+.manager-mobile-header .logo-surface--full {
+  flex-shrink: 0;
+}
+
+.manager-mobile-header .logo-surface--full .logo-img {
+  transform: scale(1.05);
+  margin: 0;
+  max-width: min(52vw, 11.5rem);
+}
+
+.manager-sidebar-logo {
+  background: linear-gradient(
+    135deg,
+    rgba(6, 78, 59, 0.95) 0%,
+    rgba(15, 118, 110, 0.9) 45%,
+    rgba(14, 116, 144, 0.85) 100%
+  );
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.manager-sidebar-logo .logo-surface--full {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.manager-sidebar-logo .logo-surface--full .logo-img {
+  transform: scale(1.06);
+  margin: 0;
+}
+
 /* ── Admin / manager responsive ── */
 @media (max-width: 639px) {
   .admin-mobile-header .logo-surface--full .logo-img {
     height: 2.25rem;
     max-width: min(48vw, 10.5rem);
+  }
+
+  .manager-mobile-header .logo-surface--full .logo-img {
+    height: 2.25rem;
+    max-width: min(56vw, 10.75rem);
   }
 
   .dash-hero {
