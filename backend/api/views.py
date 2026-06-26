@@ -35,6 +35,7 @@ from api.management.commands.import_properties import (
 )
 import cloudinary.api
 import requests
+from .pnl_service import compute_property_pnl
 from .permissions import (
     is_admin_user,
     is_property_manager,
@@ -589,221 +590,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
             request.user,
         )
         properties = list(properties_qs)
-        property_ids = [p.id for p in properties]
-        property_ids_set = set(property_ids)
 
-        def normalize(text):
-            return re.sub(r'[^a-z0-9]+', '', (text or '').lower())
-
-        property_aliases = []
-        for p in properties:
-            aliases = [normalize(p.name), normalize(p.address)]
-            aliases = [a for a in aliases if a]
-            property_aliases.append((p.id, aliases))
-
-        def match_property_id(unit_text):
-            token = normalize(unit_text)
-            if not token:
-                return None
-            for prop_id, aliases in property_aliases:
-                if any(alias and alias in token for alias in aliases):
-                    return prop_id
-            return None
-
-        unit_rows_by_property = defaultdict(list)
-        for prop in properties:
-            for unit in prop.property_units.all():
-                unit_rows_by_property[prop.id].append(unit)
-
-        tenant_prop_map = {}
-        for t in Tenant.objects.only('id', 'property_unit'):
-            pid = match_property_id(t.property_unit)
-            if pid in property_ids_set:
-                tenant_prop_map[t.id] = pid
-
-        rent_income_by_property = defaultdict(lambda: Decimal('0'))
-        rent_income_by_unit = defaultdict(lambda: Decimal('0'))
-
-        payments_qs = Payment.objects.filter(
-            status='Paid',
-            date__year=year,
-            type='Rent',
-            tenant_id__in=tenant_prop_map.keys() if tenant_prop_map else [],
-        ).select_related('tenant').only('id', 'amount', 'tenant_id', 'tenant__property_unit')
-
-        for row in payments_qs.values('tenant_id').annotate(total=Sum('amount')):
-            pid = tenant_prop_map.get(row['tenant_id'])
-            if pid:
-                rent_income_by_property[pid] += row['total'] or Decimal('0')
-
-        for pay in payments_qs:
-            prop_id = tenant_prop_map.get(pay.tenant_id)
-            if not prop_id:
-                continue
-            unit_token = normalize(pay.tenant.property_unit if pay.tenant else '')
-            for unit in unit_rows_by_property.get(prop_id, []):
-                if normalize(unit.label) in unit_token or unit_token in normalize(unit.label):
-                    rent_income_by_unit[unit.id] += pay.amount or Decimal('0')
-                    break
-
-        short_stay_by_property = defaultdict(lambda: Decimal('0'))
-        for row in ShortStayBooking.objects.filter(
-            status='confirmed',
-            check_in__year=year,
-            property_id__in=property_ids,
-        ).values('property_id').annotate(total=Sum('total_amount')):
-            short_stay_by_property[row['property_id']] = row['total'] or Decimal('0')
-
-        expenses_by_property = defaultdict(lambda: Decimal('0'))
-        expenses_by_category = defaultdict(lambda: Decimal('0'))
-        expenses_by_unit = defaultdict(lambda: Decimal('0'))
-        expenses_qs = OperatingExpense.objects.filter(
-            date__year=year,
-        ).filter(
-            Q(property_id__in=property_ids) | Q(property_id__isnull=True)
-        ).select_related('property', 'unit').only(
-            'id', 'amount', 'category', 'property_id', 'unit_id', 'visibility'
+        data = compute_property_pnl(
+            year=year,
+            properties=properties,
+            admin_view=admin_view,
+            request=request,
         )
-        if not admin_view:
-            expenses_qs = expenses_qs.exclude(visibility='admin_only')
-        for exp in expenses_qs:
-            amount = exp.amount or Decimal('0')
-            expenses_by_category[exp.category] += amount
-            if exp.unit_id:
-                expenses_by_unit[exp.unit_id] += amount
-            if exp.property_id:
-                expenses_by_property[exp.property_id] += amount
-            else:
-                expenses_by_property['portfolio'] += amount
-
-        property_rows = []
-        unit_detail_rows = []
-        total_rent = Decimal('0')
-        total_short = Decimal('0')
-        total_expenses = Decimal('0')
-        for p in properties:
-            rent = rent_income_by_property[p.id]
-            short = short_stay_by_property[p.id]
-            expenses = expenses_by_property[p.id]
-            income = rent + short
-            net = income - expenses
-            total_rent += rent
-            total_short += short
-            total_expenses += expenses
-
-            image_url = None
-            if p.image:
-                image_url = request.build_absolute_uri(p.image.url)
-            elif p.image_url:
-                image_url = p.image_url
-
-            financials_data = None
-            if admin_view:
-                fin = getattr(p, 'financials', None)
-                if fin:
-                    financials_data = {
-                        'purchase_price': float(fin.purchase_price or 0),
-                        'down_payment': float(fin.down_payment or 0),
-                        'closing_cost': float(fin.closing_cost or 0),
-                        'loan_amount': float(fin.loan_amount or 0),
-                        'interest_rate': float(fin.interest_rate or 0),
-                        'loan_term_years': fin.loan_term_years,
-                        'monthly_mortgage_payment': float(fin.monthly_mortgage_payment or 0),
-                        'land_value': float(fin.land_value or 0),
-                        'annual_depreciation_years': float(fin.annual_depreciation_years or 27.5),
-                        'escrow_notes': fin.escrow_notes or '',
-                    }
-
-            units = []
-            for unit in unit_rows_by_property.get(p.id, []):
-                unit_income = rent_income_by_unit[unit.id]
-                unit_expenses = expenses_by_unit[unit.id]
-                unit_detail = {
-                    'unit_id': unit.id,
-                    'property_id': p.id,
-                    'label': unit.label,
-                    'monthly_rent': float(unit.monthly_rent or 0),
-                    'status': unit.status,
-                    'rent_income': float(unit_income),
-                    'total_expenses': float(unit_expenses),
-                    'net_income': float(unit_income - unit_expenses),
-                }
-                units.append(unit_detail)
-                unit_detail_rows.append(unit_detail)
-
-            property_rows.append({
-                'property_id': p.id,
-                'property_name': p.name,
-                'address': p.address,
-                'city': p.city,
-                'state': p.state,
-                'units_count': p.units,
-                'image_url': image_url,
-                'rent_income': float(rent),
-                'short_stay_income': float(short),
-                'total_income': float(income),
-                'total_expenses': float(expenses),
-                'net_income': float(net),
-                'units': units,
-                'financials': financials_data,
-            })
-
-        portfolio_expenses = total_expenses + expenses_by_property['portfolio']
-        portfolio_income = total_rent + total_short
-        portfolio_net = portfolio_income - portfolio_expenses
-
-        monthly = []
-        month_rent_map = {
-            int(row['month']): row['total'] or Decimal('0')
-            for row in Payment.objects.filter(
-                status='Paid', type='Rent', date__year=year,
-            ).annotate(month=ExtractMonth('date')).values('month').annotate(total=Sum('amount'))
-        }
-        month_short_map = {
-            int(row['month']): row['total'] or Decimal('0')
-            for row in ShortStayBooking.objects.filter(
-                status='confirmed',
-                check_in__year=year,
-                property_id__in=property_ids,
-            ).annotate(month=ExtractMonth('check_in')).values('month').annotate(total=Sum('total_amount'))
-        }
-        month_exp_qs = OperatingExpense.objects.filter(
-            date__year=year,
-        ).filter(
-            Q(property_id__in=property_ids) | Q(property_id__isnull=True)
-        )
-        if not admin_view:
-            month_exp_qs = month_exp_qs.exclude(visibility='admin_only')
-        month_exp_map = {
-            int(row['month']): row['total'] or Decimal('0')
-            for row in month_exp_qs.annotate(month=ExtractMonth('date')).values('month').annotate(total=Sum('amount'))
-        }
-        for month in range(1, 13):
-            month_rent = month_rent_map.get(month, Decimal('0'))
-            month_short = month_short_map.get(month, Decimal('0'))
-            month_exp = month_exp_map.get(month, Decimal('0'))
-            monthly.append({
-                'month': month,
-                'income': float(month_rent + month_short),
-                'expenses': float(month_exp),
-                'net': float((month_rent + month_short) - month_exp),
-            })
-
-        return Response({
-            'year': year,
-            'is_admin_view': admin_view,
-            'portfolio': {
-                'rent_income': float(total_rent),
-                'short_stay_income': float(total_short),
-                'total_income': float(portfolio_income),
-                'total_expenses': float(portfolio_expenses),
-                'net_income': float(portfolio_net),
-            },
-            'by_property': property_rows,
-            'by_unit': unit_detail_rows,
-            'expenses_by_category': {k: float(v) for k, v in expenses_by_category.items()},
-            'monthly': monthly,
-        })
+        return Response(data)
 
 
 class OperatingExpenseViewSet(viewsets.ModelViewSet):
@@ -882,6 +676,87 @@ class PropertyUnitViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You cannot add units to this property.')
         serializer.save()
+
+
+class PropertyManagerViewSet(viewsets.ModelViewSet):
+    """Admin-only CRUD for property manager accounts and property assignments."""
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        if not is_admin_user(self.request.user):
+            return PropertyManagerProfile.objects.none()
+        return (
+            PropertyManagerProfile.objects
+            .select_related('user')
+            .prefetch_related('properties')
+            .order_by('-created_at')
+        )
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreatePropertyManagerSerializer
+        return PropertyManagerProfileSerializer
+
+    def _deny_non_admin(self):
+        if not is_admin_user(self.request.user):
+            raise PermissionDenied('Admin access required.')
+
+    def list(self, request, *args, **kwargs):
+        self._deny_non_admin()
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        self._deny_non_admin()
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        self._deny_non_admin()
+        serializer = CreatePropertyManagerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        User = get_user_model()
+        if User.objects.filter(email__iexact=data['email']).exists():
+            return Response(
+                {'email': ['A user with this email already exists.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = User.objects.create_user(
+            email=data['email'],
+            password=data['password'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            role='property_manager',
+            is_staff=False,
+            is_superuser=False,
+        )
+        profile = PropertyManagerProfile.objects.create(
+            user=user,
+            phone=data.get('phone') or '',
+        )
+        property_ids = data.get('property_ids') or []
+        if property_ids:
+            profile.properties.set(Property.objects.filter(id__in=property_ids))
+        out = PropertyManagerProfileSerializer(profile, context={'request': request})
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        self._deny_non_admin()
+        profile = self.get_object()
+        phone = request.data.get('phone')
+        if phone is not None:
+            profile.phone = phone
+            profile.save(update_fields=['phone'])
+        if 'property_ids' in request.data:
+            raw_ids = request.data.get('property_ids') or []
+            profile.properties.set(Property.objects.filter(id__in=raw_ids))
+        user = profile.user
+        for field in ('first_name', 'last_name'):
+            if field in request.data:
+                setattr(user, field, request.data[field])
+        user.save()
+        out = PropertyManagerProfileSerializer(profile, context={'request': request})
+        return Response(out.data)
 
 
 @api_view(['GET'])

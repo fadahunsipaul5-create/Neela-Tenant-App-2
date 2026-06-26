@@ -703,7 +703,7 @@ const DashboardView: React.FC<DashboardProps> = ({ tenants, payments, maintenanc
                   <>
                     <p className="text-lg sm:text-2xl font-bold text-stone-900 truncate">
                       {pnlSummary.portfolio.netIncome >= 0 ? '' : '−'}
-                      ${Math.abs(pnlSummary.portfolio.netIncome).toLocaleString()} net operating income
+                      ${Math.abs(pnlSummary.portfolio.netIncome).toLocaleString()} NOI
                     </p>
                     <p className="text-xs text-stone-500 mt-0.5">
                       Income ${pnlSummary.portfolio.totalIncome.toLocaleString()} · Expenses ${pnlSummary.portfolio.totalExpenses.toLocaleString()}

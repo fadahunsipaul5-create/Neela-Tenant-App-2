@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   DollarSign, TrendingUp, Building2, Wallet, ChevronDown, ChevronUp,
-  Lock, MapPin, Home, BarChart3, Sparkles, PieChart,
+  MapPin, Home, BarChart3, Sparkles, PieChart,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { IncomeStatementSummary, OperatingExpense, Property } from '../types';
@@ -162,7 +162,8 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Income Statement</h2>
             <p className="text-indigo-100 mt-2 max-w-xl text-sm sm:text-base">
-              Profit &amp; loss across every property and unit — income, operating expenses, and net operating income (NOI).
+              Profit &amp; loss across every property — income, operating expenses, and net operating income (NOI).
+              Matches the Neela Capital Excel workbook: Total Income − Operating Expenses = NOI.
             </p>
           </div>
           <select
@@ -181,7 +182,7 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
         {[
           { label: 'Total Income', value: summary.portfolio.totalIncome, icon: DollarSign, grad: 'from-emerald-500 to-teal-600' },
           { label: 'Operating Expenses', value: summary.portfolio.totalExpenses, icon: Wallet, grad: 'from-rose-500 to-pink-600' },
-          { label: 'Net Operating Income', value: summary.portfolio.netIncome, icon: TrendingUp, grad: 'from-indigo-500 to-violet-600' },
+          { label: 'Net Operating Income (NOI)', value: summary.portfolio.netIncome, icon: TrendingUp, grad: 'from-indigo-500 to-violet-600' },
           { label: 'Rent Collected', value: summary.portfolio.rentIncome, icon: Building2, grad: 'from-blue-500 to-cyan-600' },
         ].map(({ label, value, icon: Icon, grad }) => (
           <div key={label} className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-lg shadow-slate-200/50 p-5">
@@ -236,8 +237,7 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                 <h3 className="font-bold text-slate-800 text-lg">Expenses by Category</h3>
               </div>
               <p className="text-sm text-slate-500 max-w-2xl">
-                Portfolio breakdown for {year} — where operating costs were recorded across all properties
-                (manager-logged expenses plus taxes, insurance, and financing lines on the books).
+                Portfolio breakdown for {year} — operating costs recorded across all properties.
               </p>
             </div>
             <div className="text-right flex-shrink-0">
@@ -375,7 +375,6 @@ const IncomeStatementView: React.FC<Props> = ({ properties }) => {
                 {isAdmin && row.financials && (
                   <div className="mt-4 p-3 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-1">
                     <div className="flex items-center gap-1.5 text-amber-300 font-semibold mb-2">
-                      <Lock className="w-3.5 h-3.5" />
                       Financing &amp; Ownership
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
